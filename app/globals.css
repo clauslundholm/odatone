@@ -1,0 +1,358 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ *  Odatone design tokens
+ *
+ *  Light-first and near-monochrome: graphite on off-white, with the
+ *  brand gradient (magenta → blue, taken from the logo) as the single
+ *  accent. Dark is a full alternative theme, and `.on-dark` turns any
+ *  section black whatever the theme.
+ *
+ *  `inline` on @theme is load-bearing: without it Tailwind resolves
+ *  var(--c-*) once at :root and every .on-dark island renders the wrong
+ *  theme's colours. Don't remove it.
+ * ------------------------------------------------------------------ */
+
+@theme inline {
+  --font-sans: var(--f-sans);
+  --font-display: var(--f-sans);
+
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-warn: var(--c-warn);
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root {
+  /* Height of the site-wide player dock. Everything that must clear it
+     reads this, so the bar can change height in one place. */
+  --dock-h: 64px;
+  /* The logo's own gradient. The only saturated colour on the site. */
+  --g-brand: linear-gradient(100deg, #db00ff 0%, #7a3aff 46%, #3d7aff 100%);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --dock-h: 76px;
+  }
+}
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --c-bg: #f5f5f7;
+  --c-surface: #ffffff;
+  --c-surface-2: #ececee;
+  --c-surface-3: #e2e2e5;
+  --c-ink: #1c1c1e;
+  --c-ink-2: #6e6e73;
+  --c-ink-3: #8e8e93;
+  --c-line: rgba(0, 0, 0, 0.09);
+  --c-line-strong: rgba(0, 0, 0, 0.2);
+  --c-accent: #7a3aff;
+  --c-accent-ink: #ffffff;
+  --c-accent-soft: rgba(122, 58, 255, 0.1);
+  --c-warn: #c2410c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.06);
+  --shadow-dock: 0 -1px 0 rgba(0, 0, 0, 0.06), 0 -12px 40px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #0b0b0c;
+  --c-surface: #141416;
+  --c-surface-2: #1d1d20;
+  --c-surface-3: #27272b;
+  --c-ink: #f5f5f7;
+  --c-ink-2: #a1a1a6;
+  --c-ink-3: #6e6e73;
+  --c-line: rgba(255, 255, 255, 0.1);
+  --c-line-strong: rgba(255, 255, 255, 0.24);
+  --c-accent: #8f4dff;
+  --c-accent-ink: #ffffff;
+  --c-accent-soft: rgba(143, 77, 255, 0.16);
+  --c-warn: #ff8a4c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 40px rgba(0, 0, 0, 0.4);
+  --shadow-dock: 0 -1px 0 rgba(255, 255, 255, 0.06), 0 -12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* A black island inside either theme — feature sections, the dock. */
+.on-dark {
+  color-scheme: dark;
+  --c-bg: #0b0b0c;
+  --c-surface: #141416;
+  --c-surface-2: #1d1d20;
+  --c-surface-3: #27272b;
+  --c-ink: #f5f5f7;
+  --c-ink-2: #a1a1a6;
+  --c-ink-3: #6e6e73;
+  --c-line: rgba(255, 255, 255, 0.1);
+  --c-line-strong: rgba(255, 255, 255, 0.24);
+  --c-accent: #8f4dff;
+  --c-accent-ink: #ffffff;
+  --c-accent-soft: rgba(143, 77, 255, 0.16);
+  --c-warn: #ff8a4c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 40px rgba(0, 0, 0, 0.4);
+  background-color: var(--c-bg);
+  color: var(--c-ink);
+}
+
+* {
+  border-color: var(--c-line);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+body {
+  background-color: var(--c-bg);
+  color: var(--c-ink);
+  font-family: var(--f-sans);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--c-accent);
+  color: var(--c-accent-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Type
+ *
+ *  One family, four jobs. Size and weight do the work; there is no
+ *  second typeface and nothing is set in capitals.
+ * ---------------------------------------------------------------- */
+
+.u-display {
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.u-title {
+  font-weight: 600;
+  letter-spacing: -0.024em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.u-lede {
+  font-size: clamp(1.0625rem, 1.35vw, 1.3125rem);
+  line-height: 1.5;
+  letter-spacing: -0.011em;
+  color: var(--c-ink-2);
+  text-wrap: pretty;
+}
+
+/* Small structural label. Sentence case on purpose — capitals were the
+   loudest thing on the old design. */
+.u-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.004em;
+  line-height: 1.3;
+  color: var(--c-ink-3);
+}
+
+.u-num {
+  font-weight: 600;
+  letter-spacing: -0.036em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.u-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The gradient is reserved for one figure per screen at most. */
+.u-gradient {
+  background: var(--g-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A text link with a chevron, the quiet secondary action everywhere. */
+.u-link {
+  color: var(--c-accent);
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+  transition: opacity 0.2s var(--ease-soft);
+}
+.u-link:hover {
+  opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Surfaces
+ * ---------------------------------------------------------------- */
+
+.u-card {
+  background-color: var(--c-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.u-card-flat {
+  background-color: var(--c-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--c-line);
+}
+
+/* ---------------------------------------------------------------- *
+ *  Motion
+ * ---------------------------------------------------------------- */
+
+@keyframes oda-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes oda-bar {
+  0%,
+  100% {
+    transform: scaleY(0.22);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.u-rise {
+  animation: oda-rise 0.8s var(--ease-out-expo) both;
+}
+
+/* ---------------------------------------------------------------- *
+ *  Controls
+ * ---------------------------------------------------------------- */
+
+input[type="range"].oda-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"].oda-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--c-accent) 0%,
+    var(--c-accent) var(--fill, 50%),
+    var(--c-surface-3) var(--fill, 50%),
+    var(--c-surface-3) 100%
+  );
+}
+
+input[type="range"].oda-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--c-accent) 0%,
+    var(--c-accent) var(--fill, 50%),
+    var(--c-surface-3) var(--fill, 50%),
+    var(--c-surface-3) 100%
+  );
+}
+
+input[type="range"].oda-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: none;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.28),
+    0 0 0 0.5px rgba(0, 0, 0, 0.08);
+  transition: transform 0.18s var(--ease-soft);
+}
+
+input[type="range"].oda-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
+input[type="range"].oda-range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.oda-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
+}
+.oda-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.oda-scroll::-webkit-scrollbar-thumb {
+  background: var(--c-line-strong);
+  border-radius: 999px;
+}
+.oda-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
