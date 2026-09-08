@@ -112,21 +112,32 @@ The page body can be made editable, so wording is changed by typing on the
 page rather than by finding the string in a file. Where the edit lands depends
 on where you are editing.
 
-**Locally**, `npm run dev` makes every page editable straight away. Typing over
-text and clicking away rewrites the string literal in `lib/content/*.ts`, so
-the change shows up as a git diff — review it like any other change, and undo
-it with `git checkout`. Anything that cannot be placed unambiguously (the same
-sentence in two files, or text that is assembled rather than written out) is
-parked in `content-edits.json` rather than guessed at, so no edit is lost
-quietly. A badge in the corner reads *editing source*.
+Nothing is sent while you type. A chip in the bottom-left corner says where
+edits are heading, and as soon as you change something it turns into a **Save**
+button counting the pending changes; pressing it — or ⌘S — publishes them, and
+it reports back where they went. Leaving the page with unsaved changes warns
+first. Typing a string back to what it was removes it from the count.
+
+**Locally**, `npm run dev` makes every page editable straight away, and saving
+rewrites the string literal in `lib/content/*.ts`, so the change shows up as a
+git diff — review it like any other change, and undo it with `git checkout`.
+Anything that cannot be placed unambiguously (the same sentence in two files,
+or text that is assembled rather than written out) is parked in
+`content-edits.json` rather than guessed at, so no edit is lost quietly. The
+chip reads *editing source*.
 
 **On the deployed site**, editing is off by default: the served HTML says
 nothing about editing and an ordinary visitor makes no request on its account.
 Visit `/da?edit`, enter the `EDIT_PASSWORD`, and the page becomes editable with
-the badge reading *editing live site*. Edits are stored as overrides that the
-layout and every page apply on top of the `lib/content` defaults, so the change
-is live for every visitor as soon as it saves — there is no deploy and no
-review step. Five wrong passwords in ten minutes locks further attempts.
+the chip reading *editing live site*. Saving stores an override that the layout
+and every page apply on top of the `lib/content` defaults, so the change is
+live for every visitor the moment it lands — there is no deploy and no review
+step. Five wrong passwords in ten minutes locks further attempts.
+
+A string can be edited as often as you like: the override is always keyed by
+the text as `lib/content` spells it, not by whatever is currently on screen, so
+the second and later edits replace the first rather than piling up behind it.
+Editing a string back to its source wording drops the override altogether.
 
 This means the live copy drifts from the source files. `GET /api/edits/export`,
 with an editing session, returns every override plus the recent edit history as

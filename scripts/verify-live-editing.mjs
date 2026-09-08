@@ -7,9 +7,10 @@
  *   1. /da is not editable and issues no request to /api/edit-session.
  *   2. /da?edit with a wrong password is refused.
  *   3. /da?edit with the right password makes the body editable.
- *   4. Typing into an h1 and clicking away posts once to /api/edits.
- *   5. A fresh request to /da contains the new text.
- *   6. With no Redis configured, /da still renders its source copy.
+ *   4. Typing into an h1 offers a Save button and sends nothing until pressed.
+ *   5. Pressing it posts once to /api/edits and a fresh request shows the text.
+ *   6. Editing the same string a second time also takes effect.
+ *   7. With no Redis configured, /da still renders its source copy.
  *
  * Steps 4 and 5 need a scratch Redis database. Set either UPSTASH_REDIS_REST_URL
  * and UPSTASH_REDIS_REST_TOKEN, or the KV_REST_API_URL and KV_REST_API_TOKEN the
@@ -177,6 +178,12 @@ async function startBrowser() {
   const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
   await cdp.send("Page.enable", {}, sessionId);
+  /* Unsaved edits raise a beforeunload prompt, which would stall navigation. */
+  cdp.on((msg) => {
+    if (msg.method === "Page.javascriptDialogOpening" && msg.sessionId === sessionId) {
+      cdp.send("Page.handleJavaScriptDialog", { accept: true }, sessionId).catch(() => {});
+    }
+  });
   await cdp.send("Runtime.enable", {}, sessionId);
   await cdp.send("Network.enable", {}, sessionId);
 
@@ -226,6 +233,9 @@ function makePage(cdp, sessionId) {
 
   return { requests, responses, evaluate, goto, insertText };
 }
+
+const SAVE_BUTTON =
+  "[...document.querySelectorAll('button')].find(b => /^Save \\d+ change/.test(b.textContent))";
 
 /** Puts the caret at the end of the first element matching `selector`, which
     is what tells EditCapture which element is being edited. */
@@ -327,10 +337,26 @@ try {
     await page.evaluate(caretInto(target));
     await sleep(300);
     await page.insertText(" (edited)");
-    await sleep(300);
-    /* Moving the caret out of the element ends the sentence and saves. */
-    await page.evaluate(caretInto("h2"));
 
+    const offered = await waitFor(() => page.evaluate(`Boolean(${SAVE_BUTTON})`), {
+      what: "the Save button to offer the change",
+      timeout: 10_000,
+    });
+    const buttonLabel = await page.evaluate(`${SAVE_BUTTON}.textContent`);
+    assert("typing offers a Save button", offered, JSON.stringify(buttonLabel));
+    assert(
+      "the button counts one change",
+      buttonLabel === "Save 1 change",
+      JSON.stringify(buttonLabel),
+    );
+
+    /* Nothing should have been sent before the button was pressed. */
+    assert(
+      "nothing is saved until the button is pressed",
+      page.requests.filter((r) => r.method === "POST" && r.url.endsWith("/api/edits")).length === 0,
+    );
+
+    await page.evaluate(`${SAVE_BUTTON}.click()`);
     const saved = await waitFor(
       () => {
         const hit = page.requests.filter(
@@ -340,7 +366,19 @@ try {
       },
       { what: "the save to be posted", timeout: 15_000 },
     );
-    assert("clicking away posts exactly one save", saved.length === 1, `${saved.length} post(s)`);
+    assert("pressing Save posts exactly one save", saved.length === 1, `${saved.length} post(s)`);
+
+    const confirmation = await waitFor(
+      () => page.evaluate(
+        "[...document.querySelectorAll('button')].map(b => b.textContent).find(t => /^Saved/.test(t)) ?? ''",
+      ),
+      { what: "the button to confirm the save", timeout: 10_000 },
+    );
+    assert(
+      "the button confirms where it went",
+      confirmation === "Saved — now live",
+      JSON.stringify(confirmation),
+    );
 
     const response = page.responses.get(`${app.origin}/api/edits`);
     assert("the save was accepted", response?.status === 200, `status ${response?.status}`);
@@ -369,8 +407,11 @@ try {
     await page.evaluate(caretInto(target));
     await sleep(300);
     await page.insertText(" twice");
-    await sleep(300);
-    await page.evaluate(caretInto("h2"));
+    await waitFor(() => page.evaluate(`Boolean(${SAVE_BUTTON})`), {
+      what: "the Save button on the second pass",
+      timeout: 10_000,
+    });
+    await page.evaluate(`${SAVE_BUTTON}.click()`);
     await waitFor(
       () => page.requests.some((r) => r.method === "POST" && r.url.endsWith("/api/edits")),
       { what: "the second save to be posted", timeout: 15_000 },
@@ -384,7 +425,11 @@ try {
       `looked for ${JSON.stringify(`${before} (edited) twice`)}`,
     );
   } else {
-    record("clicking away posts exactly one save", "skip", "no Redis credentials");
+    record("typing offers a Save button", "skip", "no Redis credentials");
+    record("the button counts one change", "skip", "no Redis credentials");
+    record("nothing is saved until the button is pressed", "skip", "no Redis credentials");
+    record("pressing Save posts exactly one save", "skip", "no Redis credentials");
+    record("the button confirms where it went", "skip", "no Redis credentials");
     record("a fresh request serves the edited text", "skip", "no Redis credentials");
     record("a second edit of the same string also takes effect", "skip", "no Redis credentials");
 

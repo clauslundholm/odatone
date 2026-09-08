@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 /* Companion to the contentEditable body: watches text being typed over on the
-   page and posts it to /api/edits. Renders nothing, and EditorShell only
-   mounts it once it has established that this visitor may edit — locally that
-   is everyone, and on the deployed site it takes the password.
+   page and posts it to /api/edits when the editor asks for it.
 
-   Where the edit lands is the route's decision, not this component's: in
-   development it is rewritten into lib/content/, and otherwise it becomes an
-   override that every visitor then sees.
+   Saving is deliberate rather than automatic. On the deployed site a save is
+   published to every visitor the moment it lands, so it waits for the Save
+   button in EditorShell; nothing goes out because a pause happened to be long
+   enough. Locally the same button rewrites lib/content instead, which also
+   keeps Fast Refresh from re-rendering the text under the caret mid-sentence.
 
    With the whole body as the editing host, `input` events fire on the body
    rather than on the paragraph being typed in — so the caret's own position
@@ -18,10 +18,14 @@ import { usePathname } from "next/navigation";
 
 const SKIP = new Set(["INPUT", "TEXTAREA", "SELECT", "OPTION"]);
 
-/* Saving rewrites a source file, which trips Fast Refresh and re-renders the
-   text under the caret. So we hold off until the sentence is finished: moving
-   to another element saves immediately, and otherwise a pause does it. */
-const IDLE_MS = 2000;
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+export type CopyEdits = {
+  /** How many distinct strings are changed and not yet saved. */
+  count: number;
+  status: SaveStatus;
+  save: () => void;
+};
 
 function editedElement(): HTMLElement | null {
   const node = document.getSelection()?.anchorNode ?? null;
@@ -40,60 +44,33 @@ function editedElement(): HTMLElement | null {
   return el;
 }
 
-export default function EditCapture() {
+/** Collects what has been typed over on this page and saves it on request.
+    Pass `false` while the visitor may not edit: the listeners come off and
+    nothing is collected. */
+export function useCopyEdits(enabled: boolean): CopyEdits {
   const pathname = usePathname();
-  /* First text we ever saw in an element. That is the string the route looks
-     for in lib/content/, so repeated passes over one sentence keep pointing at
-     the literal still on disk rather than at our own last edit. */
+  /* First text we ever saw in an element. That is the string the route
+     resolves the override against, so repeated passes over one sentence keep
+     pointing at the same key rather than at our own last edit. */
   const originals = useRef(new WeakMap<HTMLElement, string>());
   const pending = useRef(new Map<string, string>());
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const active = useRef<HTMLElement | null>(null);
   const page = useRef(pathname);
+  const saving = useRef(false);
+
+  const [count, setCount] = useState(0);
+  const [status, setStatus] = useState<SaveStatus>("idle");
 
   useEffect(() => {
     page.current = pathname;
   }, [pathname]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     const remember = () => {
       const el = editedElement();
       if (el && !originals.current.has(el)) {
         originals.current.set(el, el.textContent ?? "");
-      }
-      /* Caret left the element being edited: that sentence is done, so save
-         now rather than waiting out the idle timer. */
-      if (el !== active.current) {
-        active.current = el;
-        if (pending.current.size) {
-          if (timer.current) clearTimeout(timer.current);
-          void flush();
-        }
-      }
-    };
-
-    const flush = async () => {
-      timer.current = null;
-      if (!pending.current.size) return;
-
-      const edits = Object.fromEntries(pending.current);
-      try {
-        const res = await fetch("/api/edits", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: page.current, edits }),
-        });
-        /* Only forget the edits once they are actually on disk; a failed
-           save just rides along with the next one. */
-        if (res.ok) {
-          for (const key of Object.keys(edits)) {
-            if (pending.current.get(key) === edits[key]) {
-              pending.current.delete(key);
-            }
-          }
-        }
-      } catch {
-        /* dev server restarting, most likely — keep them for next time */
       }
     };
 
@@ -105,49 +82,70 @@ export default function EditCapture() {
       if (before === undefined || !before.trim()) return;
 
       const after = el.textContent ?? "";
-      if (after === before) {
-        pending.current.delete(before);
-      } else {
-        pending.current.set(before, after);
-      }
+      /* Typed back to where it started, so there is nothing left to save. */
+      if (after === before) pending.current.delete(before);
+      else pending.current.set(before, after);
 
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(flush, IDLE_MS);
-    };
-
-    /* Leaving the tab mid-sentence should not cost the last edit. */
-    const onHide = () => {
-      if (document.visibilityState !== "hidden" || !pending.current.size) return;
-      const body = JSON.stringify({
-        path: page.current,
-        edits: Object.fromEntries(pending.current),
-      });
-      navigator.sendBeacon?.(
-        "/api/edits",
-        new Blob([body], { type: "application/json" }),
-      );
-    };
-
-    /* Clicking outside the page entirely still ends the sentence. */
-    const onBlur = () => {
-      if (!pending.current.size) return;
-      if (timer.current) clearTimeout(timer.current);
-      void flush();
+      setCount(pending.current.size);
+      setStatus("idle");
     };
 
     document.addEventListener("selectionchange", remember);
-    window.addEventListener("blur", onBlur);
     document.addEventListener("input", onInput);
-    document.addEventListener("visibilitychange", onHide);
-
     return () => {
       document.removeEventListener("selectionchange", remember);
-      window.removeEventListener("blur", onBlur);
       document.removeEventListener("input", onInput);
-      document.removeEventListener("visibilitychange", onHide);
-      if (timer.current) clearTimeout(timer.current);
     };
+  }, [enabled]);
+
+  const save = useCallback(() => {
+    if (!pending.current.size || saving.current) return;
+    saving.current = true;
+    setStatus("saving");
+
+    const edits = Object.fromEntries(pending.current);
+    void fetch("/api/edits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: page.current, edits }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        /* Only forget an edit once it is actually stored, and only if it has
+           not been typed over again while the request was in flight. */
+        for (const [key, value] of Object.entries(edits)) {
+          if (pending.current.get(key) === value) pending.current.delete(key);
+        }
+        setCount(pending.current.size);
+        setStatus("saved");
+      })
+      .catch(() => setStatus("error"))
+      .finally(() => {
+        saving.current = false;
+      });
   }, []);
 
-  return null;
+  /* Unsaved text is only in this tab, so leaving would lose it silently. */
+  useEffect(() => {
+    if (!count) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [count]);
+
+  /* The body is an editing host, so the browser's own Save-page dialog is
+     never what someone pressing ⌘S here is after. */
+  useEffect(() => {
+    if (!enabled) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+        event.preventDefault();
+        save();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [enabled, save]);
+
+  return { count, status, save };
 }
