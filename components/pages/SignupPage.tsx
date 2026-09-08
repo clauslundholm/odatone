@@ -3,12 +3,14 @@ import { Suspense } from "react";
 import { Container, Section } from "@/components/ui/Section";
 import PageHero from "@/components/ui/PageHero";
 import SignupFlow from "@/components/signup/SignupFlow";
-import { signup } from "@/lib/content/signup";
+import { signup as signupDefaults } from "@/lib/content/signup";
+import { serverCopy } from "@/lib/copy-server";
 import { PROOF } from "@/lib/site";
 import type { Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 
-export default function SignupPage({ locale: l }: { locale: Locale }) {
+export default async function SignupPage({ locale: l }: { locale: Locale }) {
+  const signup = await serverCopy(signupDefaults, l);
   return (
     <>
       <PageHero

@@ -2,13 +2,16 @@ import { Container, Section, SectionHead, Tile } from "@/components/ui/Section";
 import PageHero from "@/components/ui/PageHero";
 import LibraryBrowser from "@/components/player/LibraryBrowser";
 import { LinkButton, TextLink } from "@/components/ui/Button";
-import { player } from "@/lib/content/player";
-import { ui } from "@/lib/content/common";
+import { player as playerDefaults } from "@/lib/content/player";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { serverCopy } from "@/lib/copy-server";
 import { GENRES, MOODS, TRACKS, countByGenre } from "@/lib/tracks";
 import { href, type Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 
-export default function PlayerPage({ locale: l }: { locale: Locale }) {
+export default async function PlayerPage({ locale: l }: { locale: Locale }) {
+  const player = await serverCopy(playerDefaults, l);
+  const ui = await serverCopy(uiDefaults, l);
   const counts = countByGenre();
 
   return (

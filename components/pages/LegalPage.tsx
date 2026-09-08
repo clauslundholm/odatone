@@ -1,15 +1,17 @@
 import { Container, Section } from "@/components/ui/Section";
 import PageHero from "@/components/ui/PageHero";
-import { legal } from "@/lib/content/legal";
+import { legal as legalDefaults } from "@/lib/content/legal";
+import { serverCopy } from "@/lib/copy-server";
 import type { Locale } from "@/lib/i18n";
 
-export default function LegalPage({
+export default async function LegalPage({
   locale: l,
   kind,
 }: {
   locale: Locale;
   kind: "privacy" | "terms";
 }) {
+  const legal = await serverCopy(legalDefaults, l);
   const doc = legal[kind];
 
   return (

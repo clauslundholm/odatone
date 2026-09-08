@@ -4,12 +4,16 @@ import PricingTable from "@/components/marketing/PricingTable";
 import Accordion from "@/components/marketing/Accordion";
 import { LinkButton, TextLink } from "@/components/ui/Button";
 import { CheckIcon } from "@/components/player/Icons";
-import { pricing } from "@/lib/content/pricing";
-import { home } from "@/lib/content/home";
-import { ui } from "@/lib/content/common";
+import { pricing as pricingDefaults } from "@/lib/content/pricing";
+import { home as homeDefaults } from "@/lib/content/home";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { serverCopy } from "@/lib/copy-server";
 import { href, type Locale } from "@/lib/i18n";
 
-export default function PricingPage({ locale: l }: { locale: Locale }) {
+export default async function PricingPage({ locale: l }: { locale: Locale }) {
+  const pricing = await serverCopy(pricingDefaults, l);
+  const home = await serverCopy(homeDefaults, l);
+  const ui = await serverCopy(uiDefaults, l);
   return (
     <>
       <PageHero

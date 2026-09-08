@@ -4,12 +4,15 @@ import Calculator from "@/components/marketing/Calculator";
 import PriceCompare from "@/components/marketing/PriceCompare";
 import Accordion from "@/components/marketing/Accordion";
 import { LinkButton, TextLink } from "@/components/ui/Button";
-import { savings } from "@/lib/content/savings";
-import { ui } from "@/lib/content/common";
+import { savings as savingsDefaults } from "@/lib/content/savings";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { serverCopy } from "@/lib/copy-server";
 import { RATES_UPDATED, RATES_VERIFIED } from "@/lib/rates";
 import { href, type Locale } from "@/lib/i18n";
 
-export default function SavingsPage({ locale: l }: { locale: Locale }) {
+export default async function SavingsPage({ locale: l }: { locale: Locale }) {
+  const savings = await serverCopy(savingsDefaults, l);
+  const ui = await serverCopy(uiDefaults, l);
   return (
     <>
       <PageHero
