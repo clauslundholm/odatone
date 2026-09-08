@@ -9,14 +9,29 @@ const HISTORY_MAX = 200;
 
 export type HistoryEntry = { ts: number; locale: string; from: string; to: string };
 
-/* Absent credentials are a normal state — locally, and on any deploy made
-   before the integration was added — so this returns null instead of throwing
-   and every read falls back to the defaults in lib/content. */
-function client(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+/* Two spellings, because the credentials arrive under different names
+   depending on how the database was created: UPSTASH_REDIS_REST_* is what
+   Upstash's own SDK and dashboard use, and KV_REST_API_* is what the Vercel
+   Marketplace integration injects. Whichever is present wins. */
+function credentials(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
-  return new Redis({ url, token });
+  return { url, token };
+}
+
+/** Whether a store is reachable at all. False is a normal state — locally, and
+    on any deploy made before the integration was added — and means every read
+    falls back to the defaults in lib/content. */
+export function isConfigured(): boolean {
+  return credentials() !== null;
+}
+
+/* Absent credentials are a normal state, so this returns null instead of
+   throwing and lets each caller decide what that means. */
+function client(): Redis | null {
+  const creds = credentials();
+  return creds ? new Redis(creds) : null;
 }
 
 /** Every override for one locale, keyed by the text as it appears in

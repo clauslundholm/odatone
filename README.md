@@ -133,11 +133,14 @@ with an editing session, returns every override plus the recent edit history as
 JSON, which is how you pull the wording back into `lib/content` when the two
 have diverged far enough to bother.
 
-Setting it up on Vercel needs three things: the Upstash Redis integration
-(`vercel integration add upstash`), which injects `UPSTASH_REDIS_REST_URL` and
-`UPSTASH_REDIS_REST_TOKEN`; and `EDIT_PASSWORD` set for production. With no
-Redis configured the site simply renders what `lib/content` says, and saving
-reports that the store is unavailable rather than failing silently.
+Setting it up on Vercel needs two things: the Upstash Redis integration
+(`vercel integration add upstash/upstash-kv --plan free`), and `EDIT_PASSWORD`
+set for production. The integration injects `KV_REST_API_URL` and
+`KV_REST_API_TOKEN`; a database created directly on Upstash instead calls the
+same two values `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, and
+the store accepts either spelling. With no Redis configured at all the site
+simply renders what `lib/content` says, and saving reports that the store is
+unavailable rather than failing silently.
 
 `node scripts/verify-live-editing.mjs` drives a production build in headless
 Chrome and checks the whole path end to end. Point it at a scratch Redis

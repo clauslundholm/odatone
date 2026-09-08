@@ -49,3 +49,8 @@ CLAUDE.md
 
 # second lockfile — package-lock.json is the tracked one
 pnpm-lock.yaml
+
+# agent skills installed by marketplace integrations (vercel integration add)
+.agents/
+.claude/
+skills-lock.json

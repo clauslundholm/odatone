@@ -11,11 +11,16 @@
  *   5. A fresh request to /da contains the new text.
  *   6. With no Redis configured, /da still renders its source copy.
  *
- * Steps 4 and 5 need a scratch Redis database. Set UPSTASH_REDIS_REST_URL and
- * UPSTASH_REDIS_REST_TOKEN to run them; without those they are reported as
+ * Steps 4 and 5 need a scratch Redis database. Set either UPSTASH_REDIS_REST_URL
+ * and UPSTASH_REDIS_REST_TOKEN, or the KV_REST_API_URL and KV_REST_API_TOKEN the
+ * Vercel integration injects; without those they are reported as
  * skipped and a narrower check runs in their place, confirming that an
  * authorised save reaches the store and fails on the store rather than on the
  * session.
+ *
+ * It writes a real override to whatever store those variables point at, and
+ * removes it again on the way out — but point it at a scratch database rather
+ * than the one a live site reads.
  *
  * Usage: node scripts/verify-live-editing.mjs
  */
@@ -31,8 +36,18 @@ const CHROME =
   process.env.CHROME_PATH ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
+/* Both spellings the store accepts: Upstash's own, and the KV_REST_API_* names
+   the Vercel Marketplace integration injects. */
+const REDIS_VARS = [
+  "UPSTASH_REDIS_REST_URL",
+  "UPSTASH_REDIS_REST_TOKEN",
+  "KV_REST_API_URL",
+  "KV_REST_API_TOKEN",
+];
+
 const HAS_REDIS = Boolean(
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
+  (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
+    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN),
 );
 
 const results = [];
@@ -83,10 +98,7 @@ async function waitFor(fn, { timeout = 60_000, every = 250, what = "condition" }
 async function startApp({ redis }) {
   const port = await freePort();
   const env = { ...process.env, EDIT_PASSWORD: PASSWORD, PORT: String(port) };
-  if (!redis) {
-    delete env.UPSTASH_REDIS_REST_URL;
-    delete env.UPSTASH_REDIS_REST_TOKEN;
-  }
+  if (!redis) for (const name of REDIS_VARS) delete env[name];
 
   const proc = spawn("npx", ["next", "start", "-p", String(port)], {
     env,
@@ -234,6 +246,10 @@ const caretInto = (selector) => `
 
 let app;
 let browser;
+/* The override field this run created, if any. Removed in the finally block:
+   the script writes to whatever store its env points at, and leaving test copy
+   behind in a real one would change what the site says. */
+let wrote = null;
 
 try {
   console.log(`Live copy editing verification${HAS_REDIS ? "" : " (no Redis configured)"}\n`);
@@ -305,6 +321,9 @@ try {
     const before = await page.evaluate(
       `document.querySelector(${JSON.stringify(target)}).textContent`,
     );
+    /* Recorded before the edit is made, so the finally block can undo it even
+       if an assertion below throws. */
+    wrote = { field: `da:${before}`, from: before };
     await page.evaluate(caretInto(target));
     await sleep(300);
     await page.insertText(" (edited)");
@@ -340,8 +359,8 @@ try {
       `looked for ${JSON.stringify(`${before} (edited)`)}`,
     );
   } else {
-    record("clicking away posts exactly one save", "skip", "needs UPSTASH_REDIS_REST_URL");
-    record("a fresh request serves the edited text", "skip", "needs UPSTASH_REDIS_REST_URL");
+    record("clicking away posts exactly one save", "skip", "no Redis credentials");
+    record("a fresh request serves the edited text", "skip", "no Redis credentials");
 
     /* Narrower substitute: prove the session authorises the write and that
        the only thing missing is the store. */
@@ -373,6 +392,30 @@ try {
   failed = true;
   console.error(`\n${error.message}`);
 } finally {
+  if (wrote) {
+    try {
+      const { Redis } = await import("@upstash/redis");
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN,
+      });
+      await redis.hdel("copy:overrides", wrote.field);
+      /* The history is an audit log, so it is pruned by matching rather than
+         truncated — a real edit logged during this run must survive. */
+      const history = await redis.lrange("copy:history", 0, -1);
+      for (const raw of history) {
+        const entry = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (entry.from === wrote.from) await redis.lrem("copy:history", 0, raw);
+      }
+      console.log(`\ncleaned up the override this run created (${wrote.field})`);
+    } catch (error) {
+      failed = true;
+      console.error(
+        `\nCOULD NOT CLEAN UP ${wrote.field} — remove it by hand: ${error.message}`,
+      );
+    }
+  }
+
   app?.proc.kill();
   if (browser) {
     const exited = new Promise((resolve) => browser.proc.once("exit", resolve));
