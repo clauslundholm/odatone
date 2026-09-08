@@ -358,9 +358,35 @@ try {
       fresh.includes(`${before} (edited)`),
       `looked for ${JSON.stringify(`${before} (edited)`)}`,
     );
+
+    /* Regression: editing a string a second time used to be stored under the
+       edited text, which appears nowhere in lib/content, so the page froze on
+       the first edit however often it was changed afterwards. */
+    await page.goto(`${app.origin}/da`);
+    await waitFor(() => page.evaluate("document.body.isContentEditable === true"), {
+      what: "editing to be on for the second pass",
+    });
+    await page.evaluate(caretInto(target));
+    await sleep(300);
+    await page.insertText(" twice");
+    await sleep(300);
+    await page.evaluate(caretInto("h2"));
+    await waitFor(
+      () => page.requests.some((r) => r.method === "POST" && r.url.endsWith("/api/edits")),
+      { what: "the second save to be posted", timeout: 15_000 },
+    );
+    await sleep(1500);
+
+    const again = await (await fetch(`${app.origin}/da`, { cache: "no-store" })).text();
+    assert(
+      "a second edit of the same string also takes effect",
+      again.includes(`${before} (edited) twice`),
+      `looked for ${JSON.stringify(`${before} (edited) twice`)}`,
+    );
   } else {
     record("clicking away posts exactly one save", "skip", "no Redis credentials");
     record("a fresh request serves the edited text", "skip", "no Redis credentials");
+    record("a second edit of the same string also takes effect", "skip", "no Redis credentials");
 
     /* Narrower substitute: prove the session authorises the write and that
        the only thing missing is the store. */

@@ -1,6 +1,10 @@
 import { Redis } from "@upstash/redis";
 
-import type { Overrides } from "@/lib/copy-apply";
+/* Relative, with the extension, because this is a value import and the test
+   runner resolves it directly — Node does not read tsconfig's "@/" alias.
+   Type-only imports are erased before Node ever sees them, so those can stay
+   on the alias. */
+import { resolveKey, type Overrides } from "./copy-apply.ts";
 import type { Locale } from "@/lib/i18n";
 
 const HASH = "copy:overrides";
@@ -55,21 +59,35 @@ export async function getOverrides(locale: Locale): Promise<Overrides> {
 }
 
 /** Records one edit and returns what the text was before, so the caller can
-    report it and the history list can be replayed backwards. */
+    report it and the history list can be replayed backwards.
+
+    `from` is whatever the browser had on screen, which after an earlier edit
+    is that edit's text rather than the source string, so it is resolved to the
+    key lib/content actually uses before anything is written. */
 export async function setOverride(
   locale: Locale,
   from: string,
   to: string,
-): Promise<{ previous: string | null }> {
+): Promise<{ previous: string | null; key: string }> {
   const redis = client();
   if (!redis) throw new Error("Override store is not configured");
 
-  const field = `${locale}:${from}`;
-  const previous = await redis.hget<string>(HASH, field);
-  await redis.hset(HASH, { [field]: to });
-  await redis.lpush(HISTORY, JSON.stringify({ ts: Date.now(), locale, from, to }));
+  const overrides = await getOverrides(locale);
+  const key = resolveKey(from, overrides);
+  const field = `${locale}:${key}`;
+  const previous = overrides[key] ?? null;
+
+  if (to === key) {
+    /* Edited back to what lib/content says, so the override has nothing left
+       to say. Dropping it beats storing a mapping onto itself. */
+    await redis.hdel(HASH, field);
+  } else {
+    await redis.hset(HASH, { [field]: to });
+  }
+
+  await redis.lpush(HISTORY, JSON.stringify({ ts: Date.now(), locale, from: key, to }));
   await redis.ltrim(HISTORY, 0, HISTORY_MAX - 1);
-  return { previous: previous ?? null };
+  return { previous, key };
 }
 
 /** Most recent edits first. */
