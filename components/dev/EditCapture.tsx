@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 /* Development companion to the contentEditable body: watches text being
-   typed over on the page and posts it to /api/edits, which parks it in
-   content-edits.json. Renders nothing, and the layout only mounts it in
+   typed over on the page and posts it to /api/edits, which writes it back
+   into lib/content/. Renders nothing, and the layout only mounts it in
    development, so it disappears from production builds entirely.
 
    With the whole body as the editing host, `input` events fire on the body
@@ -13,7 +13,11 @@ import { usePathname } from "next/navigation";
    is what tells us which element is under edit. */
 
 const SKIP = new Set(["INPUT", "TEXTAREA", "SELECT", "OPTION"]);
-const DEBOUNCE_MS = 800;
+
+/* Saving rewrites a source file, which trips Fast Refresh and re-renders the
+   text under the caret. So we hold off until the sentence is finished: moving
+   to another element saves immediately, and otherwise a pause does it. */
+const IDLE_MS = 2000;
 
 function editedElement(): HTMLElement | null {
   const node = document.getSelection()?.anchorNode ?? null;
@@ -31,12 +35,13 @@ function editedElement(): HTMLElement | null {
 
 export default function EditCapture() {
   const pathname = usePathname();
-  /* First text we ever saw in an element, which is the key the stub file is
-     written under — so repeated passes over the same sentence keep pointing
-     at the original string in lib/content/. */
+  /* First text we ever saw in an element. That is the string the route looks
+     for in lib/content/, so repeated passes over one sentence keep pointing at
+     the literal still on disk rather than at our own last edit. */
   const originals = useRef(new WeakMap<HTMLElement, string>());
   const pending = useRef(new Map<string, string>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const active = useRef<HTMLElement | null>(null);
   const page = useRef(pathname);
 
   useEffect(() => {
@@ -48,6 +53,15 @@ export default function EditCapture() {
       const el = editedElement();
       if (el && !originals.current.has(el)) {
         originals.current.set(el, el.textContent ?? "");
+      }
+      /* Caret left the element being edited: that sentence is done, so save
+         now rather than waiting out the idle timer. */
+      if (el !== active.current) {
+        active.current = el;
+        if (pending.current.size) {
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }
       }
     };
 
@@ -91,7 +105,7 @@ export default function EditCapture() {
       }
 
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(flush, DEBOUNCE_MS);
+      timer.current = setTimeout(flush, IDLE_MS);
     };
 
     /* Leaving the tab mid-sentence should not cost the last edit. */
@@ -107,12 +121,21 @@ export default function EditCapture() {
       );
     };
 
+    /* Clicking outside the page entirely still ends the sentence. */
+    const onBlur = () => {
+      if (!pending.current.size) return;
+      if (timer.current) clearTimeout(timer.current);
+      void flush();
+    };
+
     document.addEventListener("selectionchange", remember);
+    window.addEventListener("blur", onBlur);
     document.addEventListener("input", onInput);
     document.addEventListener("visibilitychange", onHide);
 
     return () => {
       document.removeEventListener("selectionchange", remember);
+      window.removeEventListener("blur", onBlur);
       document.removeEventListener("input", onInput);
       document.removeEventListener("visibilitychange", onHide);
       if (timer.current) clearTimeout(timer.current);
