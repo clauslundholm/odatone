@@ -106,6 +106,43 @@ The root layout lives at `app/[locale]/layout.tsx` and there is deliberately no
 `app/layout.tsx`; that is what allows `<html lang>` to vary per language.
 `/` redirects to `/da` (see `next.config.ts`).
 
+## Editing copy
+
+The page body can be made editable, so wording is changed by typing on the
+page rather than by finding the string in a file. Where the edit lands depends
+on where you are editing.
+
+**Locally**, `npm run dev` makes every page editable straight away. Typing over
+text and clicking away rewrites the string literal in `lib/content/*.ts`, so
+the change shows up as a git diff — review it like any other change, and undo
+it with `git checkout`. Anything that cannot be placed unambiguously (the same
+sentence in two files, or text that is assembled rather than written out) is
+parked in `content-edits.json` rather than guessed at, so no edit is lost
+quietly. A badge in the corner reads *editing source*.
+
+**On the deployed site**, editing is off by default: the served HTML says
+nothing about editing and an ordinary visitor makes no request on its account.
+Visit `/da?edit`, enter the `EDIT_PASSWORD`, and the page becomes editable with
+the badge reading *editing live site*. Edits are stored as overrides that the
+layout and every page apply on top of the `lib/content` defaults, so the change
+is live for every visitor as soon as it saves — there is no deploy and no
+review step. Five wrong passwords in ten minutes locks further attempts.
+
+This means the live copy drifts from the source files. `GET /api/edits/export`,
+with an editing session, returns every override plus the recent edit history as
+JSON, which is how you pull the wording back into `lib/content` when the two
+have diverged far enough to bother.
+
+Setting it up on Vercel needs three things: the Upstash Redis integration
+(`vercel integration add upstash`), which injects `UPSTASH_REDIS_REST_URL` and
+`UPSTASH_REDIS_REST_TOKEN`; and `EDIT_PASSWORD` set for production. With no
+Redis configured the site simply renders what `lib/content` says, and saving
+reports that the store is unavailable rather than failing silently.
+
+`node scripts/verify-live-editing.mjs` drives a production build in headless
+Chrome and checks the whole path end to end. Point it at a scratch Redis
+database to include the two assertions that actually store an edit.
+
 ## The player
 
 The player is site-wide. `PlayerProvider` is mounted once in

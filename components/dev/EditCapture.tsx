@@ -3,10 +3,14 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-/* Development companion to the contentEditable body: watches text being
-   typed over on the page and posts it to /api/edits, which writes it back
-   into lib/content/. Renders nothing, and the layout only mounts it in
-   development, so it disappears from production builds entirely.
+/* Companion to the contentEditable body: watches text being typed over on the
+   page and posts it to /api/edits. Renders nothing, and EditorShell only
+   mounts it once it has established that this visitor may edit — locally that
+   is everyone, and on the deployed site it takes the password.
+
+   Where the edit lands is the route's decision, not this component's: in
+   development it is rewritten into lib/content/, and otherwise it becomes an
+   override that every visitor then sees.
 
    With the whole body as the editing host, `input` events fire on the body
    rather than on the paragraph being typed in — so the caret's own position
