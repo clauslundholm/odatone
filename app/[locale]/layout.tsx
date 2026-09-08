@@ -13,7 +13,7 @@ import PlayerProvider from "@/components/player/PlayerProvider";
 import PlayerDock, { DockSpacer } from "@/components/player/PlayerDock";
 import EditCapture from "@/components/dev/EditCapture";
 import { CopyProvider } from "@/components/CopyProvider";
-import { getOverrides } from "@/lib/copy-store";
+import { overridesFor } from "@/lib/copy-server";
 
 /* One typeface for the whole site. Size and weight carry the hierarchy;
    figures use Inter's tabular set rather than a second, monospaced face. */
@@ -83,7 +83,7 @@ export default async function LocaleLayout({
 
   /* Read at build time, not request time: this touches no request state, so
      every page stays prerendered and a save triggers revalidation instead. */
-  const overrides = await getOverrides(locale);
+  const overrides = await overridesFor(locale);
 
   return (
     <html

@@ -2,13 +2,16 @@ import { Container, Section, SectionHead, Tile } from "@/components/ui/Section";
 import PageHero from "@/components/ui/PageHero";
 import Reveal from "@/components/ui/Reveal";
 import { LinkButton, TextLink } from "@/components/ui/Button";
-import { about } from "@/lib/content/about";
-import { ui } from "@/lib/content/common";
+import { about as aboutDefaults } from "@/lib/content/about";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { serverCopy } from "@/lib/copy-server";
 import { SITE, PROOF } from "@/lib/site";
 import { href, type Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 
-export default function AboutPage({ locale: l }: { locale: Locale }) {
+export default async function AboutPage({ locale: l }: { locale: Locale }) {
+  const about = await serverCopy(aboutDefaults, l);
+  const ui = await serverCopy(uiDefaults, l);
   const figures: [string, string][] = [
     [`${num(PROOF.tracks, l)}+`, l === "da" ? "numre" : "tracks"],
     [`${num(PROOF.customers, l)}+`, l === "da" ? "kunder" : "customers"],
