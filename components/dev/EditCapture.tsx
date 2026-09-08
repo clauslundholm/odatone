@@ -30,6 +30,9 @@ function editedElement(): HTMLElement | null {
 
   if (!el || el === document.body || SKIP.has(el.tagName)) return null;
   if (!el.isContentEditable) return null;
+  /* The editor's own chrome sits inside the editable body. It is page
+     furniture, not copy, so it is never treated as edited text. */
+  if (el.closest("[contenteditable='false']")) return null;
   return el;
 }
 

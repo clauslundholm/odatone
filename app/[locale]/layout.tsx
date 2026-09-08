@@ -11,7 +11,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import PlayerProvider from "@/components/player/PlayerProvider";
 import PlayerDock, { DockSpacer } from "@/components/player/PlayerDock";
-import EditCapture from "@/components/dev/EditCapture";
+import EditorShell from "@/components/dev/EditorShell";
 import { CopyProvider } from "@/components/CopyProvider";
 import { overridesFor } from "@/lib/copy-server";
 
@@ -92,9 +92,10 @@ export default async function LocaleLayout({
       className={sans.variable}
     >
       <body className="min-h-dvh antialiased">
-        {/* Records the text typed over the page into content-edits.json.
-            Development only: the route it posts to 404s anywhere else. */}
-        {process.env.NODE_ENV === "development" && <EditCapture />}
+        {/* Turns the page editable, but only for a visitor who is allowed to
+            edit. Locally that is everyone and edits rewrite lib/content;
+            on the deployed site it takes the password at /da?edit. */}
+        <EditorShell dev={process.env.NODE_ENV === "development"} />
         <CopyProvider overrides={overrides}>
           <ThemeProvider
             attribute="data-theme"

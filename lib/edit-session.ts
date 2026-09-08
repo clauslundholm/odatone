@@ -1,12 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-/** Authorises writes. httpOnly, so script on the page cannot read it. */
-export const EDIT_COOKIE = "odatone_edit";
-/** Readable by the page, and carries no authority whatsoever: its only job is
-    to tell the client whether asking about a session is worth a request. */
-export const HINT_COOKIE = "odatone_edit_hint";
-
-export const SESSION_DAYS = 30;
+/* Re-exported so server code has one import for the whole session concern. */
+export { EDIT_COOKIE, HINT_COOKIE, SESSION_DAYS } from "./edit-cookies.ts";
 
 function mac(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(payload).digest("hex");
