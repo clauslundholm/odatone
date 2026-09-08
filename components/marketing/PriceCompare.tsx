@@ -1,6 +1,7 @@
 import { HEADLINE_EXAMPLE, calculate, venueType } from "@/lib/rates";
-import { ui } from "@/lib/content/common";
-import { home } from "@/lib/content/home";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { home as homeDefaults } from "@/lib/content/home";
+import { serverCopy } from "@/lib/copy-server";
 import { kr, m2 as fmtM2, num } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 
@@ -8,7 +9,7 @@ import type { Locale } from "@/lib/i18n";
  * One worked example, stated as plainly as possible: what three bills cost
  * today, and what one costs instead.
  */
-export default function PriceCompare({
+export default async function PriceCompare({
   locale,
   compact = false,
 }: {
@@ -16,6 +17,8 @@ export default function PriceCompare({
   compact?: boolean;
 }) {
   const l = locale;
+  const ui = await serverCopy(uiDefaults, l);
+  const home = await serverCopy(homeDefaults, l);
   const r = calculate(HEADLINE_EXAMPLE);
   const v = venueType(HEADLINE_EXAMPLE.type);
 
