@@ -84,7 +84,12 @@ export default async function LocaleLayout({
       suppressHydrationWarning
       className={sans.variable}
     >
-      <body className="min-h-dvh antialiased">
+      <body
+        className="min-h-dvh antialiased"
+        contentEditable
+        spellCheck
+        suppressContentEditableWarning
+      >
         <ThemeProvider
           attribute="data-theme"
           defaultTheme="light"
