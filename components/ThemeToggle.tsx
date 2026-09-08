@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { ui } from "@/lib/content/common";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { useCopy } from "@/components/CopyProvider";
 import type { Locale } from "@/lib/i18n";
 
 export default function ThemeToggle({ locale }: { locale: Locale }) {
+  const ui = useCopy(uiDefaults);
+
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

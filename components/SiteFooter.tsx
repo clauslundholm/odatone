@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import LocaleSwitch from "@/components/LocaleSwitch";
-import { FOOTER_NAV, footerNote } from "@/lib/content/common";
+import { FOOTER_NAV as FOOTER_NAVDefaults, footerNote as footerNoteDefaults } from "@/lib/content/common";
+import { useCopy } from "@/components/CopyProvider";
 import { SITE } from "@/lib/site";
 import { href, keyFromSlug, type Locale, type PageKey } from "@/lib/i18n";
 
@@ -13,6 +14,9 @@ import { href, keyFromSlug, type Locale, type PageKey } from "@/lib/i18n";
  * page ends rather than making one last pitch.
  */
 export default function SiteFooter({ locale }: { locale: Locale }) {
+  const FOOTER_NAV = useCopy(FOOTER_NAVDefaults);
+  const footerNote = useCopy(footerNoteDefaults);
+
   const pathname = usePathname() ?? `/${locale}`;
   const slug = pathname.split("/").filter(Boolean)[1];
   const pageKey: PageKey | null = slug ? keyFromSlug(locale, slug) : null;

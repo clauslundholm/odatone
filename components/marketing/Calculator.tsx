@@ -13,8 +13,9 @@ import {
 } from "@/lib/rates";
 import { recommendPlan } from "@/lib/pricing";
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
-import { savings } from "@/lib/content/savings";
-import { ui } from "@/lib/content/common";
+import { savings as savingsDefaults } from "@/lib/content/savings";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { useCopy } from "@/components/CopyProvider";
 import { href, type Locale } from "@/lib/i18n";
 import { kr, m2 as fmtM2, num } from "@/lib/format";
 import { LinkButton, TextLink } from "@/components/ui/Button";
@@ -29,6 +30,9 @@ export default function Calculator({
   compact?: boolean;
   id?: string;
 }) {
+  const savings = useCopy(savingsDefaults);
+  const ui = useCopy(uiDefaults);
+
   const l = locale;
   const [profile, setProfile] = useState<VenueProfile>(DEFAULT_PROFILE);
   const [hydrated, setHydrated] = useState(false);

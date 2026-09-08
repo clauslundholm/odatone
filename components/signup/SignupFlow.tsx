@@ -16,9 +16,10 @@ import {
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
 import { submitSignup } from "@/app/actions";
 import { EMAIL_RE, digits, type FieldErrors } from "@/lib/forms";
-import { signup as t } from "@/lib/content/signup";
-import { ui } from "@/lib/content/common";
-import { pricing as pricingCopy } from "@/lib/content/pricing";
+import { signup as tDefaults } from "@/lib/content/signup";
+import { ui as uiDefaults } from "@/lib/content/common";
+import { pricing as pricingCopyDefaults } from "@/lib/content/pricing";
+import { useCopy } from "@/components/CopyProvider";
 import { href, type Locale } from "@/lib/i18n";
 import { kr, m2 as fmtM2, num } from "@/lib/format";
 import { Button, LinkButton, Arrow } from "@/components/ui/Button";
@@ -68,6 +69,10 @@ const EMPTY_PAYMENT: Payment = {
 };
 
 export default function SignupFlow({ locale }: { locale: Locale }) {
+  const t = useCopy(tDefaults);
+  const ui = useCopy(uiDefaults);
+  const pricingCopy = useCopy(pricingCopyDefaults);
+
   const l = locale;
   const router = useRouter();
   const search = useSearchParams();
@@ -323,6 +328,9 @@ function StepVenue({
   onChange: (p: Partial<VenueProfile>) => void;
   saving: number;
 }) {
+  const t = useCopy(tDefaults);
+  const ui = useCopy(uiDefaults);
+
   const v = venueType(profile.type);
   return (
     <div className="flex flex-col gap-9">
@@ -449,6 +457,10 @@ function StepPlan({
   onPlan: (id: PlanId) => void;
   onBilling: (b: Billing) => void;
 }) {
+  const t = useCopy(tDefaults);
+  const ui = useCopy(uiDefaults);
+  const pricingCopy = useCopy(pricingCopyDefaults);
+
   return (
     <div className="flex flex-col gap-8">
       <StepHead heading={t.plan.heading[l]} body={t.plan.body[l]} />
@@ -530,6 +542,8 @@ function StepAccount({
   errors: FieldErrors;
   onChange: (a: Account) => void;
 }) {
+  const t = useCopy(tDefaults);
+
   const set = (k: keyof Account) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...account, [k]: e.target.value });
 
@@ -561,6 +575,8 @@ function StepPayment({
   errors: FieldErrors;
   onChange: (p: Payment) => void;
 }) {
+  const t = useCopy(tDefaults);
+
   const set = (k: keyof Payment) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...payment, [k]: e.target.value });
 
@@ -640,6 +656,9 @@ function Summary({
   billing: Billing;
   savingYear: number;
 }) {
+  const t = useCopy(tDefaults);
+  const pricingCopy = useCopy(pricingCopyDefaults);
+
   const q = quote(planId, billing, profile.locations);
   const v = venueType(profile.type);
 
@@ -713,6 +732,8 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
 /* -------------------------------- done ------------------------------- */
 
 function Done({ locale: l, email }: { locale: Locale; email: string }) {
+  const t = useCopy(tDefaults);
+
   return (
     <div className="u-card p-9 sm:p-14">
       <div className="flex max-w-[62ch] flex-col gap-7">
