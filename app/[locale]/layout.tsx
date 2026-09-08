@@ -11,6 +11,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import PlayerProvider from "@/components/player/PlayerProvider";
 import PlayerDock, { DockSpacer } from "@/components/player/PlayerDock";
+import EditCapture from "@/components/dev/EditCapture";
 
 /* One typeface for the whole site. Size and weight carry the hierarchy;
    figures use Inter's tabular set rather than a second, monospaced face. */
@@ -90,6 +91,9 @@ export default async function LocaleLayout({
         spellCheck
         suppressContentEditableWarning
       >
+        {/* Records the text typed over the page into content-edits.json.
+            Development only: the route it posts to 404s anywhere else. */}
+        {process.env.NODE_ENV === "development" && <EditCapture />}
         <ThemeProvider
           attribute="data-theme"
           defaultTheme="light"

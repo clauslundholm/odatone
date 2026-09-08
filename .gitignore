@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# in-browser copy edits (see components/dev/EditCapture.tsx)
+content-edits.json
