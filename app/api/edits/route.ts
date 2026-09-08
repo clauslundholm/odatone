@@ -1,15 +1,26 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 
-/* Dev-only sink for text edited straight in the browser.
+import { parseEdits } from "./payload";
+import { setOverride } from "@/lib/copy-store";
+import { EDIT_COOKIE, verifySession } from "@/lib/edit-session";
+import { isLocale, DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
 
-   The body of every page is contentEditable; EditCapture posts what changed
-   and this route writes it back into lib/content/*.ts, so a reload shows the
-   new wording because it is now the source. Edits are permanent — git diff is
-   the review step and git checkout the undo.
+/* Sink for text edited straight in the browser, with two destinations.
 
-   Anything that cannot be placed unambiguously is parked in
-   content-edits.json instead of guessed at, so no edit is lost quietly. */
+   In development the edit is written back into lib/content/*.ts, so a reload
+   shows the new wording because it is now the source. Edits are permanent —
+   git diff is the review step and git checkout the undo. Anything that cannot
+   be placed unambiguously is parked in content-edits.json instead of guessed
+   at, so no edit is lost quietly.
+
+   Everywhere else the edit becomes an override in the store, which the layout
+   and pages read during static generation. That needs a signed session, and
+   the affected pages are revalidated so the change is live immediately. */
+
+const isDev = process.env.NODE_ENV === "development";
 
 const CONTENT_DIR = path.join(process.cwd(), "lib", "content");
 const STUB = path.join(process.cwd(), "content-edits.json");
@@ -90,11 +101,20 @@ async function apply(page: string, edits: Record<string, string>) {
   return { applied, unresolved };
 }
 
-export async function POST(request: Request) {
-  if (process.env.NODE_ENV !== "development") {
-    return new Response("Not found", { status: 404 });
-  }
+/** Development: rewrite the string literal in lib/content/*.ts. */
+async function applyToSource(page: string, edits: Record<string, string>) {
+  const write = queue.then(() => apply(page, edits));
+  queue = write.catch(() => {});
+  return write;
+}
 
+/** The editor posts the page it was on; the locale is its first segment. */
+function localeOf(page: string): Locale {
+  const first = page.split("/").filter(Boolean)[0];
+  return first && isLocale(first) ? first : DEFAULT_LOCALE;
+}
+
+export async function POST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -102,31 +122,30 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { path: page, edits } = (body ?? {}) as {
-    path?: unknown;
-    edits?: unknown;
-  };
+  const parsed = parseEdits(body);
+  if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
 
-  if (typeof page !== "string" || !page) {
-    return Response.json({ error: "Missing path" }, { status: 400 });
-  }
-  if (!edits || typeof edits !== "object" || Array.isArray(edits)) {
-    return Response.json({ error: "Missing edits" }, { status: 400 });
+  if (isDev) {
+    const result = await applyToSource(parsed.page, parsed.edits);
+    return Response.json({ ok: true, mode: "source", ...result });
   }
 
-  const clean: Record<string, string> = {};
-  for (const [before, after] of Object.entries(edits as object)) {
-    if (typeof before === "string" && typeof after === "string" && before) {
-      clean[before] = after;
+  const jar = await cookies();
+  if (!verifySession(jar.get(EDIT_COOKIE)?.value, process.env.EDIT_PASSWORD)) {
+    return Response.json({ error: "Not authorised" }, { status: 401 });
+  }
+
+  const locale = localeOf(parsed.page);
+  const applied: { from: string; to: string; previous: string | null }[] = [];
+  try {
+    for (const [from, to] of Object.entries(parsed.edits)) {
+      const { previous } = await setOverride(locale, from, to);
+      applied.push({ from, to, previous });
     }
-  }
-  if (!Object.keys(clean).length) {
-    return Response.json({ error: "Missing edits" }, { status: 400 });
+  } catch {
+    return Response.json({ error: "Override store unavailable" }, { status: 503 });
   }
 
-  const write = queue.then(() => apply(page, clean));
-  queue = write.catch(() => {});
-  const result = await write;
-
-  return Response.json({ ok: true, ...result });
+  revalidatePath("/", "layout");
+  return Response.json({ ok: true, mode: "live", applied, unresolved: [] });
 }
