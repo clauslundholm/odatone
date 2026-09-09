@@ -54,3 +54,6 @@ pnpm-lock.yaml
 .agents/
 .claude/
 skills-lock.json
+
+# static snapshot of the site (regenerate with scripts/export-static.mjs)
+static-export/
