@@ -1,10 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { cookies } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { parseEdits } from "./payload";
 import { setOverride } from "@/lib/copy-store";
+import { OVERRIDES_TAG } from "@/lib/copy-server";
 import { EDIT_COOKIE, verifySession } from "@/lib/edit-session";
 import { isLocale, DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
 
@@ -146,6 +147,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Override store unavailable" }, { status: 503 });
   }
 
+  /* The tag drops the cached read, the path rebuilds the pages that used it.
+     Both are needed: without the tag the rebuild would just re-read the old
+     cached copy and nothing would appear to have changed.
+
+     expire: 0 means no one is served the old wording while the rebuild runs.
+     A profile like "max" would answer the editor's own reload with exactly
+     the stale text they just replaced, which is the one thing this feature
+     must not do. updateTag would say this more directly, but it is only
+     available to server actions, not to a route handler. */
+  revalidateTag(OVERRIDES_TAG, { expire: 0 });
   revalidatePath("/", "layout");
   return Response.json({ ok: true, mode: "live", applied, unresolved: [] });
 }
