@@ -77,7 +77,7 @@ Each is small and stable; copying keeps the app independent of the web's build.
 | From the web | Into the app |
 | --- | --- |
 | Design tokens in `app/globals.css` | `mobile/src/theme.ts` |
-| The 45 player strings in `lib/content/player.ts` | `mobile/src/copy.ts` |
+| The player strings in `lib/content/player.ts` that apply on a device — not the web's keyboard hints or browser-autoplay messages — plus the app's own strings | `mobile/src/copy.ts` |
 | `filterTracks` in `lib/tracks.ts` | `mobile/src/catalogue/filter.ts`, guarded by a parity test |
 | The trial rule in `lib/audio/trial.ts` | `mobile/src/player/trial.ts`, on device storage |
 | Icons in `components/player/Icons.tsx` | `mobile/src/ui/icons.tsx` |
@@ -123,7 +123,9 @@ A `PlayerProvider` owns a single `AudioPlayer`, created with `createAudioPlayer`
 
 ### Queue
 
-The queue is the catalogue passed through the ported `filterTracks`, in play order, or shuffled. When a track finishes, the next plays. The next track is preloaded so the change is quick.
+The queue is the catalogue passed through the ported `filterTracks`, in filter order. When a track finishes, the next plays, wrapping at the end. The next track is preloaded so the change is quick.
+
+Shuffle works as it does on the web: it does not reorder the queue, but makes next and previous jump to a random other track. Previous restarts the current track instead when it is more than 3 seconds in.
 
 ### Background playback and the lock screen
 
@@ -155,7 +157,7 @@ The last track, position, shuffle state and filters are restored on launch, **pa
 - **Covers** are generated as on the web: the brand gradient at an angle taken from a hash of the track id, over bars sampled from the track's peaks.
 - **Icons** are the web's own, ported rather than replaced with a generic set.
 - **Motion** is restrained. The Now Playing screen slides up from the mini player.
-- **Lock-screen artwork** needs an image URL, and generated covers are not images. Every track uses one branded artwork: a square PNG made from the existing `public/odatone-logo_colour.svg` on the brand gradient, served as `/app-artwork.png`.
+- **Lock-screen artwork** needs an image URL, and generated covers are not images. Every track uses one branded artwork: a square PNG made from the existing `public/odatone-logo_colour.svg` on the web's light ground (`#f5f5f7`), served as `/app-artwork.png`. The logo's "tone." wordmark is black and drawn for light backgrounds, so on a dark ground or the brand gradient half of it disappears — confirmed by rendering both.
 
 ## 5. Failure handling
 
