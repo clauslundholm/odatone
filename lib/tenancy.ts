@@ -44,7 +44,12 @@ export const portalFor = (path: string): PortalName | null => {
   return null;
 };
 
-const LOGIN_PATH: Record<PortalName, string> = {
+/** The single source of truth for each portal's login route. Exported so
+    lib/supabase/proxy.ts builds its redirect from the same values
+    isPublicPath checks against — two independent copies could drift, and a
+    proxy that redirects to a path the gate itself does not consider public
+    is an infinite redirect loop. */
+export const LOGIN_PATH: Record<PortalName, string> = {
   admin: `${ADMIN}/login`,
   portal: `${PORTAL}/login`,
 };

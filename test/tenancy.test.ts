@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  LOGIN_PATH,
   isCustomerRole,
   isPublicPath,
   isStaffRole,
@@ -75,6 +76,19 @@ test("path matching is case-insensitive", () => {
   assert.equal(isPublicPath("/Admin/Login-Secrets"), false);
 });
 
+test("a realistic mixed-case slug is still gated and still not mistaken for public", () => {
+  // The literal case the review reproduced live: GET /admin/Customers/ABC-123.
+  // Gating must not depend on the caller pre-folding the path — portalFor,
+  // isPublicPath and mayEnter each fold internally, which is also why
+  // lib/supabase/proxy.ts no longer keeps a separate lower-cased copy of the
+  // path: that second copy was what leaked into the `next` redirect
+  // parameter and would have lower-cased a customer- or invoice-id slug.
+  assert.equal(portalFor("/admin/Customers/ABC-123"), "admin");
+  assert.equal(isPublicPath("/admin/Customers/ABC-123"), false);
+  assert.equal(mayEnter("/admin/Customers/ABC-123", "staff_admin"), true);
+  assert.equal(mayEnter("/admin/Customers/ABC-123", "owner"), false);
+});
+
 test("mayEnter denies the wrong audience", () => {
   assert.equal(mayEnter("/my-odatone", "staff_admin"), false);
   assert.equal(mayEnter("/admin", "owner"), false);
@@ -107,4 +121,13 @@ test("parseRole rejects anything else, including a widened enum value", () => {
   assert.equal(parseRole(null), undefined);
   assert.equal(parseRole(42), undefined);
   assert.equal(parseRole(""), undefined);
+});
+
+test("LOGIN_PATH is the single source isPublicPath agrees with", () => {
+  // lib/supabase/proxy.ts builds its redirect target from this same
+  // constant rather than a second copy of the string. If the two ever
+  // diverged, the proxy would redirect to a path the gate itself does not
+  // consider public, and the redirect would loop forever.
+  assert.equal(isPublicPath(LOGIN_PATH.admin), true);
+  assert.equal(isPublicPath(LOGIN_PATH.portal), true);
 });

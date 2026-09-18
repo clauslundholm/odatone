@@ -2,12 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { resolveSupabaseEnv } from "./env";
-import { isPublicPath, mayEnter, parseRole, portalFor, type PortalName } from "../tenancy";
-
-const LOGIN_PATH: Record<PortalName, string> = {
-  admin: "/admin/login",
-  portal: "/my-odatone/login",
-};
+import { LOGIN_PATH, isPublicPath, mayEnter, parseRole, portalFor } from "../tenancy";
 
 /* These three are exactly what @supabase/ssr's applyServerStorage passes as
    setAll's second argument (see node_modules/@supabase/ssr/dist/main/cookies.js).
@@ -54,14 +49,16 @@ function notFound(request: NextRequest, from: NextResponse): NextResponse {
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  /* Case-folded once, here, so every downstream comparison — portalFor,
-     isPublicPath, the login-path lookup below — agrees on the same path
-     regardless of how the request was cased. The matcher and every prefix
-     compared against it are lower-case by convention; without this, a
-     path whose case doesn't round-trip through some cache or filesystem
-     exactly could slip past a case-sensitive startsWith and reach a
-     guarded route unchecked. */
-  const path = request.nextUrl.pathname.toLowerCase();
+  /* Deliberately NOT case-folded here. portalFor/isPublicPath/mayEnter each
+     fold internally (see lib/tenancy.ts's hasSegment), so every comparison
+     already agrees on casing regardless of how the request arrived — a
+     second, proxy-local folded copy is not needed for that, and keeping one
+     around is exactly what caused a customer's own request path to come
+     back lower-cased in `next` below: a case-sensitive slug (an invoice
+     number, a customer id) would 404 or fail its lookup after login. `path`
+     stays the single, unmodified value used for every check and for the
+     redirect target. */
+  const path = request.nextUrl.pathname;
   const portal = portalFor(path);
 
   if (!portal || isPublicPath(path)) return response;
