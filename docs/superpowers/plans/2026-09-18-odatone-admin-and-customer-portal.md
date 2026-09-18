@@ -504,7 +504,7 @@ create index audit_log_entity_idx on audit_log (entity, entity_id);
 
 - [ ] **Step 4: Generate the seed from `lib/pricing.ts`**
 
-The repository already has this pattern: `scripts/filter-golden.mjs` generates a fixture from live code and the test suite fails until it is regenerated. `PLANS` stays the single definition of a plan; the SQL is generated from it, so the two cannot drift and nobody hand-copies prices.
+The repository already has this pattern on the `mobile-app` branch, where `scripts/filter-golden.mjs` generates a fixture from live code and the test suite fails until it is regenerated. It is not on this branch, so treat it as precedent rather than something to read. `PLANS` stays the single definition of a plan; the SQL is generated from it, so the two cannot drift and nobody hand-copies prices.
 
 ```js
 // scripts/plans-seed.mjs
