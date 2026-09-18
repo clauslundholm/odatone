@@ -63,6 +63,7 @@ export function PlanCard({ plan }: { plan: PlanRow & { active: boolean } }) {
           name="monthly"
           type="number"
           min={0}
+          max={21474836.47}
           step="0.01"
           defaultValue={toKroner(plan.monthly_ore)}
           required
@@ -72,6 +73,7 @@ export function PlanCard({ plan }: { plan: PlanRow & { active: boolean } }) {
           name="maxM2"
           type="number"
           min={0}
+          max={2147483647}
           hint="blank = unbounded"
           defaultValue={plan.max_m2 ?? ""}
         />
@@ -148,6 +150,7 @@ export function AddonCard({ addon }: { addon: AddonRow }) {
         name="monthly"
         type="number"
         min={0}
+        max={21474836.47}
         step="0.01"
         defaultValue={toKroner(addon.monthly_ore)}
         required

@@ -30,6 +30,26 @@ test("parsePriceKr rejects more than 2 decimal places", () => {
   assert.equal(parsePriceKr("149.999"), null);
 });
 
+/* monthly_ore is a Postgres `integer` (max 2,147,483,647), and toOre()
+   (lib/money.ts) multiplies this value by 100 before storing it. Round 2's
+   review drove `99999999` kr. live: it passed the shape check, overflowed
+   the column on save (Postgres 22003), and the operator saw a generic
+   "something went wrong" message that pointed nowhere near the price
+   field and could never be fixed by retrying. The boundary here is exact,
+   not rounded: 21474836.47 * 100 is precisely 2147483647; one more øre
+   overflows. */
+test("parsePriceKr accepts the largest price monthly_ore can store", () => {
+  assert.equal(parsePriceKr("21474836.47"), 21474836.47);
+});
+
+test("parsePriceKr rejects one øre more than monthly_ore can store", () => {
+  assert.equal(parsePriceKr("21474836.48"), null);
+});
+
+test("parsePriceKr rejects a price many orders of magnitude too large", () => {
+  assert.equal(parsePriceKr("99999999"), null);
+});
+
 /* A blank max_m2 field is a deliberate "unbounded" (null); anything else
    that isn't a positive whole number must be an error, not a second,
    silent way to spell "unbounded". The fix round found `Number("abc")`
@@ -53,6 +73,21 @@ test("parseMaxM2: non-numeric, negative, zero and fractional values are all reje
   assert.equal(parseMaxM2("0"), null);
   assert.equal(parseMaxM2("100.5"), null);
   assert.equal(parseMaxM2("NaN"), null);
+});
+
+/* max_m2 is also a Postgres `integer`. Round 2's review drove
+   `99999999999` m² live: same 22003 overflow, same generic message — worse
+   here, since the message wasn't even about the field that was wrong. */
+test("parseMaxM2 accepts the largest m² the integer column can store", () => {
+  assert.deepEqual(parseMaxM2("2147483647"), { value: 2147483647 });
+});
+
+test("parseMaxM2 rejects one m² more than the integer column can store", () => {
+  assert.equal(parseMaxM2("2147483648"), null);
+});
+
+test("parseMaxM2 rejects an m² many orders of magnitude too large", () => {
+  assert.equal(parseMaxM2("99999999999"), null);
 });
 
 /* Blank-in-both-languages entries are dropped (this is also what absorbs a

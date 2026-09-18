@@ -14,27 +14,51 @@
    shape is rejected outright, never coerced into a number at all. */
 const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 
+/** `monthly_ore` is a Postgres `integer` (max 2,147,483,647), and `toOre`
+    (lib/money.ts) multiplies whatever this returns by 100. Round 2's review
+    drove this live: `99999999` kr. passed the shape check above, hit
+    Postgres's `22003 value out of range` on the insert, and the operator
+    saw the generic "Something went wrong saving this plan" — an accurate
+    message for a dropped connection, not for "the number you typed is too
+    big," and the retry that follows can never succeed. The boundary was
+    measured exactly against `toOre`: `21474836.47` kr. produces exactly
+    `2147483647` øre; one more øre (`21474836.48`) overflows. Capping here
+    means the *existing*, accurate `{ error: "price" }` fires instead of a
+    misdiagnosed database error — nothing about this is a security
+    boundary, since Postgres would refuse the write either way and no bad
+    price ever reaches the database or the public site regardless. */
+const MAX_MONTHLY_KR = 21_474_836.47;
+
 /** Returns the price in kroner, or null if `raw` isn't a plain non-negative
-    number (blank, letters, a minus sign, scientific notation, ...). */
+    number within the range `monthly_ore` can actually store (blank,
+    letters, a minus sign, scientific notation, or simply too large). */
 export function parsePriceKr(raw: string): number | null {
   const trimmed = raw.trim();
   if (!PRICE_RE.test(trimmed)) return null;
-  return Number(trimmed);
+  const n = Number(trimmed);
+  return n <= MAX_MONTHLY_KR ? n : null;
 }
+
+/** `max_m2` is also a Postgres `integer`, so it has the same overflow hole
+    `parsePriceKr` had — `99999999999` m² hit the identical `22003` and the
+    identical generic message, worse here because the message wasn't even
+    about the field that was wrong. */
+const MAX_M2 = 2_147_483_647;
 
 /** Same "reject before coercing" mistake was possible for `max_m2`: a blank
     field is a deliberate "unbounded" (`null`), but anything else that isn't
-    a positive whole number must be an error, not a second way to spell
-    "unbounded" — this task's fix round found `Number("abc")` (`NaN`) being
-    written to `max_m2` as `null` via `maxM2raw === "" ? null : Number(...)`,
-    which silently made the plan unbounded and, because `planForM2` now
-    reads this column, wrongly captured every venue's recommendation. */
+    a positive whole number within `integer` range must be an error, not a
+    second way to spell "unbounded" — this task's fix round found
+    `Number("abc")` (`NaN`) being written to `max_m2` as `null` via
+    `maxM2raw === "" ? null : Number(...)`, which silently made the plan
+    unbounded and, because `planForM2` now reads this column, wrongly
+    captured every venue's recommendation. */
 export function parseMaxM2(raw: string): { value: number | null } | null {
   const trimmed = raw.trim();
   if (trimmed === "") return { value: null };
   if (!/^\d+$/.test(trimmed)) return null;
   const n = Number(trimmed);
-  return n > 0 ? { value: n } : null;
+  return n > 0 && n <= MAX_M2 ? { value: n } : null;
 }
 
 /** Parses one line-per-feature textarea into the `L10n[]` shape `plans.features`
