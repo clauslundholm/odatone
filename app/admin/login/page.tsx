@@ -9,6 +9,17 @@ import { signIn } from "./actions";
 
 const initialState: { error?: string } = {};
 
+/* "invalid" deliberately covers both a wrong password and an unknown
+   address -- see actions.ts. The other two are only reachable after a
+   correct password, so spelling them out truthfully cannot reopen that
+   hole; it would just be dishonest to call either of them a credential
+   mismatch. */
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid: "That email and password don't match.",
+  "no-access": "Your account isn't set up for admin access. Contact IT.",
+  service: "Something went wrong on our end. Please try again in a moment.",
+};
+
 /**
  * The one door into /admin. No sidebar here — AppShell is for the screens
  * behind the gate, not the gate itself — so this centres a plain card on
@@ -42,11 +53,9 @@ export default function AdminLoginPage() {
           <Field label="Email" name="email" type="email" autoComplete="email" required />
           <Field label="Password" name="password" type="password" autoComplete="current-password" required />
 
-          {/* Deliberately one message for both a wrong password and an
-              unknown address — see actions.ts. */}
-          {state.error === "invalid" && (
+          {state.error && ERROR_MESSAGES[state.error] && (
             <p role="alert" className="text-[0.8125rem] text-bad">
-              That email and password don&apos;t match.
+              {ERROR_MESSAGES[state.error]}
             </p>
           )}
 
