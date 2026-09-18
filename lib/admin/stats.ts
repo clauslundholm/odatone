@@ -1,9 +1,19 @@
-import { quote, type Billing, type PlanId } from "../pricing.ts";
+import { quote, type Billing, type Plan } from "../pricing.ts";
 import { toOre } from "../money.ts";
 
 export type SubscriptionStatus = "pending" | "trialing" | "active" | "past_due" | "cancelled";
+
+/* `plan` is a resolved Plan object, not a PlanId. quote()'s string branch
+   re-looks the id up against the compiled PLANS array, never the database
+   — so a mere id here would silently re-introduce the exact bug this type
+   exists to prevent: an admin who edits a price in the database would see
+   the pricing page move and this dashboard's MRR stay frozen at the old
+   number. The caller (app/admin/page.tsx) is responsible for resolving
+   each subscription's plan_id against the database (falling back to the
+   compiled plan, loudly, only if the database doesn't have that id) —
+   mrrOre itself must never re-resolve by id. */
 export type SubscriptionForMrr = {
-  planId: PlanId; billing: Billing; locations: number; status: SubscriptionStatus;
+  plan: Plan; billing: Billing; locations: number; status: SubscriptionStatus;
 };
 
 const EARNING: SubscriptionStatus[] = ["active", "trialing", "past_due"];
@@ -14,5 +24,5 @@ const EARNING: SubscriptionStatus[] = ["active", "trialing", "past_due"];
 export function mrrOre(subs: SubscriptionForMrr[]): number {
   return subs
     .filter((s) => EARNING.includes(s.status))
-    .reduce((sum, s) => sum + toOre(quote(s.planId, s.billing, s.locations).monthlyExVat), 0);
+    .reduce((sum, s) => sum + toOre(quote(s.plan, s.billing, s.locations).monthlyExVat), 0);
 }

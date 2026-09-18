@@ -7,7 +7,8 @@ import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
 import { mrrOre, type SubscriptionForMrr } from "@/lib/admin/stats";
 import { formatDkk } from "@/lib/money";
-import type { Billing, PlanId } from "@/lib/pricing";
+import { plan as compiledPlanById, type Billing, type Plan, type PlanId } from "@/lib/pricing";
+import { rowToPlan, type PlanRow } from "@/lib/plans-row";
 import { createClient } from "@/lib/supabase/server";
 
 const NAV: NavItem[] = [
@@ -29,6 +30,21 @@ type CustomerRow = {
   created_at: string;
 };
 
+/** Resolves `id` against `plans`, falling back to the compiled plan of the
+    same id — loudly, naming the id, never silently. A silent fallback here
+    is exactly how the pricing-page/dashboard mismatch this guards against
+    would go undetected: an admin edits a price, the pricing page moves, and
+    this dashboard's MRR would stay frozen at the old number with nothing in
+    any log to say why. */
+function resolvePlan(id: string, byId: Map<PlanId, Plan>): Plan {
+  const known = byId.get(id as PlanId);
+  if (known) return known;
+  console.warn(
+    `[admin dashboard] plan "${id}" was not found in the database — pricing it from the compiled fallback instead.`,
+  );
+  return compiledPlanById(id as PlanId);
+}
+
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(
     new Date(iso),
@@ -47,6 +63,19 @@ function formatDate(iso: string): string {
  * implementations of that maths would disagree the first time a discount
  * changed, and this is the number staff use to understand the business.
  *
+ * `quote()`'s bare-`PlanId` branch resolves against the *compiled* `PLANS`
+ * array, never the database (see lib/pricing.ts) — so `mrrOre` is only
+ * honest if it's handed already-resolved `Plan` objects read from the
+ * database, not ids. This page reads every row of `plans` (not just
+ * `activePlans()`'s active-only subset — a customer can still be on a plan
+ * that's since been deactivated, and mispricing that customer is the exact
+ * bug this exists to prevent) through `lib/supabase/server.ts`'s
+ * session-bound `createClient()`, so the signed-in staff session's RLS
+ * (`plans_public_read`'s `using (active or is_staff())`) is what allows the
+ * inactive rows through. Every subscription's `plan_id` is resolved against
+ * that map before it ever reaches `mrrOre`; a miss falls back to the
+ * compiled plan with a logged warning naming the id, rather than silently.
+ *
  * `locations` is a *count of a customer's location rows*, not a fixed
  * number, because the volume tier in `quote()` depends on it — a customer
  * with three venues is not simply three times the price of one. Fetching
@@ -64,6 +93,7 @@ export default async function AdminDashboardPage() {
     { data: subscriptionRows, error: subscriptionError },
     { data: locationRows, error: locationError },
     { data: recentCustomerRows, error: recentError },
+    { data: planRows, error: planError },
   ] = await Promise.all([
     supabase.from("customers").select("id", { count: "exact", head: true }),
     supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -75,6 +105,11 @@ export default async function AdminDashboardPage() {
       .select("id, name, status, created_at")
       .order("created_at", { ascending: false })
       .limit(5),
+    /* Every plan, active or not — see the doc comment above. Deliberately
+       not activePlans() (Task 6's cached, anon-key, active-only reader for
+       the public pricing page): a staff session can and must see a
+       deactivated plan too, or a customer still on one gets mispriced. */
+    supabase.from("plans").select("id, name, monthly_ore, max_m2, tagline, features"),
   ]);
 
   for (const [label, error] of [
@@ -84,9 +119,14 @@ export default async function AdminDashboardPage() {
     ["subscriptions", subscriptionError],
     ["locations", locationError],
     ["recent customers", recentError],
+    ["plans", planError],
   ] as const) {
     if (error) console.error(`[admin dashboard] failed to read ${label}`, error);
   }
+
+  const planById = new Map<PlanId, Plan>(
+    ((planRows ?? []) as PlanRow[]).map((row) => [row.id as PlanId, rowToPlan(row)]),
+  );
 
   /* One query for every location row, folded into a per-customer count
      here, rather than one query per subscription — see the doc comment
@@ -100,7 +140,7 @@ export default async function AdminDashboardPage() {
 
   const subscriptionsForMrr: SubscriptionForMrr[] = ((subscriptionRows ?? []) as SubscriptionRow[]).map(
     (row) => ({
-      planId: row.plan_id as PlanId,
+      plan: resolvePlan(row.plan_id, planById),
       billing: row.billing as Billing,
       locations: locationCounts.get(row.customer_id) ?? 0,
       status: row.status as SubscriptionForMrr["status"],
@@ -116,8 +156,16 @@ export default async function AdminDashboardPage() {
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid grid-cols-4 gap-4 max-[1100px]:grid-cols-2 max-[520px]:grid-cols-1">
           <Kpi label="Customers" value={String(customerCount ?? 0)} />
-          <Kpi label="Active subscriptions" value={String(activeSubscriptionCount ?? 0)} />
-          <Kpi label="MRR" value={formatDkk(mrr, "en")} hint="Ex. VAT, normalised to a month" />
+          <Kpi
+            label="Active subscriptions"
+            value={String(activeSubscriptionCount ?? 0)}
+            hint="Status = active only"
+          />
+          <Kpi
+            label="MRR"
+            value={formatDkk(mrr, "en")}
+            hint="Active, trialing & past-due · ex. VAT · per month"
+          />
           <Kpi
             label="Pending signups"
             value={String(pendingCount ?? 0)}
