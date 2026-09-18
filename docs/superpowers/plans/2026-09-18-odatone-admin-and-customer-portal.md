@@ -969,7 +969,7 @@ Task 3 made the seed generated and guarded by a golden test. This task makes the
 - Consumes: `createClient` (Task 7), `plans` table (Task 3), `toKroner` (Task 5).
 - Produces: `PLANS_TAG = "plans"`, `activePlans(): Promise<Plan[]>`, `planById(id: PlanId): Promise<Plan>`, `revalidatePlans(): void`. Tasks 10, 11 and 12 use them.
 
-> **Ordering note:** this task consumes `createClient` from Task 7. Either do Task 7 first, or write `lib/supabase/server.ts` here and skip it there — it is the same file either way.
+> **Do Task 7 before this one.** This task consumes `createClient`, which Task 7 produces. Execution order is 1, 2, 3, 4, 5, 7, 6, 8 … 15.
 
 - [ ] **Step 1: Write the cached reader**
 
@@ -1641,7 +1641,7 @@ Message: `Show a customer and whether their venues still fit their plan`, explai
 
 **Files:**
 - Create: `app/admin/products/page.tsx`, `app/admin/products/actions.ts`
-- Modify: `supabase/migrations/0004_audit_triggers.sql`
+- Create: `supabase/migrations/0004_audit_triggers.sql`
 
 **Interfaces:**
 - Consumes: `activePlans`, `revalidatePlans`, `PLANS_TAG` (Task 6), `toOre` (Task 5).
@@ -1714,9 +1714,10 @@ One card per plan: name, price in kroner (converted to øre on save), m² bound 
 3. Reload `/da/priser` — it reads 159 without a deploy.
 4. `select * from audit_log order by at desc limit 1;` shows the before and after.
 5. Set it back to 149.
-6. Run `npm test` — the golden test now **fails**, because `lib/pricing.ts` and the database have diverged.
 
-Step 6 is the expected outcome, not a bug: the generated seed is the bootstrap value, and the database is the live one. Record this in `README.md` under the admin section so the next person is not confused by it.
+**The golden test is not affected by any of this**, and must not be expected to fail: it compares `supabase/seed.sql` to `PLANS`, which are both repository files. Editing a row in the database touches neither.
+
+The hazard runs the other way, and it is worth writing down. `npx supabase db reset` re-applies `seed.sql`, so a live price edited in admin is **silently reverted to the seeded value** on the next reset. The seed is a bootstrap; the database is the live value. Record that in `README.md` under the admin section, because the next person to reset a local database while testing will otherwise lose a change and not know why.
 
 - [ ] **Step 5: Verify a staff_support account cannot save**
 
