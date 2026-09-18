@@ -255,6 +255,36 @@ current site.
 - `VOLUME_TIERS` (−10 / −15 / −20 % from 2, 5 and 10 locations) is a proposal
   for this redesign; the current site has no multi-location pricing.
 
+## Admin
+
+`/admin` (staff-only, English) is a Supabase-backed backend layered on top of
+the marketing site and the pricing above. `staff_admin` and `staff_support`
+accounts (see `profiles.role`) can both sign in and view every screen;
+`plans_admin_write`/`addons_admin_write` (`supabase/migrations/0003_tenancy.sql`)
+restrict *writes* to `staff_admin`, and every server action relies on that RLS
+policy rather than re-checking the role itself — a `staff_support` account's
+save is refused by the database, not the UI.
+
+`/admin/products` (`app/admin/products/`) lets `staff_admin` edit a plan's
+price, m² bound, tagline, features and active flag without a deploy — the
+marketing site (`/priser`, the home page and savings-page calculators, and
+the signup flow's plan cards and order summary) all price from the same
+`plans` table via `lib/plans-server.ts`'s `activePlans()`, so a saved change
+is live everywhere on the next request. Every insert/update/delete on `plans`
+is recorded in `audit_log` by a `security definer` trigger
+(`supabase/migrations/0004_audit_triggers.sql`), with the acting user, the
+full before and after row, and a timestamp.
+
+**`supabase db reset` silently reverts a live price.** The migration and seed
+files are the bootstrap for a *fresh* database, not a mirror of what's
+currently live — `supabase/seed.sql` is generated from the compiled `PLANS`
+constant in `lib/pricing.ts` (`scripts/plans-seed.mjs`) and always inserts the
+149/199/249 kr. launch prices. If you reset your local database after editing
+a price in `/admin/products`, the reset re-runs that seed and your edit is
+gone with no error or warning. Re-apply it through `/admin/products` (or a
+one-off `update plans set ...`) after every reset, and don't mistake a reset
+database for a bug in the admin editor.
+
 ## The signup flow
 
 `components/signup/SignupFlow.tsx`. Four steps — business, plan, account,

@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/customers", label: "Customers" },
+  { href: "/admin/products", label: "Products" },
 ];
 
 /* customer_status, mirrored from supabase/migrations/0001_core.sql. Kept as

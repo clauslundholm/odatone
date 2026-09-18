@@ -70,7 +70,7 @@ export default async function HomePage({
               className="u-rise mt-8 w-full border-t border-line pt-10"
               style={{ animationDelay: "380ms" }}
             >
-              <HeroSavings locale={l} />
+              <HeroSavings locale={l} plans={plans} />
             </div>
           </div>
         </Container>
@@ -122,7 +122,7 @@ export default async function HomePage({
             className="mb-14"
           />
           <Reveal>
-            <Calculator locale={l} />
+            <Calculator locale={l} plans={plans} />
           </Reveal>
         </Container>
       </Section>

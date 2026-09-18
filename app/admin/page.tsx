@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/customers", label: "Customers" },
+  { href: "/admin/products", label: "Products" },
 ];
 
 type SubscriptionRow = {

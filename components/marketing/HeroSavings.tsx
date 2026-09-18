@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { VENUE_TYPES, calculate, venueType, type VenueTypeId } from "@/lib/rates";
-import { recommendPlan } from "@/lib/pricing";
+import { recommendPlan, type Plan } from "@/lib/pricing";
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
 import { home as homeDefaults } from "@/lib/content/home";
 import { ui as uiDefaults } from "@/lib/content/common";
@@ -20,7 +20,16 @@ import Counter from "@/components/ui/Counter";
  */
 const HERO_VENUES: VenueTypeId[] = ["cafe", "restaurant", "bar", "retail", "salon", "hotel"];
 
-export default function HeroSavings({ locale }: { locale: Locale }) {
+export default function HeroSavings({
+  locale,
+  plans,
+}: {
+  locale: Locale;
+  /** Database-backed (lib/plans-server.ts's activePlans()), with a
+      compiled-PLANS fallback — same object PricingTable and Calculator
+      price from on this same page. See Calculator.tsx's doc comment. */
+  plans: Plan[];
+}) {
   const home = useCopy(homeDefaults);
   const ui = useCopy(uiDefaults);
 
@@ -45,8 +54,8 @@ export default function HeroSavings({ locale }: { locale: Locale }) {
 
   const v = venueType(profile.type);
   const plan = useMemo(
-    () => recommendPlan(profile.m2, profile.type),
-    [profile.m2, profile.type],
+    () => recommendPlan(profile.m2, profile.type, plans),
+    [profile.m2, profile.type, plans],
   );
   const result = useMemo(
     () =>

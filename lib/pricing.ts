@@ -90,19 +90,32 @@ export function plan(id: PlanId): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }
 
-/** The plan a venue of this size needs. */
-export function planForM2(m2: number): Plan {
-  return PLANS.find((p) => p.maxM2 === null || m2 <= p.maxM2) ?? PLANS[PLANS.length - 1];
+/** The plan a venue of this size needs.
+
+    Accepts an optional, already-resolved plan list — the same
+    database-backed `Plan[]` lib/plans-server.ts's activePlans() returns,
+    ordered by `sort` — so a staff edit to a plan's `max_m2` moves the
+    recommendation the calculator and signup flow make, not just its price.
+    Defaults to the compiled PLANS so every existing caller (and every
+    non-marketing caller with no database in reach, e.g. tests) still works
+    unchanged. */
+export function planForM2(m2: number, plans: Plan[] = PLANS): Plan {
+  return plans.find((p) => p.maxM2 === null || m2 <= p.maxM2) ?? plans[plans.length - 1];
 }
 
 /** Venue types that usually run louder and longer get bumped a step. */
 const LOUD: VenueTypeId[] = ["bar", "fitness"];
 
-export function recommendPlan(m2: number, type: VenueTypeId): Plan {
-  const base = planForM2(m2);
+/** See planForM2's doc comment for why `plans` is a parameter, not always
+    the compiled PLANS: a bumped recommendation must land on the same
+    database-backed plan objects the caller is pricing with, or "bumped
+    one step up from the small plan" and "the small plan" could disagree
+    about what the small plan even costs. */
+export function recommendPlan(m2: number, type: VenueTypeId, plans: Plan[] = PLANS): Plan {
+  const base = planForM2(m2, plans);
   if (!LOUD.includes(type)) return base;
-  const i = PLANS.findIndex((p) => p.id === base.id);
-  return PLANS[Math.min(i + 1, PLANS.length - 1)];
+  const i = plans.findIndex((p) => p.id === base.id);
+  return plans[Math.min(i + 1, plans.length - 1)];
 }
 
 export type VolumeTier = { min: number; discountPct: number; label: L10n };

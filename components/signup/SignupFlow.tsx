@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { PLANS, quote, recommendPlan, type Billing, type PlanId } from "@/lib/pricing";
+import { quote, recommendPlan, type Billing, type Plan, type PlanId } from "@/lib/pricing";
 import {
   HOURS_BANDS,
   VENUE_TYPES,
@@ -68,7 +68,23 @@ const EMPTY_PAYMENT: Payment = {
   terms: false,
 };
 
-export default function SignupFlow({ locale }: { locale: Locale }) {
+export default function SignupFlow({
+  locale,
+  plans,
+}: {
+  locale: Locale;
+  /** Database-backed (lib/plans-server.ts's activePlans()), passed down
+      from SignupPage (a server component) the same way PricingTable gets
+      its plans — see that component's doc comment. SignupFlow is a client
+      component and cannot call activePlans() itself.
+
+      Every quote() call in this file must be handed one of these Plan
+      objects, never a bare PlanId: quote()'s PlanId branch re-resolves
+      against the compiled PLANS and ignores whatever a staff member has
+      actually saved, which matters here more than almost anywhere else on
+      the site — a stale price shown at checkout has contractual weight. */
+  plans: Plan[];
+}) {
   const t = useCopy(tDefaults);
   const ui = useCopy(uiDefaults);
   const pricingCopy = useCopy(pricingCopyDefaults);
@@ -91,7 +107,7 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
   useEffect(() => {
     setProfile(loadProfile());
     const p = search.get("plan");
-    if (p && PLANS.some((x) => x.id === p)) setPlanId(p as PlanId);
+    if (p && plans.some((x) => x.id === p)) setPlanId(p as PlanId);
     const b = search.get("billing");
     if (b === "annual" || b === "monthly") setBilling(b);
     const s = Number(search.get("step"));
@@ -100,14 +116,18 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
   }, []);
 
   const suggested = useMemo(
-    () => recommendPlan(profile.m2, profile.type),
-    [profile.m2, profile.type],
+    () => recommendPlan(profile.m2, profile.type, plans),
+    [profile.m2, profile.type, plans],
   );
-  const activePlanId: PlanId = planId ?? suggested.id;
+  const activePlan: Plan = useMemo(
+    () => (planId && plans.find((p) => p.id === planId)) || suggested,
+    [planId, plans, suggested],
+  );
+  const activePlanId: PlanId = activePlan.id;
 
   const q = useMemo(
-    () => quote(activePlanId, billing, profile.locations),
-    [activePlanId, billing, profile.locations],
+    () => quote(activePlan, billing, profile.locations),
+    [activePlan, billing, profile.locations],
   );
 
   const result = useMemo(
@@ -256,6 +276,7 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
           {step === 1 && (
             <StepPlan
               locale={l}
+              plans={plans}
               activePlanId={activePlanId}
               suggestedId={suggested.id}
               billing={billing}
@@ -298,7 +319,7 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
       <Summary
         locale={l}
         profile={profile}
-        planId={activePlanId}
+        plan={activePlan}
         billing={billing}
         savingYear={result.savingYear}
       />
@@ -442,6 +463,7 @@ function StepVenue({
 
 function StepPlan({
   locale: l,
+  plans,
   activePlanId,
   suggestedId,
   billing,
@@ -450,6 +472,7 @@ function StepPlan({
   onBilling,
 }: {
   locale: Locale;
+  plans: Plan[];
   activePlanId: PlanId;
   suggestedId: PlanId;
   billing: Billing;
@@ -482,10 +505,10 @@ function StepPlan({
       </div>
 
       <div className="flex flex-col gap-3">
-        {PLANS.map((p) => {
+        {plans.map((p) => {
           const active = p.id === activePlanId;
           const tooSmall = p.maxM2 !== null && m2 > p.maxM2;
-          const pq = quote(p.id, billing, 1);
+          const pq = quote(p, billing, 1);
           return (
             <button
               key={p.id}
@@ -646,20 +669,20 @@ function StepPayment({
 function Summary({
   locale: l,
   profile,
-  planId,
+  plan,
   billing,
   savingYear,
 }: {
   locale: Locale;
   profile: VenueProfile;
-  planId: PlanId;
+  plan: Plan;
   billing: Billing;
   savingYear: number;
 }) {
   const t = useCopy(tDefaults);
   const pricingCopy = useCopy(pricingCopyDefaults);
 
-  const q = quote(planId, billing, profile.locations);
+  const q = quote(plan, billing, profile.locations);
   const v = venueType(profile.type);
 
   return (

@@ -8,11 +8,13 @@ import { savings as savingsDefaults } from "@/lib/content/savings";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { serverCopy } from "@/lib/copy-server";
 import { RATES_UPDATED, RATES_VERIFIED } from "@/lib/rates";
+import { activePlans } from "@/lib/plans-server";
 import { href, type Locale } from "@/lib/i18n";
 
 export default async function SavingsPage({ locale: l }: { locale: Locale }) {
   const savings = await serverCopy(savingsDefaults, l);
   const ui = await serverCopy(uiDefaults, l);
+  const plans = await activePlans();
   return (
     <>
       <PageHero
@@ -24,7 +26,7 @@ export default async function SavingsPage({ locale: l }: { locale: Locale }) {
 
       <Section tight className="pt-0">
         <Container wide>
-          <Calculator locale={l} id="calculator" />
+          <Calculator locale={l} plans={plans} id="calculator" />
           <Tile flat className="mt-5">
             <p className="u-label mb-3">{savings.disclaimerTitle[l]}</p>
             <p className="max-w-[76ch] text-[0.9375rem] leading-relaxed text-ink-2">
