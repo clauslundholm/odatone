@@ -55,12 +55,15 @@ create table invoices (
   due_at       timestamptz,
   period_start date,
   period_end   date,
-  subtotal_ore integer not null,
-  vat_ore      integer not null,
-  total_ore    integer not null,
+  subtotal_ore integer not null check (subtotal_ore >= 0),
+  vat_ore      integer not null check (vat_ore >= 0),
+  total_ore    integer not null check (total_ore >= 0),
   status       invoice_status not null default 'draft',
   source       invoice_source not null,
-  created_at   timestamptz not null default now()
+  created_at   timestamptz not null default now(),
+  -- This is exactly the contract invoiceTotals() promises in Task 5: an
+  -- invoice can never disagree with the sum of its own parts.
+  constraint invoices_total_ck check (total_ore = subtotal_ore + vat_ore)
 );
 
 create index invoices_customer_id_idx on invoices (customer_id);
