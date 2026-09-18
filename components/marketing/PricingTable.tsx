@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { PLANS, VOLUME_TIERS, quote, type Billing, type PlanId } from "@/lib/pricing";
+import { VOLUME_TIERS, quote, type Billing, type Plan, type PlanId } from "@/lib/pricing";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { pricing as pricingDefaults } from "@/lib/content/pricing";
 import { useCopy } from "@/components/CopyProvider";
@@ -13,10 +13,15 @@ import { CheckIcon } from "@/components/player/Icons";
 
 export default function PricingTable({
   locale,
+  plans,
   recommended = "medium",
   showVolume = true,
 }: {
   locale: Locale;
+  /** Display data only. Arithmetic (quote()) still reads its own prices from
+      lib/pricing.ts's PLANS, so the two must agree — they do, because the
+      database is seeded from PLANS (see scripts/plans-seed.mjs). */
+  plans: Plan[];
   recommended?: PlanId;
   showVolume?: boolean;
 }) {
@@ -49,7 +54,7 @@ export default function PricingTable({
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
-        {PLANS.map((p) => {
+        {plans.map((p) => {
           const q = quote(p.id, billing, 1);
           const featured = p.id === recommended;
           return (

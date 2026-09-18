@@ -8,12 +8,14 @@ import { pricing as pricingDefaults } from "@/lib/content/pricing";
 import { home as homeDefaults } from "@/lib/content/home";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { serverCopy } from "@/lib/copy-server";
+import { activePlans } from "@/lib/plans-server";
 import { href, type Locale } from "@/lib/i18n";
 
 export default async function PricingPage({ locale: l }: { locale: Locale }) {
   const pricing = await serverCopy(pricingDefaults, l);
   const home = await serverCopy(homeDefaults, l);
   const ui = await serverCopy(uiDefaults, l);
+  const plans = await activePlans();
   return (
     <>
       <PageHero
@@ -25,7 +27,7 @@ export default async function PricingPage({ locale: l }: { locale: Locale }) {
 
       <Section tight className="pt-0">
         <Container wide>
-          <PricingTable locale={l} />
+          <PricingTable locale={l} plans={plans} />
         </Container>
       </Section>
 

@@ -18,6 +18,7 @@ import PriceCompare from "@/components/marketing/PriceCompare";
 import HeroSavings from "@/components/marketing/HeroSavings";
 import PricingTable from "@/components/marketing/PricingTable";
 import Accordion from "@/components/marketing/Accordion";
+import { activePlans } from "@/lib/plans-server";
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
@@ -35,6 +36,7 @@ export default async function HomePage({
   const savings = await serverCopy(savingsDefaults, l);
   const pricing = await serverCopy(pricingDefaults, l);
   const ui = await serverCopy(uiDefaults, l);
+  const plans = await activePlans();
 
   return (
     <>
@@ -256,7 +258,7 @@ export default async function HomePage({
             lede={pricing.lede[l]}
             className="mb-14"
           />
-          <PricingTable locale={l} />
+          <PricingTable locale={l} plans={plans} />
         </Container>
       </Section>
 
