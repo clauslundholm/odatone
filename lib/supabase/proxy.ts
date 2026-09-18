@@ -2,17 +2,80 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { resolveSupabaseEnv } from "./env";
-import { isStaffRole, type Role } from "../tenancy";
+import { isPublicPath, mayEnter, parseRole, portalFor, type PortalName } from "../tenancy";
 
-const ADMIN = "/admin";
-const PORTAL = "/my-odatone";
-const PUBLIC = [`${ADMIN}/login`, `${PORTAL}/login`];
+const LOGIN_PATH: Record<PortalName, string> = {
+  admin: "/admin/login",
+  portal: "/my-odatone/login",
+};
+
+/* These three are exactly what @supabase/ssr's applyServerStorage passes as
+   setAll's second argument (see node_modules/@supabase/ssr/dist/main/cookies.js).
+   Naming them instead of copying "every header" keeps this from ever
+   forwarding something unrelated to the session write. */
+const CACHE_HEADERS = ["cache-control", "expires", "pragma"];
+
+/** Carries the accumulated cookie writes and no-store cache headers from
+    `from` onto `to`. The redirect and rewrite branches below each build a
+    brand-new NextResponse — returning it directly would silently drop
+    whatever setAll wrote onto the closure's `response`, including a
+    just-rotated refresh token. A customer whose token happens to refresh on
+    the same request that turns out to need a redirect would keep the old
+    (soon-invalid) cookie in the browser and be logged out of their own
+    portal past the reuse-detection window. */
+function carryOver(from: NextResponse, to: NextResponse): NextResponse {
+  from.cookies.getAll().forEach((cookie) => to.cookies.set(cookie));
+  for (const name of CACHE_HEADERS) {
+    const value = from.headers.get(name);
+    if (value) to.headers.set(name, value);
+  }
+  return to;
+}
+
+/* Status is passed explicitly because the rewrite target, "/404", is not a
+   route this app declares (there is no app/404). It resolves through
+   app/global-not-found.tsx today — verified by hitting it directly, both in
+   isolation and via this proxy with real, wrong-audience sessions: HTTP 404,
+   global-not-found's body. That resolution rests on Next treating the
+   literal string "/404" specially (the same reserved-path convention
+   pages/404.js had in the Pages Router), which is not documented for the App
+   Router and could change. Passing { status: 404 } here makes the intended
+   status explicit regardless of what "/404" resolves to, so a future Next
+   version that stops special-casing that path degrades loudly (wrong body,
+   still 404) rather than silently in the open direction (200, wrong-audience
+   content rendered). Confirmed empirically that this option does not change
+   today's outcome: same 404, same global-not-found body.
+   A user of the wrong audience must see a 404, never a 403 — there is no
+   reason to confirm the admin backend's existence to a customer. */
+function notFound(request: NextRequest, from: NextResponse): NextResponse {
+  return carryOver(from, NextResponse.rewrite(new URL("/404", request.url), { status: 404 }));
+}
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  /* Case-folded once, here, so every downstream comparison — portalFor,
+     isPublicPath, the login-path lookup below — agrees on the same path
+     regardless of how the request was cased. The matcher and every prefix
+     compared against it are lower-case by convention; without this, a
+     path whose case doesn't round-trip through some cache or filesystem
+     exactly could slip past a case-sensitive startsWith and reach a
+     guarded route unchecked. */
+  const path = request.nextUrl.pathname.toLowerCase();
+  const portal = portalFor(path);
+
+  if (!portal || isPublicPath(path)) return response;
+
   const env = resolveSupabaseEnv();
-  if (!env) return response;
+  if (!env) {
+    /* Fail closed. lib/supabase/env.ts documents null as a normal state:
+       locally, on a deploy made before the integration was added, or a
+       half-configured one. Every other failure mode in this function
+       resolves to a 404; this must not be the one branch that resolves to
+       "let them in" — a misconfigured deploy must not unlock both portals
+       to anonymous visitors. */
+    return notFound(request, response);
+  }
 
   const supabase = createServerClient(env.url, env.anonKey, {
     cookies: {
@@ -34,37 +97,30 @@ export async function updateSession(request: NextRequest) {
      its signature. Called here, before any response is generated, so a refresh
      completing later is not lost. */
   const { data } = await supabase.auth.getClaims();
-  const path = request.nextUrl.pathname;
-  const guarded = path.startsWith(ADMIN) || path.startsWith(PORTAL);
-
-  if (!guarded || PUBLIC.some((p) => path.startsWith(p))) return response;
 
   if (!data?.claims?.sub) {
     const url = request.nextUrl.clone();
-    url.pathname = path.startsWith(ADMIN) ? `${ADMIN}/login` : `${PORTAL}/login`;
+    url.pathname = LOGIN_PATH[portal];
     url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
+    return carryOver(response, NextResponse.redirect(url));
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles").select("role").eq("id", data.claims.sub).single();
 
-  const role = profile?.role as Role | undefined;
-  const staffArea = path.startsWith(ADMIN);
-
-  /* A customer who finds /admin gets 404, not 403. There is no reason to
-     confirm the backend exists.
-
-     The rewrite target is "/404" rather than a route that exists in this
-     app (there is no app/404 or app/(...)/404). This app resolves the path
-     "/404" to app/global-not-found.tsx with a real 404 status even without
-     an app/404 route — verified directly: a GET to /404 on a production
-     build returns HTTP 404 with the global-not-found body, distinct from
-     the generic Next fallback that single-segment unmatched paths (which
-     match the [locale] catch-all and call notFound()) render instead. */
-  if (!role || (staffArea && !isStaffRole(role)) || (!staffArea && isStaffRole(role))) {
-    return NextResponse.rewrite(new URL("/404", request.url));
+  if (error) {
+    /* A transient PostgREST failure must still deny (there is no safe
+       fallback role to assume), but denying silently would turn a database
+       hiccup into an unlogged, unexplained 404 for a legitimate staff or
+       customer user. */
+    console.error("updateSession: failed to read profile role", error);
   }
+
+  const role = parseRole(profile?.role);
+
+  /* A customer who finds /admin, or staff who wander into /my-odatone, gets
+     404, not 403 — same reasoning as the missing-env branch above. */
+  if (!mayEnter(path, role)) return notFound(request, response);
 
   return response;
 }
