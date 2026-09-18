@@ -66,12 +66,35 @@ create policy customers_owner_update on customers for update
    for non-payment could PATCH their own status back to 'active'. A trigger
    is used instead of a column-level revoke because staff are also
    `authenticated` and a revoke on that role would take the ability away
-   from them too. */
+   from them too.
+
+   The service role bypasses row level security but does not bypass
+   triggers. The server-side admin client is session-less, so under a
+   service-role connection auth.uid() is null and is_staff() is false —
+   without the current_user exemption this trigger would raise on every
+   service-role status change, contradicting the bypass RLS already grants
+   it. This adds no new privilege: the service role could already read and
+   write every row before this trigger existed. `postgres` is exempted for
+   the same reason migrations and the Supabase dashboard's SQL editor run
+   as it.
+
+   This function is deliberately NOT security definer, unlike the helpers
+   above. Inside a security definer function, current_user reports the
+   function's owner rather than the caller — verified directly against the
+   local database, where current_user read 'postgres' inside a security
+   definer function even after `set local role authenticated`. That would
+   make the current_user check above always match its own exemption list
+   and disable the guard for everyone. is_staff() still runs with its own
+   elevation regardless of the caller here, so this function needs none of
+   its own. */
 create or replace function guard_customer_status() returns trigger
-  language plpgsql security definer set search_path = public, pg_temp
+  language plpgsql set search_path = public, pg_temp
 as $$
 begin
-  if new.status is distinct from old.status and not is_staff() then
+  if new.status is distinct from old.status
+     and not is_staff()
+     and current_user not in ('service_role', 'postgres')
+  then
     raise exception 'only staff may change a customer''s status'
       using errcode = '42501';
   end if;

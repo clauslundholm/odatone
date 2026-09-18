@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(20);
 
 -- Two customers: an owner and a manager at Café A, an owner at Café B, plus
 -- one staff_admin and one staff_support member of staff. The manager and
@@ -126,6 +126,25 @@ select throws_ok(
   null,
   'owner A cannot change their own customer''s status'
 );
+
+-- Service role -----------------------------------------------------------
+-- The service role bypasses RLS but not triggers, and the session-less
+-- server admin client has no JWT claims, so is_staff() is false under it.
+-- The guard must carve out this role explicitly, or the trigger that
+-- correctly blocks an owner would also block the service-role client a
+-- later task uses to cancel a customer, and a future billing integration
+-- that suspends for non-payment through the same client.
+set local role service_role;
+
+with attempted as (
+  update customers set status = 'cancelled'
+  where id = '11111111-1111-1111-1111-111111111111'
+  returning 1
+)
+select is((select count(*)::int from attempted), 1, 'the service role can change a customer''s status');
+
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"aaaaaaaa-0000-0000-0000-000000000001","role":"authenticated"}';
 
 -- Manager A --------------------------------------------------------------
 set local "request.jwt.claims" to '{"sub":"dddddddd-0000-0000-0000-000000000004","role":"authenticated"}';
