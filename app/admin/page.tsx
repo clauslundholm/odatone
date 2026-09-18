@@ -5,6 +5,7 @@ import { Kpi } from "@/components/admin/Kpi";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
+import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { mrrOre, type SubscriptionForMrr } from "@/lib/admin/stats";
 import { formatDkk } from "@/lib/money";
@@ -66,8 +67,12 @@ function formatDate(iso: string): string {
  * number, because the volume tier in `quote()` depends on it — a customer
  * with three venues is not simply three times the price of one. Fetching
  * that count per subscription in a loop would be an N+1 query against a
- * table that only grows, so this instead reads every location row once
- * (just its `customer_id`) and folds it into a `Map` in memory below.
+ * table that only grows, so this instead reads every location row (via
+ * `fetchAllRows`, lib/admin/paginate.ts — PostgREST silently caps a plain
+ * `.select()` at `max_rows`, 1000 locally and on Supabase's cloud default,
+ * so an unpaginated read past that count would quietly under-report every
+ * customer's locations and this dashboard's MRR with it) and folds it into
+ * a `Map` in memory below. The same is true of `subscriptions`.
  */
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
@@ -76,16 +81,20 @@ export default async function AdminDashboardPage() {
     { count: customerCount, error: customerCountError },
     { count: activeSubscriptionCount, error: activeCountError },
     { count: pendingCount, error: pendingCountError },
-    { data: subscriptionRows, error: subscriptionError },
-    { data: locationRows, error: locationError },
+    subscriptionsResult,
+    locationsResult,
     { data: recentCustomerRows, error: recentError },
     { data: planRows, error: planError },
   ] = await Promise.all([
     supabase.from("customers").select("id", { count: "exact", head: true }),
     supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("customers").select("id", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("subscriptions").select("customer_id, plan_id, billing, status"),
-    supabase.from("locations").select("customer_id"),
+    fetchAllRows<SubscriptionRow>((from, to) =>
+      supabase.from("subscriptions").select("customer_id, plan_id, billing, status").range(from, to),
+    ),
+    fetchAllRows<{ customer_id: string }>((from, to) =>
+      supabase.from("locations").select("customer_id").range(from, to),
+    ),
     supabase
       .from("customers")
       .select("id, name, status, created_at")
@@ -102,8 +111,8 @@ export default async function AdminDashboardPage() {
     ["customers count", customerCountError],
     ["active subscriptions count", activeCountError],
     ["pending signups count", pendingCountError],
-    ["subscriptions", subscriptionError],
-    ["locations", locationError],
+    ["subscriptions", subscriptionsResult.error],
+    ["locations", locationsResult.error],
     ["recent customers", recentError],
     ["plans", planError],
   ] as const) {
@@ -112,24 +121,22 @@ export default async function AdminDashboardPage() {
 
   const planById = planMap((planRows ?? []) as PlanRow[]);
 
-  /* One query for every location row, folded into a per-customer count
-     here, rather than one query per subscription — see the doc comment
-     above. An empty table folds to an empty map, and every lookup below
-     already defaults a miss to 0, so this is also what makes a freshly
-     seeded database render zeroes instead of throwing. */
+  /* Every location row, folded into a per-customer count here, rather than
+     one query per subscription — see the doc comment above. An empty
+     table folds to an empty map, and every lookup below already defaults a
+     miss to 0, so this is also what makes a freshly seeded database render
+     zeroes instead of throwing. */
   const locationCounts = new Map<string, number>();
-  for (const row of (locationRows ?? []) as { customer_id: string }[]) {
+  for (const row of locationsResult.rows) {
     locationCounts.set(row.customer_id, (locationCounts.get(row.customer_id) ?? 0) + 1);
   }
 
-  const subscriptionsForMrr: SubscriptionForMrr[] = ((subscriptionRows ?? []) as SubscriptionRow[]).map(
-    (row) => ({
-      plan: resolvePlan(row.plan_id, planById, "admin dashboard"),
-      billing: row.billing as Billing,
-      locations: locationCounts.get(row.customer_id) ?? 0,
-      status: row.status as SubscriptionForMrr["status"],
-    }),
-  );
+  const subscriptionsForMrr: SubscriptionForMrr[] = subscriptionsResult.rows.map((row) => ({
+    plan: resolvePlan(row.plan_id, planById, "admin dashboard"),
+    billing: row.billing as Billing,
+    locations: locationCounts.get(row.customer_id) ?? 0,
+    status: row.status as SubscriptionForMrr["status"],
+  }));
 
   const mrr = mrrOre(subscriptionsForMrr);
   const recentCustomers = (recentCustomerRows ?? []) as CustomerRow[];

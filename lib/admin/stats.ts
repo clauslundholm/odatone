@@ -18,11 +18,23 @@ export type SubscriptionForMrr = {
 
 const EARNING: SubscriptionStatus[] = ["active", "trialing", "past_due"];
 
+/** The one definition of "is this subscription currently earning". Exported
+    so lib/admin/customers.ts's `latestSubscription` can prefer an earning
+    subscription over a newer non-earning one (a pending upgrade sitting
+    alongside a live `active` row) without keeping its own separate copy of
+    this list to drift out of sync with mrrOre's. Takes a plain `string`,
+    not `SubscriptionStatus`, because callers are typically narrowing a raw
+    database column and a stricter parameter type would force every call
+    site to cast first. */
+export function isEarning(status: string): boolean {
+  return (EARNING as readonly string[]).includes(status);
+}
+
 /* Normalised to a month so an annual customer is comparable to a monthly one,
    and computed with the same quote() the pricing page uses — two implementations
    of this arithmetic would disagree the first time a discount changed. */
 export function mrrOre(subs: SubscriptionForMrr[]): number {
   return subs
-    .filter((s) => EARNING.includes(s.status))
+    .filter((s) => isEarning(s.status))
     .reduce((sum, s) => sum + toOre(quote(s.plan, s.billing, s.locations).monthlyExVat), 0);
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { customerRows, locationFit, type RawCustomer } from "../lib/admin/customers.ts";
+import { customerRows, latestSubscription, locationFit, type RawCustomer } from "../lib/admin/customers.ts";
 import { plan, quote } from "../lib/pricing.ts";
 import { toOre } from "../lib/money.ts";
 
@@ -49,4 +49,33 @@ test("a cancelled subscription contributes nothing, matching mrrOre's EARNING ru
     { ...BASE, subscription: { plan: plan("small"), billing: "monthly", status: "cancelled" } },
   ]);
   assert.equal(rows[0].mrrOre, 0);
+});
+
+// Regression guard for the fix-round Critical-adjacent finding: a live
+// `active` subscription plus a newer `pending` upgrade (the ordinary shape
+// of an upgrade awaiting activation) must resolve to the *earning* one, not
+// merely the most recently created one — otherwise this page would show a
+// paying customer's MRR as zero while the dashboard, which prices every
+// subscription without this preference, still reports the real figure.
+test("latestSubscription prefers an earning subscription over a newer non-earning one", () => {
+  const active = { plan_id: "small", status: "active", created_at: "2026-01-01T00:00:00.000Z" };
+  const pendingUpgrade = { plan_id: "main", status: "pending", created_at: "2026-06-01T00:00:00.000Z" };
+  assert.equal(latestSubscription([active, pendingUpgrade]), active);
+  assert.equal(latestSubscription([pendingUpgrade, active]), active);
+});
+
+test("latestSubscription falls back to most recently created when none are earning", () => {
+  const older = { plan_id: "small", status: "cancelled", created_at: "2025-01-01T00:00:00.000Z" };
+  const newer = { plan_id: "medium", status: "pending", created_at: "2026-01-01T00:00:00.000Z" };
+  assert.equal(latestSubscription([older, newer]), newer);
+});
+
+test("latestSubscription picks the most recently created among several earning rows", () => {
+  const earlierTrial = { plan_id: "small", status: "trialing", created_at: "2025-06-01T00:00:00.000Z" };
+  const laterActive = { plan_id: "medium", status: "active", created_at: "2026-01-01T00:00:00.000Z" };
+  assert.equal(latestSubscription([earlierTrial, laterActive]), laterActive);
+});
+
+test("latestSubscription returns null for no subscriptions", () => {
+  assert.equal(latestSubscription([]), null);
 });

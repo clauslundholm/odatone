@@ -1,4 +1,4 @@
-import { mrrOre, type SubscriptionForMrr, type SubscriptionStatus } from "./stats.ts";
+import { isEarning, mrrOre, type SubscriptionForMrr, type SubscriptionStatus } from "./stats.ts";
 import type { Billing, Plan } from "../pricing.ts";
 
 /**
@@ -70,15 +70,36 @@ export function customerRows(raw: RawCustomer[]): CustomerRow[] {
   });
 }
 
-/** A customer can accumulate more than one `subscriptions` row over time
-    (a plan change, a lapsed trial re-started); the list and detail pages
-    both only ever want the current one. "Current" means most recently
-    created — plain ISO-8601 timestamps sort correctly as strings, so this
-    needs no date parsing. Returns null for a customer with no subscription
-    at all (e.g. a pending signup that hasn't chosen a plan). */
-export function latestSubscription<T extends { created_at: string }>(subs: T[]): T | null {
+/** A customer can accumulate more than one `subscriptions` row over time —
+    a plan change, a lapsed trial re-started, or the ordinary shape of an
+    upgrade: a live `active` row plus a newer `pending` row awaiting
+    activation. The list and detail pages both only ever want the one that
+    represents what the customer is actually paying for *right now*, so
+    this prefers an earning subscription (`isEarning` — active, trialing or
+    past_due, the same rule `mrrOre` prices by) over a merely newer one; a
+    pending upgrade sitting beside a live subscription must not zero out
+    that customer's MRR on this page while the dashboard, which reads the
+    same `subscriptions` table without this preference, still reports the
+    real figure — two admin screens disagreeing about the same customer is
+    worse than either being wrong alone.
+
+    Within whichever pool applies (the earning rows if there are any,
+    otherwise every row), "current" means most recently created, compared
+    with `Date.parse` rather than a raw string comparison — lexicographic
+    ordering of ISO-8601 timestamps only holds for a fixed offset and a
+    fixed fractional-second precision, both of which are true of what
+    Postgres/PostgREST happens to emit today but neither of which this
+    function should have to assume.
+
+    Returns null for a customer with no subscription at all (e.g. a pending
+    signup that hasn't chosen a plan). */
+export function latestSubscription<T extends { created_at: string; status: string }>(
+  subs: T[],
+): T | null {
   if (subs.length === 0) return null;
-  return subs.reduce((latest, s) => (s.created_at > latest.created_at ? s : latest));
+  const earning = subs.filter((s) => isEarning(s.status));
+  const pool = earning.length > 0 ? earning : subs;
+  return pool.reduce((latest, s) => (Date.parse(s.created_at) > Date.parse(latest.created_at) ? s : latest));
 }
 
 /** Whether a location's floor area still fits inside its plan's bound.

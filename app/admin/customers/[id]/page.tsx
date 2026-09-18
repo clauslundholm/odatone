@@ -8,6 +8,7 @@ import { Meter } from "@/components/admin/Meter";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
+import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { latestSubscription, locationFit } from "@/lib/admin/customers";
 import { formatDkk, invoiceTotals, toOre } from "@/lib/money";
@@ -114,6 +115,16 @@ type InvoiceRow = {
  * the database, and that exact mistake has already shipped twice on this
  * branch (the public pricing page, then the dashboard's MRR), each time
  * only caught by editing a price live and watching a number fail to move.
+ *
+ * `locations` is read via `fetchAllRows` (lib/admin/paginate.ts), not a
+ * plain `.select()`, for the same reason the list and dashboard pages do:
+ * PostgREST silently caps an unpaginated read at `max_rows` (1000 locally
+ * and on Supabase's cloud default). Here that isn't just a display count —
+ * `locations.length` is the quantity `quote()` below prices this customer
+ * on, so a truncated read would under-price a large chain's subscription,
+ * not merely under-report it. `invoices` and `profiles` are paginated too,
+ * for consistency, though a single customer reaching either cap is a much
+ * more distant scenario.
  */
 export default async function CustomerDetailPage({
   params,
@@ -125,10 +136,10 @@ export default async function CustomerDetailPage({
 
   const [
     { data: customer, error: customerError },
-    { data: locationRows, error: locationError },
+    locationsResult,
     { data: subscriptionRows, error: subscriptionError },
-    { data: profileRows, error: profileError },
-    { data: invoiceRows, error: invoiceError },
+    profilesResult,
+    invoicesResult,
     { data: planRows, error: planError },
   ] = await Promise.all([
     supabase
@@ -136,26 +147,37 @@ export default async function CustomerDetailPage({
       .select("id, name, cvr, billing_email, address, postcode, city, country, status, created_at")
       .eq("id", id)
       .maybeSingle(),
-    supabase.from("locations").select("id, name, address, city, venue_type, m2").eq("customer_id", id),
+    fetchAllRows<LocationRow>((from, to) =>
+      supabase
+        .from("locations")
+        .select("id, name, address, city, venue_type, m2")
+        .eq("customer_id", id)
+        .range(from, to),
+    ),
     supabase
       .from("subscriptions")
       .select("plan_id, billing, status, current_period_end, created_at")
       .eq("customer_id", id),
-    supabase.from("profiles").select("id, full_name, role").eq("customer_id", id),
-    supabase
-      .from("invoices")
-      .select("id, number, issued_at, period_start, subtotal_ore, vat_ore, total_ore, status, source")
-      .eq("customer_id", id)
-      .order("issued_at", { ascending: false }),
+    fetchAllRows<ProfileRow>((from, to) =>
+      supabase.from("profiles").select("id, full_name, role").eq("customer_id", id).range(from, to),
+    ),
+    fetchAllRows<InvoiceRow>((from, to) =>
+      supabase
+        .from("invoices")
+        .select("id, number, issued_at, period_start, subtotal_ore, vat_ore, total_ore, status, source")
+        .eq("customer_id", id)
+        .order("issued_at", { ascending: false })
+        .range(from, to),
+    ),
     supabase.from("plans").select("id, name, monthly_ore, max_m2, tagline, features"),
   ]);
 
   for (const [label, error] of [
     ["customer", customerError],
-    ["locations", locationError],
+    ["locations", locationsResult.error],
     ["subscriptions", subscriptionError],
-    ["profiles", profileError],
-    ["invoices", invoiceError],
+    ["profiles", profilesResult.error],
+    ["invoices", invoicesResult.error],
     ["plans", planError],
   ] as const) {
     if (error) console.error(`[admin customer detail] failed to read ${label}`, error);
@@ -167,9 +189,9 @@ export default async function CustomerDetailPage({
   if (!customer) notFound();
 
   const detail = customer as CustomerDetail;
-  const locations = (locationRows ?? []) as LocationRow[];
-  const profiles = (profileRows ?? []) as ProfileRow[];
-  const invoices = (invoiceRows ?? []) as InvoiceRow[];
+  const locations = locationsResult.rows;
+  const profiles = profilesResult.rows;
+  const invoices = invoicesResult.rows;
 
   const planById = planMap((planRows ?? []) as PlanRow[]);
   const subscription = latestSubscription((subscriptionRows ?? []) as SubscriptionRow[]);
@@ -177,7 +199,12 @@ export default async function CustomerDetailPage({
     ? resolvePlan(subscription.plan_id, planById, "admin customer detail")
     : null;
 
-  const anyInvoiceSeeded = invoices.some((inv) => inv.source === "seed");
+  // The blanket notice below is only shown when *every* invoice is seeded
+  // — once a real Stripe invoice exists alongside older seed rows, a
+  // banner covering the whole table would sit above genuine revenue and
+  // imply it's fake too. The per-row "Seed" tag in the table itself is
+  // what still marks the mixed case correctly.
+  const allInvoicesSeeded = invoices.length > 0 && invoices.every((inv) => inv.source === "seed");
 
   return (
     <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" />}>
@@ -309,8 +336,17 @@ export default async function CustomerDetailPage({
         </div>
 
         <div className="flex shrink-0 flex-col gap-3">
-          {anyInvoiceSeeded && (
-            <p className="u-label rounded-[var(--radius-sm)] border border-line bg-surface-2/60 px-4 py-3 text-ink-2">
+          {allInvoicesSeeded && (
+            /* text-ink-2 measured at ~3:1 against this card's background —
+               below WCAG AA's 4.5:1 for normal-size text, on the one
+               element whose entire job is to not be missed. Forced via
+               inline style (highest specificity, so it can't be quietly
+               re-muted by `.u-label`'s own default colour) rather than a
+               `text-*` utility class. */
+            <p
+              className="u-label rounded-[var(--radius-sm)] border border-line bg-surface-2/60 px-4 py-3"
+              style={{ color: "var(--c-ink)" }}
+            >
               Seeded data. Billing arrives with Stripe.
             </p>
           )}
@@ -326,6 +362,7 @@ export default async function CustomerDetailPage({
                   <th className="px-5 py-3 text-right font-medium">VAT</th>
                   <th className="px-5 py-3 text-right font-medium">Total</th>
                   <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -340,6 +377,13 @@ export default async function CustomerDetailPage({
                     <td className="u-tabular px-5 py-3 text-right text-ink">{formatDkk(inv.total_ore, "en")}</td>
                     <td className="px-5 py-3">
                       <Badge tone={statusTone(inv.status)}>{inv.status}</Badge>
+                    </td>
+                    <td className="px-5 py-3">
+                      {/* Per-row, not just the blanket banner above: once a
+                          customer has a mix of seed and real Stripe rows,
+                          this is the only thing on the page that still
+                          says which is which. */}
+                      {inv.source === "seed" ? <Badge tone="neutral">seed</Badge> : <span className="text-ink-2">—</span>}
                     </td>
                   </tr>
                 ))}

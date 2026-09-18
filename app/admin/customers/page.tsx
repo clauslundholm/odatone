@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
+import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { customerRows, latestSubscription, type RawCustomer } from "@/lib/admin/customers";
 import { formatDkk } from "@/lib/money";
@@ -56,9 +57,16 @@ type SubscriptionRow = {
  * `customerRows`/`mrrOre`, never priced from a bare id, so an edited price
  * moves this list exactly as it moves the dashboard.
  *
- * Locations and subscriptions are each read once, in full, and folded into
- * per-customer maps in memory — one query per table, not one per customer
- * row, however many customers exist.
+ * Locations and subscriptions are each read in full — across as many pages
+ * as it takes, via `fetchAllRows` (lib/admin/paginate.ts) rather than one
+ * unbounded `.select()`, since PostgREST silently caps a plain read at
+ * `max_rows` (1000 locally and on Supabase's cloud default). Reproduced
+ * live: a 1201-location customer rendered as "933 locations" with a wrong
+ * MRR next to it, and nothing on screen said the read had been truncated.
+ * `fetchAllRows` still folds the result into per-customer maps in memory —
+ * one or a few queries per table, not one per customer row, however many
+ * customers exist — it only pays for a second page once a table actually
+ * has one.
  */
 export default async function CustomersPage({
   searchParams,
@@ -72,28 +80,30 @@ export default async function CustomersPage({
 
   const supabase = await createClient();
 
-  let customersQuery = supabase
-    .from("customers")
-    .select("id, name, cvr, status, created_at")
-    .order("name", { ascending: true });
-  if (activeStatus) customersQuery = customersQuery.eq("status", activeStatus);
-
-  const [
-    { data: customerRowsData, error: customersError },
-    { data: locationRows, error: locationError },
-    { data: subscriptionRows, error: subscriptionError },
-    { data: planRows, error: planError },
-  ] = await Promise.all([
-    customersQuery,
-    supabase.from("locations").select("customer_id"),
-    supabase.from("subscriptions").select("customer_id, plan_id, billing, status, created_at"),
-    supabase.from("plans").select("id, name, monthly_ore, max_m2, tagline, features"),
-  ]);
+  const [customersResult, locationsResult, subscriptionsResult, { data: planRows, error: planError }] =
+    await Promise.all([
+      fetchAllRows<CustomerRow>((from, to) => {
+        let q = supabase
+          .from("customers")
+          .select("id, name, cvr, status, created_at")
+          .order("name", { ascending: true });
+        if (activeStatus) q = q.eq("status", activeStatus);
+        return q.range(from, to);
+      }),
+      fetchAllRows<LocationRow>((from, to) => supabase.from("locations").select("customer_id").range(from, to)),
+      fetchAllRows<SubscriptionRow>((from, to) =>
+        supabase
+          .from("subscriptions")
+          .select("customer_id, plan_id, billing, status, created_at")
+          .range(from, to),
+      ),
+      supabase.from("plans").select("id, name, monthly_ore, max_m2, tagline, features"),
+    ]);
 
   for (const [label, error] of [
-    ["customers", customersError],
-    ["locations", locationError],
-    ["subscriptions", subscriptionError],
+    ["customers", customersResult.error],
+    ["locations", locationsResult.error],
+    ["subscriptions", subscriptionsResult.error],
     ["plans", planError],
   ] as const) {
     if (error) console.error(`[admin customers] failed to read ${label}`, error);
@@ -102,18 +112,18 @@ export default async function CustomersPage({
   const planById = planMap((planRows ?? []) as PlanRow[]);
 
   const locationCounts = new Map<string, number>();
-  for (const row of (locationRows ?? []) as LocationRow[]) {
+  for (const row of locationsResult.rows) {
     locationCounts.set(row.customer_id, (locationCounts.get(row.customer_id) ?? 0) + 1);
   }
 
   const subscriptionsByCustomer = new Map<string, SubscriptionRow[]>();
-  for (const row of (subscriptionRows ?? []) as SubscriptionRow[]) {
+  for (const row of subscriptionsResult.rows) {
     const list = subscriptionsByCustomer.get(row.customer_id) ?? [];
     list.push(row);
     subscriptionsByCustomer.set(row.customer_id, list);
   }
 
-  const customers = (customerRowsData ?? []) as CustomerRow[];
+  const customers = customersResult.rows;
   const raw: RawCustomer[] = customers.map((customer) => {
     const current = latestSubscription(subscriptionsByCustomer.get(customer.id) ?? []);
     return {
