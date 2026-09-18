@@ -75,6 +75,16 @@ export const signup = {
       da: "Vi har sendt en bekræftelse til {email}. Du kan åbne afspilleren nu — abonnementet er aktivt fra i dag, og de første 14 dage er gratis.",
       en: "We have sent a confirmation to {email}. You can open the player now — the subscription is active from today and the first 14 days are free.",
     } as L10n,
+    /** Shown instead of `body` when the account was created but the invite
+        email itself could not be sent (a rate limit, a mail transport
+        outage, ...) — `submitSignup` (app/actions.ts) returns
+        `message: "no-invite"` for exactly this case. `body` promises an
+        email that, here, was never sent; saying so plainly beats a
+        cheerful confirmation the visitor will never receive. */
+    bodyNoInvite: {
+      da: "Din konto til {email} er oprettet, men vi kunne ikke sende invitationsmailen lige nu. Kontakt os, så sender vi den manuelt.",
+      en: "Your account for {email} is set up, but we couldn't send the invite email just now. Contact us and we'll send it by hand.",
+    } as L10n,
     nextHeading: { da: "Tre ting mere", en: "Three more things" } as L10n,
     next: {
       da: [
@@ -123,11 +133,26 @@ export const signup = {
   errors: {
     required: { da: "Skal udfyldes", en: "Required" } as L10n,
     email: { da: "Ugyldig e-mail", en: "Invalid email" } as L10n,
+    long: { da: "For langt", en: "Too long" } as L10n,
     cvr: { da: "8 cifre", en: "8 digits" } as L10n,
     card: { da: "16 cifre", en: "16 digits" } as L10n,
     expiry: { da: "MM/ÅÅ", en: "MM/YY" } as L10n,
     cvc: { da: "3 cifre", en: "3 digits" } as L10n,
     terms: { da: "Du skal acceptere betingelserne", en: "You must accept the terms" } as L10n,
     ean: { da: "13 cifre", en: "13 digits" } as L10n,
+    /** A signup-only server-side error: the email already has a completed
+        account (an owner profile exists), or the invite call turned out to
+        target one mid-request. Never produced by client-side validation. */
+    exists: {
+      da: "Der findes allerede en konto med denne e-mail. Tjek din indbakke for invitationen, eller log ind.",
+      en: "An account with this email already exists. Check your inbox for the invite, or log in.",
+    } as L10n,
+    /** Generic server-side/service failure — a database write or the
+        service role itself was unavailable. Deliberately not the raw error
+        code the server logs; the visitor gets copy they can act on. */
+    server: {
+      da: "Der opstod en fejl. Prøv igen om lidt, eller kontakt os hvis det gentager sig.",
+      en: "Something went wrong. Please try again shortly, or contact us if it keeps happening.",
+    } as L10n,
   },
 };

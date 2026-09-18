@@ -300,10 +300,32 @@ payment — with a live order summary pinned alongside, `?step=` in the URL, and
 answers to `sessionStorage`, so a visitor arriving from `/besparelse` finds
 step one already filled in and the plan pre-selected for their floor area.
 
-Card and EAN/invoice are both offered. **Nothing is charged or stored** —
-`app/actions.ts` validates on the server and logs. Wire it to a payment
-provider and a CRM; both actions return the same `ActionResult` shape, so the
-UI needs no changes.
+Card and EAN/invoice are both offered, but **no payment provider is wired
+up** — `app/actions.ts`'s `submitSignup` validates the payment step's own
+fields (card number, expiry, CVC, or the EAN/PO pair) and logs them; no card
+is stored or charged. Everything *before* that step is real: `submitSignup`
+creates a `customers` row, one `locations` row per claimed location and a
+`pending` `subscriptions` row (see `lib/signup.ts`'s `buildSignup` for the
+validation — no price is ever read from the form; a plan's price always
+comes from the `plans` table, live, at read time), then invites the signer
+to `/my-odatone` by email rather than asking them to set a password. A
+signup from an email that already has an account is refused rather than
+duplicated; a signup that never receives its invite (a flaky mail send) is
+still kept as a real, pending customer — `/admin/customers/[id]` shows "No
+users yet" for exactly that case, which is how staff notice one needs a
+manual re-invite (there is no button for that yet). `submitSalesLead` is
+still the original prototype: validates and logs, nothing persisted.
+
+## Environment variables
+
+See `.env.example`. `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`
+and `SUPABASE_SERVICE_ROLE_KEY` come from `supabase start`'s own output
+locally, or the project's API settings against a hosted Supabase project.
+`NEXT_PUBLIC_SITE_URL` is this site's own public origin — it must match
+`supabase/config.toml`'s `[auth].site_url` — and is used to build the
+signup invite email's link; left unset, that link degrades to a relative
+path (a warning is logged every time `submitSignup` runs without it, rather
+than failing the signup over a cosmetic link problem).
 
 ## Known placeholders — check before launch
 

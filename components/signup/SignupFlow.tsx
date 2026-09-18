@@ -102,6 +102,7 @@ export default function SignupFlow({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [doneMessage, setDoneMessage] = useState<string | undefined>(undefined);
 
   /* Pick up the calculator's answers and any ?plan= / ?billing= link. */
   useEffect(() => {
@@ -205,26 +206,48 @@ export default function SignupFlow({
       return;
     }
     setBusy(true);
+    setErrors({});
     const fd = new FormData();
     fd.set("name", account.name);
     fd.set("company", account.company);
     fd.set("cvr", account.cvr);
     fd.set("email", account.email);
     fd.set("phone", account.phone);
-    fd.set("address", `${account.address}, ${account.zip} ${account.city}`);
+    /* Sent as three separate fields, not concatenated into one string: they
+       land in customers.address/postcode/city (0001_core.sql), three
+       distinct columns — the fix round that added persisting them at all
+       found the previous single combined "address" field had nowhere
+       structured to go. */
+    fd.set("address", account.address);
+    fd.set("postcode", account.zip);
+    fd.set("city", account.city);
     fd.set("planId", activePlanId);
     fd.set("billing", billing);
     fd.set("locations", String(profile.locations));
     fd.set("venueType", profile.type);
     fd.set("m2", String(profile.m2));
     fd.set("paymentMethod", payment.method);
-    const res = await submitSignup(fd);
-    setBusy(false);
-    if (res.ok) setDone(true);
-    else setErrors(res.errors);
+    try {
+      const res = await submitSignup(fd);
+      if (res.ok) {
+        setDoneMessage(res.message);
+        setDone(true);
+      } else {
+        setErrors(res.errors);
+      }
+    } catch (err) {
+      /* Belt and braces alongside submitSignup's own try/catch around
+         createAdminClient() (app/actions.ts): an unconfigured service role
+         used to throw here uncaught, and with no catch on this call the
+         button sat on "Opretter…" forever with no error and no way out. */
+      console.error("[odatone] signup submission failed unexpectedly", err);
+      setErrors({ form: "server" });
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (done) return <Done locale={l} email={account.email} />;
+  if (done) return <Done locale={l} email={account.email} noInvite={doneMessage === "no-invite"} />;
 
   return (
     <div id="flow" className="u-card grid overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -587,6 +610,35 @@ function StepAccount({
   );
 }
 
+/** The five field names StepPayment's own inputs write errors under. Any
+    other key in `errors` at this step — a bad plan/venue-type/m2/locations
+    claim only a raw POST could produce, a duplicate-email refusal, or a
+    generic service failure — cannot have come from this step's own client
+    validation (validatePayment only ever sets these five), so it can only
+    be a server-side rejection. Before this fix round, submission (which
+    happens on this step) surfaced errors for exactly these five keys and
+    nothing else: a bogus plan and venue type wrote nothing to the database
+    (correct) but showed zero feedback (wrong) — the visitor's own "Opretter…"
+    button just went back to "Start prøveperioden" with no explanation. */
+const PAYMENT_FIELD_KEYS = new Set(["card", "expiry", "cvc", "ean", "terms"]);
+
+/** Maps a server-set error code (buildSignup/submitSignup set short codes
+    like "required"/"exists"/"server", never localised text — only
+    client-side validators like validatePayment already write the shown
+    string directly) to copy the visitor can act on, falling back to the
+    generic service message for any code this table doesn't recognise. */
+function formErrorMessage(
+  errors: FieldErrors,
+  t: typeof tDefaults,
+  l: Locale,
+): string | null {
+  const key = Object.keys(errors).find((k) => !PAYMENT_FIELD_KEYS.has(k));
+  if (!key) return null;
+  const code = errors[key];
+  const table = t.errors as unknown as Record<string, Record<Locale, string> | undefined>;
+  return (table[code] ?? table.server)?.[l] ?? null;
+}
+
 function StepPayment({
   locale: l,
   payment,
@@ -599,6 +651,7 @@ function StepPayment({
   onChange: (p: Payment) => void;
 }) {
   const t = useCopy(tDefaults);
+  const banner = formErrorMessage(errors, t, l);
 
   const set = (k: keyof Payment) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...payment, [k]: e.target.value });
@@ -606,6 +659,12 @@ function StepPayment({
   return (
     <div className="flex flex-col gap-8">
       <StepHead heading={t.payment.heading[l]} body={t.payment.body[l]} />
+
+      {banner && (
+        <p role="alert" className="rounded-[var(--radius-lg)] bg-bad-soft px-5 py-4 text-[0.9375rem] text-bad">
+          {banner}
+        </p>
+      )}
 
       <div className="inline-flex gap-0.5 self-start rounded-full bg-surface-2 p-1">
         {(["card", "invoice"] as const).map((m) => (
@@ -754,8 +813,21 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
 
 /* -------------------------------- done ------------------------------- */
 
-function Done({ locale: l, email }: { locale: Locale; email: string }) {
+function Done({
+  locale: l,
+  email,
+  noInvite,
+}: {
+  locale: Locale;
+  email: string;
+  /** True when submitSignup (app/actions.ts) returned `message: "no-invite"`
+      — the account was created but the invite email itself could not be
+      sent. Fix round 1's finding: this screen used to say "we've sent a
+      confirmation" regardless, which is simply false in that case. */
+  noInvite?: boolean;
+}) {
   const t = useCopy(tDefaults);
+  const body = (noInvite ? t.done.bodyNoInvite[l] : t.done.body[l]).replace("{email}", email || "—");
 
   return (
     <div className="u-card p-9 sm:p-14">
@@ -764,7 +836,7 @@ function Done({ locale: l, email }: { locale: Locale; email: string }) {
           <CheckIcon size={20} />
         </span>
         <h2 className="u-display text-[clamp(2.2rem,6vw,3.8rem)]">{t.done.heading[l]}</h2>
-        <p className="u-lede">{t.done.body[l].replace("{email}", email || "—")}</p>
+        <p className="u-lede">{body}</p>
 
         <ol className="mt-4 grid gap-4 sm:grid-cols-3">
           {t.done.next[l].map(([title, body], i) => (
