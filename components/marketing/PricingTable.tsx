@@ -92,8 +92,12 @@ export default function PricingTable({
               </div>
 
               <ul className="flex flex-col gap-3 border-t border-line pt-7">
-                {p.features.map((f) => (
-                  <li key={f.da} className="flex items-start gap-3 text-[0.9375rem] text-ink-2">
+                {p.features.map((f, i) => (
+                  // Index, not f.da: f.da is admin-editable free text (Task
+                  // 12) and two rows sharing an empty or duplicated Danish
+                  // string produced a real "two children with the same key"
+                  // warning against live data.
+                  <li key={i} className="flex items-start gap-3 text-[0.9375rem] text-ink-2">
                     <CheckIcon size={13} className="mt-1 shrink-0 text-accent" />
                     <span>{f[l]}</span>
                   </li>

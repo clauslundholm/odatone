@@ -266,14 +266,21 @@ policy rather than re-checking the role itself — a `staff_support` account's
 save is refused by the database, not the UI.
 
 `/admin/products` (`app/admin/products/`) lets `staff_admin` edit a plan's
-price, m² bound, tagline, features and active flag without a deploy — the
-marketing site (`/priser`, the home page and savings-page calculators, and
-the signup flow's plan cards and order summary) all price from the same
-`plans` table via `lib/plans-server.ts`'s `activePlans()`, so a saved change
-is live everywhere on the next request. Every insert/update/delete on `plans`
-is recorded in `audit_log` by a `security definer` trigger
-(`supabase/migrations/0004_audit_triggers.sql`), with the acting user, the
-full before and after row, and a timestamp.
+price, m² bound, tagline, features and active flag without a deploy. Every
+*computed* price on the marketing site reads the same `plans` table via
+`lib/plans-server.ts`'s `activePlans()` — `PricingTable`, `Calculator`,
+`HeroSavings`, `PriceCompare`'s worked example, and the signup flow's plan
+cards and order summary — so a saved change is live everywhere on the next
+request. **This does not cover hand-written marketing copy that happens to
+quote a price**: `lib/content/home.ts` (the hero body and a headline tile)
+and `lib/content/meta.ts` (the page description) each hard-code "149 kr." as
+prose, not a computed value, and won't move when a plan's price is edited —
+update those by hand alongside a real price change. Every insert/update/
+delete on `plans` *and* `addons` is recorded in `audit_log` by a
+`security definer` trigger (`supabase/migrations/0004_audit_triggers.sql`),
+with the acting user, the full before and after row, and a timestamp; a
+save that changes nothing (an operator re-submitting a form untouched)
+does not add a row.
 
 **`supabase db reset` silently reverts a live price.** The migration and seed
 files are the bootstrap for a *fresh* database, not a mirror of what's

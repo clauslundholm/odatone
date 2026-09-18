@@ -15,20 +15,32 @@ type AddonRow = {
   active: boolean;
 };
 
+type FormState = { error?: string; ok?: boolean };
+const INITIAL_STATE: FormState = {};
+
+/** "forbidden" is the one actually reachable when a staff_support account
+    submits this form — see actions.ts's `.select("id")` comment. "save" is
+    left as a generic fallback for a genuine, unexpected database error
+    (a dropped connection, a constraint this form doesn't already check),
+    which is a real but different situation from a refused write. */
 const PLAN_ERRORS: Record<string, string> = {
   "missing-id": "Something went wrong identifying this plan. Reload and try again.",
-  price: "Enter a price of 0 or more.",
+  price: "Enter a price of 0 or more, e.g. 149 or 149.50.",
+  maxM2: "Max area must be a whole number of m², or blank for unbounded.",
   name: "A plan needs a name.",
-  save: "The database refused this save. If you're signed in as staff_support, that's expected — only staff_admin may change prices.",
+  tagline: "Both taglines are required — a blank one shows as a blank card on the public site.",
+  forbidden: "Only staff_admin can save this. Ask an admin to make the change.",
+  save: "Something went wrong saving this plan. Try again in a moment.",
 };
 
 /** One card per plan (Task 12). Every save round-trips through updatePlan
     (app/admin/products/actions.ts), which authorises nothing itself — the
     `plans_admin_write` RLS policy (staff_admin only) is what decides
     whether the write happens at all, so a staff_support account sees this
-    exact form submit and the database refuse it. */
+    exact form submit and the database refuse it (surfaced here as the
+    "forbidden" error, not a silent no-op). */
 export function PlanCard({ plan }: { plan: PlanRow & { active: boolean } }) {
-  const [state, formAction, pending] = useActionState(updatePlan, {} as { error?: string });
+  const [state, formAction, pending] = useActionState(updatePlan, INITIAL_STATE);
   const featuresDa = plan.features.map((f) => f.da).join("\n");
   const featuresEn = plan.features.map((f) => f.en).join("\n");
 
@@ -88,8 +100,13 @@ export function PlanCard({ plan }: { plan: PlanRow & { active: boolean } }) {
       <ActiveToggle defaultChecked={plan.active} />
 
       {state.error && (
-        <p role="alert" className="text-[0.8125rem] text-warn">
+        <p role="alert" className="text-[0.8125rem] text-bad">
           {PLAN_ERRORS[state.error] ?? "Something went wrong saving this plan."}
+        </p>
+      )}
+      {state.ok && !state.error && (
+        <p role="status" className="text-[0.8125rem] text-ok">
+          Saved.
         </p>
       )}
 
@@ -102,8 +119,9 @@ export function PlanCard({ plan }: { plan: PlanRow & { active: boolean } }) {
 
 const ADDON_ERRORS: Record<string, string> = {
   "missing-id": "Something went wrong identifying this add-on. Reload and try again.",
-  price: "Enter a price of 0 or more.",
-  save: "The database refused this save. If you're signed in as staff_support, that's expected — only staff_admin may change prices.",
+  price: "Enter a price of 0 or more, e.g. 199 or 199.50.",
+  forbidden: "Only staff_admin can save this. Ask an admin to make the change.",
+  save: "Something went wrong saving this add-on. Try again in a moment.",
 };
 
 /** Same card shape as PlanCard, for the one add-on (currently "streaming").
@@ -112,7 +130,7 @@ const ADDON_ERRORS: Record<string, string> = {
     so saving here changes the row but — unlike a plan — has no live public
     surface to verify against today. See task-12-report.md. */
 export function AddonCard({ addon }: { addon: AddonRow }) {
-  const [state, formAction, pending] = useActionState(updateAddon, {} as { error?: string });
+  const [state, formAction, pending] = useActionState(updateAddon, INITIAL_STATE);
 
   return (
     <form
@@ -138,8 +156,13 @@ export function AddonCard({ addon }: { addon: AddonRow }) {
       <ActiveToggle defaultChecked={addon.active} />
 
       {state.error && (
-        <p role="alert" className="text-[0.8125rem] text-warn">
+        <p role="alert" className="text-[0.8125rem] text-bad">
           {ADDON_ERRORS[state.error] ?? "Something went wrong saving this add-on."}
+        </p>
+      )}
+      {state.ok && !state.error && (
+        <p role="status" className="text-[0.8125rem] text-ok">
+          Saved.
         </p>
       )}
 

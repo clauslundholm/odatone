@@ -32,9 +32,12 @@ type AddonRow = {
  * staff_admin, and this page relies on that being the one and only
  * definition of who may change a price — see actions.ts's own comment.
  * A staff_support account can open this page (proxy.ts's `mayEnter` admits
- * any staff role into /admin) and submit the form, but the update below
- * comes back with a Postgres RLS error and the card shows "The database
- * refused this save," not a UI-level guess at who's allowed.
+ * any staff role into /admin) and submit the form, but the row is excluded
+ * from the UPDATE's affected set by `plans_admin_write`'s `using` clause —
+ * Postgres does not raise an error for that, it simply matches zero rows —
+ * so the action tells a refusal apart from success with `.select("id")`
+ * and an empty result, and the card shows "Only staff_admin can save
+ * this," not a UI-level guess at who's allowed.
  */
 export default async function AdminProductsPage() {
   const supabase = await createClient();

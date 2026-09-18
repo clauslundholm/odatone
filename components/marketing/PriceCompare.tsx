@@ -1,4 +1,5 @@
 import { HEADLINE_EXAMPLE, calculate, venueType } from "@/lib/rates";
+import { recommendPlan, type Plan } from "@/lib/pricing";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { home as homeDefaults } from "@/lib/content/home";
 import { serverCopy } from "@/lib/copy-server";
@@ -8,18 +9,32 @@ import type { Locale } from "@/lib/i18n";
 /**
  * One worked example, stated as plainly as possible: what three bills cost
  * today, and what one costs instead.
+ *
+ * Task 12's fix round caught this component naming a specific plan ("Odatone
+ * Small Venue") and its price while still reading `HEADLINE_EXAMPLE`'s
+ * hard-coded `odatonePerLocationMonth: 149` (lib/rates.ts) — exactly the
+ * two-prices-on-one-screen failure the scope expansion existed to prevent,
+ * since it renders on the same pages as the now-live PricingTable,
+ * Calculator and HeroSavings. `plans` is required for the same reason it's
+ * required on those three: the caller must resolve it against the database
+ * (lib/plans-server.ts's activePlans()), and the plan named and priced here
+ * is now whichever one `recommendPlan` actually recommends for
+ * `HEADLINE_EXAMPLE`'s venue, not a separately hard-coded name.
  */
 export default async function PriceCompare({
   locale,
+  plans,
   compact = false,
 }: {
   locale: Locale;
+  plans: Plan[];
   compact?: boolean;
 }) {
   const l = locale;
   const ui = await serverCopy(uiDefaults, l);
   const home = await serverCopy(homeDefaults, l);
-  const r = calculate(HEADLINE_EXAMPLE);
+  const plan = recommendPlan(HEADLINE_EXAMPLE.m2, HEADLINE_EXAMPLE.type, plans);
+  const r = calculate({ ...HEADLINE_EXAMPLE, odatonePerLocationMonth: plan.monthly });
   const v = venueType(HEADLINE_EXAMPLE.type);
 
   if (compact) {
@@ -79,7 +94,7 @@ export default async function PriceCompare({
         <p className="u-label mb-8 text-accent">{home.strip.after[l]}</p>
         <dl className="flex flex-col gap-4">
           <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-[0.9375rem] text-ink-2">Odatone Small Venue</dt>
+            <dt className="text-[0.9375rem] text-ink-2">Odatone {plan.name}</dt>
             <dd className="u-tabular text-[0.9375rem] text-ink">
               {kr(r.odatoneMonth, l)}
               <span className="ml-1 text-ink-3">/{l === "da" ? "md." : "mo"}</span>

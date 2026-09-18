@@ -49,7 +49,7 @@ export default async function SavingsPage({ locale: l }: { locale: Locale }) {
             title={l === "da" ? "Et konkret eksempel." : "A worked example."}
             className="mb-14"
           />
-          <PriceCompare locale={l} />
+          <PriceCompare locale={l} plans={plans} />
         </Container>
       </Section>
 

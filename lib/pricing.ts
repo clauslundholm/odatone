@@ -92,26 +92,30 @@ export function plan(id: PlanId): Plan {
 
 /** The plan a venue of this size needs.
 
-    Accepts an optional, already-resolved plan list — the same
-    database-backed `Plan[]` lib/plans-server.ts's activePlans() returns,
-    ordered by `sort` — so a staff edit to a plan's `max_m2` moves the
-    recommendation the calculator and signup flow make, not just its price.
-    Defaults to the compiled PLANS so every existing caller (and every
-    non-marketing caller with no database in reach, e.g. tests) still works
-    unchanged. */
-export function planForM2(m2: number, plans: Plan[] = PLANS): Plan {
+    `plans` is required, not defaulted to the compiled PLANS, on purpose —
+    Task 12's fix round found that a default here is exactly the same trap
+    as quote()'s bare-PlanId branch: the safe call (pass the resolved,
+    database-backed Plan[]) and the wrong call (fall through to the
+    compiled fallback silently) look identical at the call site, and that
+    exact shape of bug has already shipped three times on this branch. The
+    caller must resolve a `Plan[]` — via lib/plans-server.ts's
+    activePlans() on a marketing page, or the compiled PLANS explicitly
+    when there genuinely is no database (e.g. a unit test) — and the
+    compiler now enforces that every call site makes that choice instead
+    of one being able to forget it. */
+export function planForM2(m2: number, plans: Plan[]): Plan {
   return plans.find((p) => p.maxM2 === null || m2 <= p.maxM2) ?? plans[plans.length - 1];
 }
 
 /** Venue types that usually run louder and longer get bumped a step. */
 const LOUD: VenueTypeId[] = ["bar", "fitness"];
 
-/** See planForM2's doc comment for why `plans` is a parameter, not always
-    the compiled PLANS: a bumped recommendation must land on the same
-    database-backed plan objects the caller is pricing with, or "bumped
-    one step up from the small plan" and "the small plan" could disagree
-    about what the small plan even costs. */
-export function recommendPlan(m2: number, type: VenueTypeId, plans: Plan[] = PLANS): Plan {
+/** See planForM2's doc comment for why `plans` is required: a bumped
+    recommendation must land on the same database-backed plan objects the
+    caller is pricing with, or "bumped one step up from the small plan"
+    and "the small plan" could disagree about what the small plan even
+    costs. */
+export function recommendPlan(m2: number, type: VenueTypeId, plans: Plan[]): Plan {
   const base = planForM2(m2, plans);
   if (!LOUD.includes(type)) return base;
   const i = plans.findIndex((p) => p.id === base.id);

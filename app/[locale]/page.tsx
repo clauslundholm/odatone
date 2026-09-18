@@ -108,7 +108,7 @@ export default async function HomePage({
             className="mb-14"
           />
           <Reveal>
-            <PriceCompare locale={l} />
+            <PriceCompare locale={l} plans={plans} />
           </Reveal>
         </Container>
       </Section>
