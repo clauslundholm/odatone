@@ -44,7 +44,7 @@ Facts from the repository that shape this design:
 - **Nothing is persisted.** `app/actions.ts` validates `submitSignup` and `submitSalesLead`, logs them, and returns. Its own comment says to wire it to a CRM.
 - **The only session mechanism is a shared password.** `lib/edit-session.ts` signs an expiry with HMAC-SHA256 for the live copy editor. It is one secret for all editors — a reasonable internal gate, not an identity system.
 - **`/admin` and `/my-odatone` are free at the root.** `app/[locale]/layout.tsx:82` calls `notFound()` for anything that is not `da` or `en`, and static route segments take precedence over dynamic ones.
-- **There is a precedent for database-backed content on prerendered pages.** `lib/copy-server.ts` wraps the store read in a cache tagged `copy-overrides`, revalidated on save, so the 25 marketing pages still prerender. Plans follow the same shape — but on Next 16 that is `use cache` with `cacheTag`, not the legacy `unstable_cache` that file still uses.
+- **There is a precedent for database-backed content on prerendered pages.** `lib/copy-server.ts` wraps the store read in a cache tagged `copy-overrides`, revalidated on save, so the 25 marketing pages still prerender. Plans follow exactly the same shape, with the same `unstable_cache` + `revalidateTag` pair. Next 16's replacement (`use cache` with `cacheTag`) requires `cacheComponents: true` in `next.config.ts`, a project-wide rendering change affecting all 25 existing pages — out of scope here, and noted in Risks.
 - **The pricing model is already written.** `lib/pricing.ts` holds three plans (149 / 199 / 249 kr.), `ANNUAL_DISCOUNT_PCT = 45`, `VAT_PCT = 25`, `VOLUME_TIERS` at 0/10/15/20 % and a `Quote` type. `lib/rates.ts` supplies `VenueTypeId` and `HoursBand`; `lib/profile.ts` carries the calculator's answers into signup.
 - **The design system already exists.** `app/globals.css` defines the tokens the deployed site serves: `--c-accent: #7a3aff`, the ink/surface/line scales, radii 10/14/20/28, `--g-brand` and `--ease-out-expo`, exposed to Tailwind v4 as `--color-*`.
 - **Upstash Redis is in use** for copy overrides only, via `KV_REST_API_*`. It stays exactly where it is.
@@ -62,13 +62,13 @@ Access goes through `@supabase/ssr` in three thin wrappers so no component const
 lib/supabase/server.ts       server components and server actions (user session)
 lib/supabase/client.ts       browser components
 lib/supabase/admin.ts        service role — signup only, never imported client-side
-lib/supabase/middleware.ts   session refresh
+lib/supabase/proxy.ts        session refresh helper
 ```
 
 ### Routing
 
 ```
-middleware.ts                    session refresh + gate both prefixes
+proxy.ts                         session refresh + gate both prefixes
 app/admin/layout.tsx             shell: sidebar frame + panel
 app/admin/page.tsx               dashboard
 app/admin/login/page.tsx         staff login (excluded from the gate)
@@ -80,7 +80,9 @@ supabase/migrations/*.sql        schema, policies, seed
 supabase/tests/*.sql             RLS isolation tests
 ```
 
-`/admin/login` sits inside the gated prefix and must be explicitly excluded, or it redirects to itself.
+`/admin/login` sits inside the gated prefix and must be explicitly excluded, or it redirects to itself. The same applies to `/my-odatone/login`.
+
+**Next 16 renamed `middleware.ts` to `proxy.ts`**, exporting `proxy` instead of `middleware`. The old convention is deprecated; a codemod exists (`npx @next/codemod@canary middleware-to-proxy .`). Supabase's own guide already uses the Proxy terminology.
 
 ### What moves and what stays
 
@@ -135,7 +137,12 @@ Two deliberate exceptions:
 
 ### Authentication
 
-Email and password via Supabase Auth. Staff are invited — `/admin` has no self-signup. Customers get an invite from the signup flow to set their own password, so no password is ever transmitted to Odatone. Sessions refresh in `middleware.ts`.
+Email and password via Supabase Auth (`@supabase/ssr` 0.12.x). Staff are invited — `/admin` has no self-signup. Customers get an invite from the signup flow to set their own password, so no password is ever transmitted to Odatone. Sessions refresh in `proxy.ts`.
+
+Two rules the library is emphatic about, both easy to get wrong:
+
+- **Use `getClaims()`, never `getSession()`, in server code.** `getSession()` reads the cookie without verifying its signature; `getClaims()` verifies it on every call. It must be called early in the handler, before the response is committed, or a refresh completing afterwards is lost.
+- **Responses that write auth cookies must not be cached.** `setAll` receives a second argument of required headers (`Cache-Control: private, no-cache, no-store...`). They must be applied to the response, or Vercel's CDN can serve one customer's session token to another. Cookie handlers must implement `getAll`/`setAll`; the older `get`/`set`/`remove` are deprecated and miss edge cases.
 
 Supabase's built-in auth email is rate-limited and not intended for production volume. It is adequate for this slice; a transactional provider is a dependency of slice 3, not a surprise.
 
@@ -198,4 +205,4 @@ The `/my-odatone` product, billing, settings and stats screens; Stripe and any r
 - **`ANNUAL_DISCOUNT_PCT = 45` is unverified.** `lib/pricing.ts` carries a warning that 45 % is unusually deep for an annual term and may be a launch offer. Seeding it into the database makes it operational; confirm the number first.
 - **`VOLUME_TIERS` are a proposal.** The same file states the current site has no multi-location pricing. Admin will display tier discounts that have never been sold.
 - **Supabase auth email is rate-limited**, so invite volume is capped until slice 3 brings a provider.
-- **`unstable_cache` is legacy on Next 16.** New code uses `use cache` with `cacheTag`; `lib/copy-server.ts` still uses the old API and will read inconsistently against the new plan cache until it is migrated. Not this slice's job, but it is now two patterns.
+- **The caching API is a deliberate compromise.** `unstable_cache` is legacy on Next 16, but its replacement needs `cacheComponents: true`, which changes rendering semantics for every existing marketing page. This slice matches `lib/copy-server.ts` and stays on the old API so there is one pattern, not two. Migrating both together is its own project.
