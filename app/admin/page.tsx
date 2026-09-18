@@ -89,11 +89,19 @@ export default async function AdminDashboardPage() {
     supabase.from("customers").select("id", { count: "exact", head: true }),
     supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("customers").select("id", { count: "exact", head: true }).eq("status", "pending"),
-    fetchAllRows<SubscriptionRow>((from, to) =>
-      supabase.from("subscriptions").select("customer_id, plan_id, billing, status").range(from, to),
+    fetchAllRows<SubscriptionRow>(
+      (from, to) =>
+        supabase
+          .from("subscriptions")
+          .select("customer_id, plan_id, billing, status", { count: "exact" })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "admin dashboard: subscriptions",
     ),
-    fetchAllRows<{ customer_id: string }>((from, to) =>
-      supabase.from("locations").select("customer_id").range(from, to),
+    fetchAllRows<{ customer_id: string }>(
+      (from, to) =>
+        supabase.from("locations").select("customer_id", { count: "exact" }).order("id", { ascending: true }).range(from, to),
+      "admin dashboard: locations",
     ),
     supabase
       .from("customers")

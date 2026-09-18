@@ -85,17 +85,29 @@ export default async function CustomersPage({
       fetchAllRows<CustomerRow>((from, to) => {
         let q = supabase
           .from("customers")
-          .select("id, name, cvr, status, created_at")
-          .order("name", { ascending: true });
+          .select("id, name, cvr, status, created_at", { count: "exact" })
+          // `.order("id")` after the business-meaningful `name` sort breaks
+          // ties deterministically — LIMIT/OFFSET paging without a total
+          // order is documented as non-deterministic, and could in
+          // principle skip or repeat a row at a page boundary.
+          .order("name", { ascending: true })
+          .order("id", { ascending: true });
         if (activeStatus) q = q.eq("status", activeStatus);
         return q.range(from, to);
-      }),
-      fetchAllRows<LocationRow>((from, to) => supabase.from("locations").select("customer_id").range(from, to)),
-      fetchAllRows<SubscriptionRow>((from, to) =>
-        supabase
-          .from("subscriptions")
-          .select("customer_id, plan_id, billing, status, created_at")
-          .range(from, to),
+      }, "admin customers: customers"),
+      fetchAllRows<LocationRow>(
+        (from, to) =>
+          supabase.from("locations").select("customer_id", { count: "exact" }).order("id", { ascending: true }).range(from, to),
+        "admin customers: locations",
+      ),
+      fetchAllRows<SubscriptionRow>(
+        (from, to) =>
+          supabase
+            .from("subscriptions")
+            .select("customer_id, plan_id, billing, status, created_at", { count: "exact" })
+            .order("id", { ascending: true })
+            .range(from, to),
+        "admin customers: subscriptions",
       ),
       supabase.from("plans").select("id, name, monthly_ore, max_m2, tagline, features"),
     ]);

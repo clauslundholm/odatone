@@ -147,27 +147,42 @@ export default async function CustomerDetailPage({
       .select("id, name, cvr, billing_email, address, postcode, city, country, status, created_at")
       .eq("id", id)
       .maybeSingle(),
-    fetchAllRows<LocationRow>((from, to) =>
-      supabase
-        .from("locations")
-        .select("id, name, address, city, venue_type, m2")
-        .eq("customer_id", id)
-        .range(from, to),
+    fetchAllRows<LocationRow>(
+      (from, to) =>
+        supabase
+          .from("locations")
+          .select("id, name, address, city, venue_type, m2", { count: "exact" })
+          .eq("customer_id", id)
+          .order("id", { ascending: true })
+          .range(from, to),
+      "admin customer detail: locations",
     ),
     supabase
       .from("subscriptions")
       .select("plan_id, billing, status, current_period_end, created_at")
       .eq("customer_id", id),
-    fetchAllRows<ProfileRow>((from, to) =>
-      supabase.from("profiles").select("id, full_name, role").eq("customer_id", id).range(from, to),
+    fetchAllRows<ProfileRow>(
+      (from, to) =>
+        supabase
+          .from("profiles")
+          .select("id, full_name, role", { count: "exact" })
+          .eq("customer_id", id)
+          .order("id", { ascending: true })
+          .range(from, to),
+      "admin customer detail: profiles",
     ),
-    fetchAllRows<InvoiceRow>((from, to) =>
-      supabase
-        .from("invoices")
-        .select("id, number, issued_at, period_start, subtotal_ore, vat_ore, total_ore, status, source")
-        .eq("customer_id", id)
-        .order("issued_at", { ascending: false })
-        .range(from, to),
+    fetchAllRows<InvoiceRow>(
+      (from, to) =>
+        supabase
+          .from("invoices")
+          .select("id, number, issued_at, period_start, subtotal_ore, vat_ore, total_ore, status, source", {
+            count: "exact",
+          })
+          .eq("customer_id", id)
+          .order("issued_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "admin customer detail: invoices",
     ),
     supabase.from("plans").select("id, name, monthly_ore, max_m2, tagline, features"),
   ]);
