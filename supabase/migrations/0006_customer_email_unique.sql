@@ -1,0 +1,16 @@
+-- Task 13's fix round found the race a unique constraint exists to close:
+-- four concurrent signups for the same billing email produced three
+-- `customers` rows (measured live). Without this, decideSignupDedupe
+-- (app/actions.ts) is a best-effort read that a concurrent request can
+-- always outrun between the check and the insert — this turns it into an
+-- actual guarantee, and gives submitSignup a `23505` to catch and recover
+-- from gracefully instead.
+--
+-- One row per business, one billing email per row: a chain with several
+-- venues is already modelled as one customer with many `locations`, so
+-- "one row per email" is the correct cardinality here, not an
+-- oversimplification. Case-insensitive because buildSignup (lib/signup.ts)
+-- already lower-cases every email it accepts, and a unique index that
+-- didn't match on case would leave the exact gap this migration exists to
+-- close for "Jens@Nord.test" vs "jens@nord.test".
+create unique index customers_billing_email_unique_idx on customers (lower(billing_email));

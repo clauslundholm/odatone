@@ -1,7 +1,14 @@
 "use server";
 
 import { EMAIL_RE, type ActionResult, type FieldErrors } from "@/lib/forms";
-import { buildSignup, decideSignupDedupe, inviteCreatedNewUser } from "@/lib/signup";
+import {
+  buildSignup,
+  decideSignupDedupe,
+  inviteCreatedNewUser,
+  type ExistingCustomer,
+  type ExistingProfile,
+  type SignupInput,
+} from "@/lib/signup";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -33,14 +40,230 @@ export async function submitSalesLead(formData: FormData): Promise<ActionResult>
   return { ok: true };
 }
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
 /** GoTrue's error shape for an already-registered, *confirmed* address
     (verified live against the local stack: HTTP 422, `code: "email_exists"`).
     Distinct from the unconfirmed-existing-user case below — that one
     doesn't error at all, it silently re-invites, which is the shape the
-    Critical in this fix round exploited. */
+    Critical in fix round 1 exploited. */
 function isAlreadyRegisteredError(error: unknown): boolean {
   const e = error as { code?: string; status?: number } | null | undefined;
   return e?.code === "email_exists" || e?.status === 422;
+}
+
+/** Deletes a customer this request is compensating away (a failed write
+    past it, or a customer that can never get an owner because its email
+    belongs to someone else). Fix round 2's Minor: the delete's own result
+    used to be discarded, so a failed cleanup logged "removing the
+    customer" while the customer stayed — demonstrated live. `context` goes
+    straight into the log line so a failure here is diagnosable without
+    guessing which of several call sites it came from. */
+async function deleteCustomer(admin: AdminClient, customerId: string, context: string): Promise<void> {
+  const { error } = await admin.from("customers").delete().eq("id", customerId);
+  if (error) {
+    console.error(`[odatone] signup: failed to remove the customer (${context}) — it was NOT removed`, {
+      customer: customerId,
+      error,
+    });
+  }
+}
+
+type LookupResult =
+  | { ok: true; customers: ExistingCustomer[]; profiles: ExistingProfile[] }
+  | { ok: false };
+
+/** Everything already on file for a billing email: every `customers` row,
+    and every `profiles` row against any of them. decideSignupDedupe
+    (lib/signup.ts) turns this into the actual decision; this only reads. */
+async function lookupSignup(admin: AdminClient, email: string): Promise<LookupResult> {
+  const { data: customersRaw, error: customersError } = await admin
+    .from("customers")
+    .select("id, created_at")
+    .eq("billing_email", email);
+  if (customersError) {
+    console.error("[odatone] signup: failed to check for an existing customer", customersError);
+    return { ok: false };
+  }
+  const customers = customersRaw ?? [];
+  if (customers.length === 0) return { ok: true, customers, profiles: [] };
+
+  const { data: profilesRaw, error: profilesError } = await admin
+    .from("profiles")
+    .select("customer_id")
+    .in(
+      "customer_id",
+      customers.map((c) => c.id),
+    );
+  if (profilesError) {
+    console.error("[odatone] signup: failed to check for an existing profile", profilesError);
+    return { ok: false };
+  }
+  return { ok: true, customers, profiles: profilesRaw ?? [] };
+}
+
+type OrderResult = { ok: true } | { ok: false };
+
+/** Writes `value`'s order onto an *existing* customer — its own contact and
+    billing fields, its locations (replaced, not merged) and its
+    subscription (replaced, not merged).
+
+    Fix round 2's Important: the `reuse` path used to skip this entirely and
+    only insert a `profiles` row, silently discarding the visitor's real
+    plan, locations and business details onto whatever a pre-existing,
+    unrelated customer row happened to hold — reproduced live (a Main Stage
+    / annual / 7-location / 900m² order was bound to an old "Small Venue /
+    monthly / 1 location" customer, every new field discarded, and the
+    visitor was told their subscription was active). Refusing outright
+    would be safer against writing onto someone else's row, but with no
+    re-invite affordance anywhere in /admin, refusing would permanently
+    strand exactly the people `reuse` exists to help — a repeat visitor
+    whose first invite never arrived. The risk is bounded: `reuse` only
+    ever targets a customer decideSignupDedupe already confirmed has no
+    owner, and the invite that follows only ever goes to the email on that
+    customer's own record — never to anyone else's address. */
+async function applyOrderToCustomer(
+  admin: AdminClient,
+  customerId: string,
+  value: SignupInput,
+  context: string,
+): Promise<OrderResult> {
+  const { error: updateError } = await admin
+    .from("customers")
+    .update({
+      name: value.customer.name,
+      cvr: value.customer.cvr,
+      address: value.customer.address,
+      postcode: value.customer.postcode,
+      city: value.customer.city,
+      phone: value.customer.phone,
+    })
+    .eq("id", customerId);
+  if (updateError) {
+    console.error(`[odatone] signup: failed to update the reused customer's details (${context})`, {
+      customer: customerId,
+      error: updateError,
+    });
+    return { ok: false };
+  }
+
+  /* Replaced, not appended: a customer only ever reaches this path with no
+     owner yet, so its previous locations/subscription belong to an order
+     nobody ever confirmed — the new submission is what the visitor actually
+     wants set up. */
+  const { error: deleteLocationsError } = await admin.from("locations").delete().eq("customer_id", customerId);
+  if (deleteLocationsError) {
+    console.error(`[odatone] signup: failed to clear the reused customer's old locations (${context})`, {
+      customer: customerId,
+      error: deleteLocationsError,
+    });
+    return { ok: false };
+  }
+  const { error: locationsError } = await admin.from("locations").insert(
+    value.locations.map((l) => ({ customer_id: customerId, ...l })),
+  );
+  if (locationsError) {
+    console.error(`[odatone] signup: failed to write the reused customer's new locations (${context})`, {
+      customer: customerId,
+      error: locationsError,
+    });
+    return { ok: false };
+  }
+
+  const { error: deleteSubscriptionsError } = await admin.from("subscriptions").delete().eq("customer_id", customerId);
+  if (deleteSubscriptionsError) {
+    console.error(`[odatone] signup: failed to clear the reused customer's old subscription (${context})`, {
+      customer: customerId,
+      error: deleteSubscriptionsError,
+    });
+    return { ok: false };
+  }
+  const { error: subscriptionError } = await admin.from("subscriptions").insert({
+    customer_id: customerId,
+    plan_id: value.planId,
+    billing: value.billing,
+    status: "pending",
+  });
+  if (subscriptionError) {
+    console.error(`[odatone] signup: failed to write the reused customer's new subscription (${context})`, {
+      customer: customerId,
+      error: subscriptionError,
+    });
+    return { ok: false };
+  }
+
+  return { ok: true };
+}
+
+type CreateResult =
+  | { status: "created"; customerId: string }
+  | { status: "conflict" }
+  | { status: "error" };
+
+/** Creates a brand-new customer plus its locations and subscription. Not
+    wrapped in a database transaction (no RPC function exists for this yet):
+    any failure past the customer insert deletes that customer via
+    `deleteCustomer`, and `on delete cascade` (0002_commerce.sql) takes its
+    locations and subscription with it, so a failed signup never leaves a
+    half-created customer sitting in /admin/customers indistinguishable from
+    a real pending one.
+
+    `customers_billing_email_unique_idx` (0006_customer_email_unique.sql,
+    fix round 2) means this insert itself can now lose a race to a
+    concurrent signup for the same email — reported as `"conflict"` rather
+    than a generic error, so the caller can recover via decideSignupDedupe
+    instead of showing the visitor a raw database error for something that
+    isn't really a failure. */
+async function createCustomerWithOrder(admin: AdminClient, value: SignupInput): Promise<CreateResult> {
+  const { data: customer, error: customerError } = await admin
+    .from("customers")
+    .insert({
+      name: value.customer.name,
+      billing_email: value.customer.email,
+      cvr: value.customer.cvr,
+      address: value.customer.address,
+      postcode: value.customer.postcode,
+      city: value.customer.city,
+      phone: value.customer.phone,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (customerError || !customer) {
+    if (customerError?.code === "23505") return { status: "conflict" };
+    console.error("[odatone] signup: failed to create customer", customerError);
+    return { status: "error" };
+  }
+
+  const customerId = customer.id as string;
+
+  const { error: locationsError } = await admin.from("locations").insert(
+    value.locations.map((l) => ({ customer_id: customerId, ...l })),
+  );
+  if (locationsError) {
+    console.error("[odatone] signup: failed to create locations — removing the customer", locationsError, {
+      customer: customerId,
+    });
+    await deleteCustomer(admin, customerId, "locations insert failed");
+    return { status: "error" };
+  }
+
+  const { error: subscriptionError } = await admin.from("subscriptions").insert({
+    customer_id: customerId,
+    plan_id: value.planId,
+    billing: value.billing,
+    status: "pending",
+  });
+  if (subscriptionError) {
+    console.error("[odatone] signup: failed to create subscription — removing the customer", subscriptionError, {
+      customer: customerId,
+    });
+    await deleteCustomer(admin, customerId, "subscription insert failed");
+    return { status: "error" };
+  }
+
+  return { status: "created", customerId };
 }
 
 export async function submitSignup(formData: FormData): Promise<ActionResult> {
@@ -59,10 +282,10 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
      lib/supabase/env.ts documents a missing service key as a *normal*
      state (local dev before the integration is configured, or a deploy
      made before it), so createAdminClient() throwing synchronously here
-     must not become an unhandled rejection — before this fix round it did,
+     must not become an unhandled rejection — before fix round 1 it did,
      which left SignupFlow.tsx's "Opretter…" button spinning forever with
      no error and no way out for the visitor. */
-  let admin: ReturnType<typeof createAdminClient>;
+  let admin: AdminClient;
   try {
     admin = createAdminClient();
   } catch (err) {
@@ -70,48 +293,19 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
     return { ok: false, errors: { form: "server" } };
   }
 
-  /* Duplicate-signup safety (fix round 1's Critical). `customers.billing_email`
-     has no unique constraint, and GoTrue's inviteUserByEmail does not fail
-     for an existing *unconfirmed* user — it silently re-invites and returns
-     that same user. The original code treated whatever inviteUserByEmail
-     returned as "the user this request just created": a second signup for
-     an email that hadn't yet accepted its first invite hit a `profiles`
-     primary-key conflict against the FIRST attempt's real profile, and the
-     "rollback" then deleted that auth user — cascading away the first
-     customer's actual, working account. Reproduced live twice by the
-     coordinator; exploitable by anyone who merely knows a customer's
-     billing email, unauthenticated.
+  /* Duplicate-signup safety (fix round 1's Critical, closed further in fix
+     round 2). `customers.billing_email` has a unique index now
+     (0006_customer_email_unique.sql), but the lookup below still runs
+     first — it's what turns "no row for this email" into a real decision
+     (create vs. reuse vs. refuse) rather than just a constraint to bounce
+     off of, and it's what makes the *reuse* path possible at all. The
+     unique index exists for the case this lookup can't see on its own: two
+     concurrent signups for the same brand-new email (see
+     createCustomerWithOrder's `"conflict"` handling below). */
+  const lookup = await lookupSignup(admin, built.value.customer.email);
+  if (!lookup.ok) return { ok: false, errors: { form: "server" } };
 
-     The fix looks up what already exists for this email *before* creating
-     anything or calling invite at all, and decideSignupDedupe (lib/signup.ts,
-     unit tested) turns that into one of three outcomes. */
-  const { data: existingCustomersRaw, error: existingCustomersError } = await admin
-    .from("customers")
-    .select("id, created_at")
-    .eq("billing_email", built.value.customer.email);
-  if (existingCustomersError) {
-    console.error("[odatone] signup: failed to check for an existing customer", existingCustomersError);
-    return { ok: false, errors: { form: "server" } };
-  }
-  const existingCustomers = existingCustomersRaw ?? [];
-
-  let existingProfiles: { customer_id: string | null }[] = [];
-  if (existingCustomers.length > 0) {
-    const { data: existingProfilesRaw, error: existingProfilesError } = await admin
-      .from("profiles")
-      .select("customer_id")
-      .in(
-        "customer_id",
-        existingCustomers.map((c) => c.id),
-      );
-    if (existingProfilesError) {
-      console.error("[odatone] signup: failed to check for an existing profile", existingProfilesError);
-      return { ok: false, errors: { form: "server" } };
-    }
-    existingProfiles = existingProfilesRaw ?? [];
-  }
-
-  const dedupe = decideSignupDedupe(existingCustomers, existingProfiles);
+  const dedupe = decideSignupDedupe(lookup.customers, lookup.profiles);
 
   if (dedupe.action === "already-registered") {
     /* An owner already exists for this email. Never invite, never create a
@@ -121,63 +315,46 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
 
   let customerId: string;
   /* Only a customer this exact request created may ever be compensating-
-     deleted below — a reused, pre-existing customer (dedupe.action ===
-     "reuse") is never touched by this request's own failure handling. */
+     deleted below — a reused, pre-existing customer is never deleted by
+     this request's own failure handling, only ever updated in place. */
   let createdCustomerThisRequest = false;
 
   if (dedupe.action === "reuse") {
     customerId = dedupe.customerId;
+    const applied = await applyOrderToCustomer(admin, customerId, built.value, "reuse");
+    if (!applied.ok) return { ok: false, errors: { form: "server" } };
   } else {
-    const { data: customer, error: customerError } = await admin
-      .from("customers")
-      .insert({
-        name: built.value.customer.name,
-        billing_email: built.value.customer.email,
-        cvr: built.value.customer.cvr,
-        address: built.value.customer.address,
-        postcode: built.value.customer.postcode,
-        city: built.value.customer.city,
-        phone: built.value.customer.phone,
-        status: "pending",
-      })
-      .select("id")
-      .single();
-    if (customerError || !customer) {
-      console.error("[odatone] signup: failed to create customer", customerError);
-      return { ok: false, errors: { form: "server" } };
-    }
-    customerId = customer.id;
-    createdCustomerThisRequest = true;
+    const created = await createCustomerWithOrder(admin, built.value);
 
-    /* Not wrapped in a database transaction (the brief's own shape was
-       three sequential inserts; this fix round did not introduce an RPC
-       function). Instead: any failure past this point deletes the customer
-       row this request just created, and `on delete cascade`
-       (0002_commerce.sql) takes its locations and subscription with it —
-       so a failed signup never leaves a half-created customer sitting in
-       /admin/customers indistinguishable from a real pending one. */
-    const { error: locationsError } = await admin.from("locations").insert(
-      built.value.locations.map((l) => ({ customer_id: customerId, ...l })),
-    );
-    if (locationsError) {
-      console.error("[odatone] signup: failed to create locations — removing the customer", locationsError, {
-        customer: customerId,
-      });
-      await admin.from("customers").delete().eq("id", customerId);
-      return { ok: false, errors: { form: "server" } };
-    }
+    if (created.status === "created") {
+      customerId = created.customerId;
+      createdCustomerThisRequest = true;
+    } else if (created.status === "conflict") {
+      /* Lost the race: a concurrent signup for this exact email committed
+         between the lookup above and this insert. Re-running the lookup now
+         sees the winner, and decideSignupDedupe recovers exactly as it
+         would have if that row had existed from the start. */
+      const relookup = await lookupSignup(admin, built.value.customer.email);
+      if (!relookup.ok) return { ok: false, errors: { form: "server" } };
+      const redecide = decideSignupDedupe(relookup.customers, relookup.profiles);
 
-    const { error: subscriptionError } = await admin.from("subscriptions").insert({
-      customer_id: customerId,
-      plan_id: built.value.planId,
-      billing: built.value.billing,
-      status: "pending",
-    });
-    if (subscriptionError) {
-      console.error("[odatone] signup: failed to create subscription — removing the customer", subscriptionError, {
-        customer: customerId,
-      });
-      await admin.from("customers").delete().eq("id", customerId);
+      if (redecide.action === "already-registered") {
+        return { ok: false, errors: { email: "exists" } };
+      }
+      if (redecide.action === "create") {
+        /* The conflicting row must have vanished between the two reads
+           (e.g. another request's own compensating delete) — vanishingly
+           unlikely, and not safe to retry indefinitely from here. */
+        console.error("[odatone] signup: unique-email conflict but no customer found on re-check", {
+          email: built.value.customer.email,
+        });
+        return { ok: false, errors: { form: "server" } };
+      }
+
+      customerId = redecide.customerId;
+      const applied = await applyOrderToCustomer(admin, customerId, built.value, "reuse-after-race");
+      if (!applied.ok) return { ok: false, errors: { form: "server" } };
+    } else {
       return { ok: false, errors: { form: "server" } };
     }
   }
@@ -192,7 +369,8 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
      `inviteStartedAt` is captured immediately before the call so
      inviteCreatedNewUser (lib/signup.ts) can later tell, deterministically,
      whether the auth user this call returns is one this request just made
-     or one that already existed — the fact the Critical above turned on. */
+     or one that already existed — the fact fix round 1's Critical turned
+     on. */
   if (!process.env.NEXT_PUBLIC_SITE_URL) {
     /* Documented in .env.example and the README's "Admin"/"The signup flow"
        sections, not just enforced here — a missing value degrades instead
@@ -212,13 +390,13 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
 
   if (inviteError || !invited?.user) {
     if (isAlreadyRegisteredError(inviteError)) {
-      /* Only reachable if the pre-check above raced or missed (e.g. an auth
+      /* Only reachable if the checks above raced or missed (e.g. an auth
          user confirmed out of band with no matching customer/profile row
          yet). This request's own speculative customer is removed — a
          customer that can never get an owner, because that email's owner
          already exists elsewhere, is not a lead worth keeping. A reused
          customer is left exactly as it was. */
-      if (createdCustomerThisRequest) await admin.from("customers").delete().eq("id", customerId);
+      if (createdCustomerThisRequest) await deleteCustomer(admin, customerId, "invite target already registered");
       console.error("[odatone] signup: email already fully registered", {
         customer: customerId,
         email: built.value.customer.email,
@@ -268,7 +446,7 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
     return { ok: true, message: "no-invite" };
   }
   if (profileForUser) {
-    if (createdCustomerThisRequest) await admin.from("customers").delete().eq("id", customerId);
+    if (createdCustomerThisRequest) await deleteCustomer(admin, customerId, "invited user already has a profile");
     console.error("[odatone] signup: invite returned a user that already has a profile — not touching it", {
       customer: customerId,
       user: invited.user.id,
@@ -291,8 +469,8 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
        safe when THIS request is the one that created it —
        inviteCreatedNewUser checks that deterministically via `created_at`,
        never by assuming the return value of inviteUserByEmail means "new".
-       A pre-existing user (the exact Critical this fix round closes) is
-       never deleted, no matter what error inserting its profile produced. */
+       A pre-existing user (the exact Critical fix round 1 closed) is never
+       deleted, no matter what error inserting its profile produced. */
     if (inviteCreatedNewUser(invited.user.created_at, inviteStartedAt)) {
       console.error("[odatone] signup: profile insert failed after invite — rolling back the new invite", {
         customer: customerId,

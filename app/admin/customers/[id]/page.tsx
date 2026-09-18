@@ -59,6 +59,7 @@ type CustomerDetail = {
   name: string;
   cvr: string | null;
   billing_email: string;
+  phone: string | null;
   address: string | null;
   postcode: string | null;
   city: string | null;
@@ -145,7 +146,7 @@ export default async function CustomerDetailPage({
   ] = await Promise.all([
     supabase
       .from("customers")
-      .select("id, name, cvr, billing_email, address, postcode, city, country, status, created_at")
+      .select("id, name, cvr, billing_email, phone, address, postcode, city, country, status, created_at")
       .eq("id", id)
       .maybeSingle(),
     fetchAllRows<LocationRow>(
@@ -232,6 +233,11 @@ export default async function CustomerDetailPage({
               <Field label="Company" value={detail.name} />
               <Field label="CVR" value={<span className="font-mono">{detail.cvr ?? "—"}</span>} />
               <Field label="Billing email" value={detail.billing_email} />
+              {/* Fix round 2's Minor: `customers.phone` (signup collects it,
+                  supabase/migrations/0005_customer_phone.sql stores it) had
+                  nothing anywhere in /admin that read it back — write-only
+                  data staff couldn't see without a direct database query. */}
+              <Field label="Phone" value={<span className="font-mono">{detail.phone ?? "—"}</span>} />
               <Field
                 label="Address"
                 value={[detail.address, detail.postcode, detail.city, detail.country].filter(Boolean).join(", ") || "—"}

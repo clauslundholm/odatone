@@ -154,5 +154,27 @@ export const signup = {
       da: "Der opstod en fejl. Prøv igen om lidt, eller kontakt os hvis det gentager sig.",
       en: "Something went wrong. Please try again shortly, or contact us if it keeps happening.",
     } as L10n,
+    /** plan/venueType/m2/locations have no text field of their own — they
+        come from step one and two's buttons and sliders — so buildSignup
+        rejecting one can only mean a raw field a real browser session
+        couldn't produce. These say what's actually wrong instead of the
+        generic "Skal udfyldes", which read as though a blank field had been
+        left on a step where nothing looks blank at all. */
+    planInvalid: {
+      da: "Den valgte plan er ikke gyldig. Gå tilbage til trin 2 og vælg en plan igen.",
+      en: "The selected plan isn't valid. Go back to step 2 and choose a plan again.",
+    } as L10n,
+    venueTypeInvalid: {
+      da: "Den valgte virksomhedstype er ikke gyldig. Gå tilbage til trin 1 og vælg igen.",
+      en: "The selected business type isn't valid. Go back to step 1 and choose again.",
+    } as L10n,
+    m2Invalid: {
+      da: "Arealet er ikke gyldigt. Gå tilbage til trin 1 og justér det.",
+      en: "The floor area isn't valid. Go back to step 1 and adjust it.",
+    } as L10n,
+    locationsInvalid: {
+      da: "Antallet af lokationer er ikke gyldigt. Gå tilbage til trin 1 og justér det.",
+      en: "The number of locations isn't valid. Go back to step 1 and adjust it.",
+    } as L10n,
   },
 };

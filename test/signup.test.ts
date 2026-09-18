@@ -122,13 +122,22 @@ test("rejects an email past the length cap", () => {
   if (!r.ok) assert.equal(r.errors.email, "long");
 });
 
-test("truncates an overlong optional field instead of rejecting the whole signup", () => {
-  const r = buildSignup(form({ ...VALID, address: "X".repeat(400) }));
-  assert.equal(r.ok, true);
-  if (r.ok) {
-    assert.ok(r.value.customer.address);
-    assert.equal(r.value.customer.address!.length, 300);
+test("rejects an overlong optional field rather than truncating it", () => {
+  // Fix round 2: this used to truncate silently at 300 chars, which is the
+  // identical "wrong record, not a safe one" mistake already rejected for
+  // company/name/email — a cut-off address or CVR number is not a safe
+  // fallback for a real one.
+  for (const field of ["cvr", "address", "postcode", "city", "phone"] as const) {
+    const r = buildSignup(form({ ...VALID, [field]: "X".repeat(301) }));
+    assert.equal(r.ok, false, `expected an overlong "${field}" to be rejected`);
+    if (!r.ok) assert.equal(r.errors[field], "long");
   }
+});
+
+test("accepts an optional field exactly at the length cap", () => {
+  const r = buildSignup(form({ ...VALID, address: "X".repeat(300) }));
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.value.customer.address?.length, 300);
 });
 
 test("persists the optional business fields when given, null when blank", () => {
@@ -225,9 +234,17 @@ test("inviteCreatedNewUser: a user created well before the request started alrea
   assert.equal(inviteCreatedNewUser("2020-01-01T00:00:00.000Z", requestStartedAt), false);
 });
 
-test("inviteCreatedNewUser: a small amount of clock skew is tolerated", () => {
+test("inviteCreatedNewUser: only positive clock skew (the Auth server's clock running ahead) is tolerated, never negative", () => {
+  // Fix round 2's Important: the previous version subtracted a 5-second
+  // "slack" from requestStartedAt before comparing, which is the dangerous
+  // direction — measured live, a user created 4999ms *before* the request
+  // started was classified as "this request created it". A user created
+  // strictly before the request started must never pass, by any margin;
+  // one created after it (the direction real clock skew actually needs) is
+  // already covered by the "at or after" test above.
   const requestStartedAt = Date.parse("2026-01-01T12:00:00.000Z");
-  assert.equal(inviteCreatedNewUser("2026-01-01T11:59:57.000Z", requestStartedAt), true); // 3s earlier
+  assert.equal(inviteCreatedNewUser("2026-01-01T11:59:59.999Z", requestStartedAt), false); // 1ms earlier
+  assert.equal(inviteCreatedNewUser("2026-01-01T11:59:55.001Z", requestStartedAt), false); // ~5s earlier — the exploited window
 });
 
 test("inviteCreatedNewUser: an unparsable timestamp is never treated as newly created", () => {

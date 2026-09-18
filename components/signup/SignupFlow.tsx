@@ -622,6 +622,21 @@ function StepAccount({
     button just went back to "Start prøveperioden" with no explanation. */
 const PAYMENT_FIELD_KEYS = new Set(["card", "expiry", "cvc", "ean", "terms"]);
 
+/** `plan`/`venueType`/`m2`/`locations` have no text input of their own for
+    a visitor to have left blank — they're derived from earlier steps'
+    buttons and sliders — so the only way buildSignup ever rejects one is a
+    raw field a legitimate browser session couldn't produce. Routing that
+    through the generic "required" code (fix round 1's own fix) said "Skal
+    udfyldes" on a step where, from the visitor's point of view, nothing
+    was blank at all — demonstrated live in fix round 2's review. These
+    four get their own copy instead, naming what's actually wrong. */
+const FIELD_ERROR_OVERRIDE: Record<string, keyof typeof tDefaults.errors> = {
+  plan: "planInvalid",
+  venueType: "venueTypeInvalid",
+  m2: "m2Invalid",
+  locations: "locationsInvalid",
+};
+
 /** Maps a server-set error code (buildSignup/submitSignup set short codes
     like "required"/"exists"/"server", never localised text — only
     client-side validators like validatePayment already write the shown
@@ -636,7 +651,8 @@ function formErrorMessage(
   if (!key) return null;
   const code = errors[key];
   const table = t.errors as unknown as Record<string, Record<Locale, string> | undefined>;
-  return (table[code] ?? table.server)?.[l] ?? null;
+  const override = FIELD_ERROR_OVERRIDE[key];
+  return (override ? table[override] : undefined)?.[l] ?? table[code]?.[l] ?? table.server?.[l] ?? null;
 }
 
 function StepPayment({

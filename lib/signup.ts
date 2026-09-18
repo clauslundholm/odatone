@@ -95,9 +95,15 @@ const MAX_LOCATIONS = 500;
    request and an arbitrarily large write. `name`/`company`/`email` are
    required and appear in every location row this signup creates, so they're
    rejected outright when too long (silently truncating a legal company name
-   would create a wrong record, not a safe one). The optional business
-   fields below are truncated instead — they're free text nobody downstream
-   parses structurally, so a bound with no error is enough. */
+   would create a wrong record, not a safe one).
+
+   Fix round 2 corrected the optional business fields (cvr/address/postcode/
+   city/phone) to match: they used to be silently truncated at this same
+   bound rather than rejected, which is the identical "wrong record, not a
+   safe one" mistake — a CVR number or an invoicing address cut off mid-way
+   is not a safe fallback for a real one, it's a corrupted one nobody would
+   notice until an invoice bounced. All eight fields now share one rule:
+   reject outright past the bound, never truncate. */
 const MAX_TEXT_LEN = 200;
 const MAX_EMAIL_LEN = 254; // RFC 5321 §4.5.3.1.3
 const MAX_OPTIONAL_LEN = 300;
@@ -126,10 +132,15 @@ function parseLocationCount(raw: string): { count: number } | { error: true } {
   return { count: Math.max(1, n) };
 }
 
-const optional = (raw: string, max: number): string | null => {
+/** Blank is a legitimate "not given" (`null`); anything else past `max` is
+    rejected outright rather than truncated — see the write-amplification
+    comment above `MAX_TEXT_LEN` for why silently cutting these off is the
+    wrong fix. */
+function boundedOptional(raw: string, max: number): { value: string | null } | { error: true } {
   const trimmed = raw.trim();
-  return trimmed === "" ? null : trimmed.slice(0, max);
-};
+  if (trimmed === "") return { value: null };
+  return trimmed.length > max ? { error: true } : { value: trimmed };
+}
 
 /** Builds a validated signup from raw form input. Pure and synchronous —
     no plan price is ever read here, because none is ever trusted from the
@@ -175,6 +186,17 @@ export function buildSignup(formData: FormData): BuildSignupResult {
   if ("error" in parsedLocations) errors.locations = "required";
   const locationCount = "count" in parsedLocations ? parsedLocations.count : 1;
 
+  const cvrField = boundedOptional(get("cvr"), MAX_OPTIONAL_LEN);
+  const addressField = boundedOptional(get("address"), MAX_OPTIONAL_LEN);
+  const postcodeField = boundedOptional(get("postcode"), MAX_OPTIONAL_LEN);
+  const cityField = boundedOptional(get("city"), MAX_OPTIONAL_LEN);
+  const phoneField = boundedOptional(get("phone"), MAX_OPTIONAL_LEN);
+  if ("error" in cvrField) errors.cvr = "long";
+  if ("error" in addressField) errors.address = "long";
+  if ("error" in postcodeField) errors.postcode = "long";
+  if ("error" in cityField) errors.city = "long";
+  if ("error" in phoneField) errors.phone = "long";
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const billing: Billing = billingRaw === "annual" ? "annual" : "monthly";
@@ -192,11 +214,11 @@ export function buildSignup(formData: FormData): BuildSignupResult {
         name: company,
         email,
         contactName: name,
-        cvr: optional(get("cvr"), MAX_OPTIONAL_LEN),
-        address: optional(get("address"), MAX_OPTIONAL_LEN),
-        postcode: optional(get("postcode"), MAX_OPTIONAL_LEN),
-        city: optional(get("city"), MAX_OPTIONAL_LEN),
-        phone: optional(get("phone"), MAX_OPTIONAL_LEN),
+        cvr: "value" in cvrField ? cvrField.value : null,
+        address: "value" in addressField ? addressField.value : null,
+        postcode: "value" in postcodeField ? postcodeField.value : null,
+        city: "value" in cityField ? cityField.value : null,
+        phone: "value" in phoneField ? phoneField.value : null,
       },
       planId: planRaw as PlanId,
       billing,
@@ -273,16 +295,23 @@ export function decideSignupDedupe(
     against a timestamp captured immediately before the invite call is a
     deterministic fact about this specific request, not a guess — the only
     signal this module trusts before app/actions.ts is allowed to delete an
-    auth user. `slackMs` absorbs clock skew between this process and the
-    Auth server; it does not need to be generous, since a truly pre-existing
-    user's `created_at` is normally seconds-to-years older, never a hair
-    younger. */
-export function inviteCreatedNewUser(
-  createdAt: string,
-  requestStartedAtMs: number,
-  slackMs = 5000,
-): boolean {
+    auth user.
+
+    Fix round 2: this used to subtract a 5-second "clock skew" allowance
+    from `requestStartedAtMs` before comparing, which was the *dangerous*
+    direction — measured live, a user created 4999ms *before* this request
+    started was classified as "this request created it" and became
+    eligible for `deleteUser`. That is exactly the failure mode this
+    function exists to prevent; it was only unreachable because GoTrue's
+    unique-email constraint happened to intercept the concurrent case
+    first, not because this check made it safe. The comparison is now
+    strict: `created_at` must be at or after the instant this request
+    started invite-ing, full stop. Clock skew that actually needs
+    tolerating — the Auth server's clock running slightly *ahead* of this
+    process's — needs no allowance at all: it only ever pushes `created_at`
+    *later* than `requestStartedAtMs`, which `>=` already accepts. */
+export function inviteCreatedNewUser(createdAt: string, requestStartedAtMs: number): boolean {
   const created = Date.parse(createdAt);
   if (!Number.isFinite(created)) return false;
-  return created >= requestStartedAtMs - slackMs;
+  return created >= requestStartedAtMs;
 }
