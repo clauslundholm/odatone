@@ -5,10 +5,11 @@ import { Kpi } from "@/components/admin/Kpi";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
+import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { mrrOre, type SubscriptionForMrr } from "@/lib/admin/stats";
 import { formatDkk } from "@/lib/money";
-import { plan as compiledPlanById, type Billing, type Plan, type PlanId } from "@/lib/pricing";
-import { rowToPlan, type PlanRow } from "@/lib/plans-row";
+import type { Billing } from "@/lib/pricing";
+import type { PlanRow } from "@/lib/plans-row";
 import { createClient } from "@/lib/supabase/server";
 
 const NAV: NavItem[] = [
@@ -29,21 +30,6 @@ type CustomerRow = {
   status: string;
   created_at: string;
 };
-
-/** Resolves `id` against `plans`, falling back to the compiled plan of the
-    same id — loudly, naming the id, never silently. A silent fallback here
-    is exactly how the pricing-page/dashboard mismatch this guards against
-    would go undetected: an admin edits a price, the pricing page moves, and
-    this dashboard's MRR would stay frozen at the old number with nothing in
-    any log to say why. */
-function resolvePlan(id: string, byId: Map<PlanId, Plan>): Plan {
-  const known = byId.get(id as PlanId);
-  if (known) return known;
-  console.warn(
-    `[admin dashboard] plan "${id}" was not found in the database — pricing it from the compiled fallback instead.`,
-  );
-  return compiledPlanById(id as PlanId);
-}
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(
@@ -124,9 +110,7 @@ export default async function AdminDashboardPage() {
     if (error) console.error(`[admin dashboard] failed to read ${label}`, error);
   }
 
-  const planById = new Map<PlanId, Plan>(
-    ((planRows ?? []) as PlanRow[]).map((row) => [row.id as PlanId, rowToPlan(row)]),
-  );
+  const planById = planMap((planRows ?? []) as PlanRow[]);
 
   /* One query for every location row, folded into a per-customer count
      here, rather than one query per subscription — see the doc comment
@@ -140,7 +124,7 @@ export default async function AdminDashboardPage() {
 
   const subscriptionsForMrr: SubscriptionForMrr[] = ((subscriptionRows ?? []) as SubscriptionRow[]).map(
     (row) => ({
-      plan: resolvePlan(row.plan_id, planById),
+      plan: resolvePlan(row.plan_id, planById, "admin dashboard"),
       billing: row.billing as Billing,
       locations: locationCounts.get(row.customer_id) ?? 0,
       status: row.status as SubscriptionForMrr["status"],
