@@ -1,9 +1,10 @@
+import { cache } from "react";
 import { unstable_cache, revalidateTag } from "next/cache";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { resolveSupabaseEnv } from "@/lib/supabase/env";
 import { PLANS, plan as staticPlan, type Plan, type PlanId } from "@/lib/pricing";
-import { toKroner } from "@/lib/money";
+import { rowToPlan, type PlanRow } from "@/lib/plans-row";
 
 /** Everything that invalidates the stored plans carries this tag, so one save
     is enough to make every page that shows prices rebuild against it. */
@@ -29,39 +30,44 @@ function anonClient() {
   });
 }
 
-type PlanRow = {
-  id: string;
-  name: string;
-  monthly_ore: number;
-  max_m2: number | null;
-  tagline: Plan["tagline"];
-  features: Plan["features"];
-};
-
 /* Reading the table is a network call, and an uncached one during render
    opts the route into dynamic rendering — the same trap lib/copy-server.ts
    documents for the copy store. Caching it puts the read back in the build
    rather than in the request, so the 25 marketing pages keep prerendering.
    Nothing expires on a timer — a save revalidates this tag, which is the
-   only thing that ever changes the answer. */
+   only thing that ever changes the answer.
+
+   Every early return is logged before it fires: the fallback to compiled
+   PLANS is deliberate (see activePlans() below), but silent, it makes "the
+   database is unreachable" indistinguishable from "the database has no
+   active plans" indistinguishable from "everything worked" — all three
+   render the same page. An operator who edits a price and sees no change
+   needs the server log to say which of those actually happened. */
 const readPlans = unstable_cache(
   async (): Promise<Plan[]> => {
     const supabase = anonClient();
-    if (!supabase) return PLANS;
+    if (!supabase) {
+      console.warn("[plans] Supabase is not configured — serving compiled PLANS.");
+      return PLANS;
+    }
+
     const { data, error } = await supabase
       .from("plans")
       .select("id, name, monthly_ore, max_m2, tagline, features")
       .eq("active", true)
       .order("sort", { ascending: true });
-    if (error || !data || data.length === 0) return PLANS;
-    return (data as PlanRow[]).map((row) => ({
-      id: row.id as PlanId,
-      name: row.name,
-      monthly: toKroner(row.monthly_ore),
-      maxM2: row.max_m2,
-      tagline: row.tagline,
-      features: row.features,
-    }));
+
+    if (error) {
+      console.warn(`[plans] database read failed (${error.message}) — serving compiled PLANS.`);
+      return PLANS;
+    }
+    if (!data || data.length === 0) {
+      /* Distinct from a read failure: this is what it looks like if an
+         operator deactivates every plan, not a fault. */
+      console.warn("[plans] no active plans in the database — serving compiled PLANS.");
+      return PLANS;
+    }
+    return (data as PlanRow[]).map(rowToPlan);
   },
   ["plans"],
   { tags: [PLANS_TAG] },
@@ -69,14 +75,20 @@ const readPlans = unstable_cache(
 
 /** The fallback is deliberate: an unreachable or empty database returns the
     compiled-in PLANS rather than throwing or showing a visitor no prices at
-    all — the same contract lib/copy-server.ts uses for copy. */
-export async function activePlans(): Promise<Plan[]> {
+    all — the same contract lib/copy-server.ts uses for copy.
+
+    Wrapped in React's cache() exactly as lib/copy-server.ts wraps
+    overridesFor: one render pass makes one round trip no matter how many
+    components ask, including planById() below calling this directly. */
+export const activePlans = cache(async (): Promise<Plan[]> => {
   try {
     return await readPlans();
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[plans] unexpected error reading plans (${message}) — serving compiled PLANS.`);
     return PLANS;
   }
-}
+});
 
 /** Single plan lookup, falling back to the compiled-in plan of the same id
     (lib/pricing.ts's own default) if the database doesn't have it. */

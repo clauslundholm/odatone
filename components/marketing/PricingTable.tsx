@@ -18,9 +18,11 @@ export default function PricingTable({
   showVolume = true,
 }: {
   locale: Locale;
-  /** Display data only. Arithmetic (quote()) still reads its own prices from
-      lib/pricing.ts's PLANS, so the two must agree — they do, because the
-      database is seeded from PLANS (see scripts/plans-seed.mjs). */
+  /** Database-backed (see lib/plans-server.ts's activePlans()), with a
+      compiled-PLANS fallback. Passed straight into quote()'s Plan overload —
+      the discount/VAT/rounding maths in lib/pricing.ts is untouched, but the
+      monthly price it starts from is now this object's, not a re-lookup
+      against the compiled PLANS. */
   plans: Plan[];
   recommended?: PlanId;
   showVolume?: boolean;
@@ -55,7 +57,7 @@ export default function PricingTable({
 
       <div className="grid gap-5 md:grid-cols-3">
         {plans.map((p) => {
-          const q = quote(p.id, billing, 1);
+          const q = quote(p, billing, 1);
           const featured = p.id === recommended;
           return (
             <div

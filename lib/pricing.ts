@@ -140,8 +140,13 @@ export type Quote = {
   annualSavingYear: number;
 };
 
-export function quote(planId: PlanId, billing: Billing, locations: number): Quote {
-  const p = plan(planId);
+/** Accepts either a plan id (looked up against the compiled PLANS, exactly as
+    before) or an already-resolved Plan object (so a caller holding a
+    database-backed Plan — see lib/plans-server.ts — doesn't have to round-trip
+    through the compiled id lookup just to price it). Everything past this line
+    is unchanged: same rounding, same discounts, same shape. */
+export function quote(planOrId: PlanId | Plan, billing: Billing, locations: number): Quote {
+  const p = typeof planOrId === "string" ? plan(planOrId) : planOrId;
   const n = Math.max(1, Math.round(locations));
   const vol = volumeTier(n);
   const annualPct = billing === "annual" ? ANNUAL_DISCOUNT_PCT : 0;
