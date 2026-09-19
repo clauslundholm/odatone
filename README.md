@@ -255,6 +255,43 @@ current site.
 - `VOLUME_TIERS` (−10 / −15 / −20 % from 2, 5 and 10 locations) is a proposal
   for this redesign; the current site has no multi-location pricing.
 
+## Admin
+
+`/admin` (staff-only, English) is a Supabase-backed backend layered on top of
+the marketing site and the pricing above. `staff_admin` and `staff_support`
+accounts (see `profiles.role`) can both sign in and view every screen;
+`plans_admin_write`/`addons_admin_write` (`supabase/migrations/0003_tenancy.sql`)
+restrict *writes* to `staff_admin`, and every server action relies on that RLS
+policy rather than re-checking the role itself — a `staff_support` account's
+save is refused by the database, not the UI.
+
+`/admin/products` (`app/admin/products/`) lets `staff_admin` edit a plan's
+price, m² bound, tagline, features and active flag without a deploy. Every
+*computed* price on the marketing site reads the same `plans` table via
+`lib/plans-server.ts`'s `activePlans()` — `PricingTable`, `Calculator`,
+`HeroSavings`, `PriceCompare`'s worked example, and the signup flow's plan
+cards and order summary — so a saved change is live everywhere on the next
+request. **This does not cover hand-written marketing copy that happens to
+quote a price**: `lib/content/home.ts` (the hero body and a headline tile)
+and `lib/content/meta.ts` (the page description) each hard-code "149 kr." as
+prose, not a computed value, and won't move when a plan's price is edited —
+update those by hand alongside a real price change. Every insert/update/
+delete on `plans` *and* `addons` is recorded in `audit_log` by a
+`security definer` trigger (`supabase/migrations/0004_audit_triggers.sql`),
+with the acting user, the full before and after row, and a timestamp; a
+save that changes nothing (an operator re-submitting a form untouched)
+does not add a row.
+
+**`supabase db reset` silently reverts a live price.** The migration and seed
+files are the bootstrap for a *fresh* database, not a mirror of what's
+currently live — `supabase/seed.sql` is generated from the compiled `PLANS`
+constant in `lib/pricing.ts` (`scripts/plans-seed.mjs`) and always inserts the
+149/199/249 kr. launch prices. If you reset your local database after editing
+a price in `/admin/products`, the reset re-runs that seed and your edit is
+gone with no error or warning. Re-apply it through `/admin/products` (or a
+one-off `update plans set ...`) after every reset, and don't mistake a reset
+database for a bug in the admin editor.
+
 ## The signup flow
 
 `components/signup/SignupFlow.tsx`. Four steps — business, plan, account,
@@ -263,10 +300,32 @@ payment — with a live order summary pinned alongside, `?step=` in the URL, and
 answers to `sessionStorage`, so a visitor arriving from `/besparelse` finds
 step one already filled in and the plan pre-selected for their floor area.
 
-Card and EAN/invoice are both offered. **Nothing is charged or stored** —
-`app/actions.ts` validates on the server and logs. Wire it to a payment
-provider and a CRM; both actions return the same `ActionResult` shape, so the
-UI needs no changes.
+Card and EAN/invoice are both offered, but **no payment provider is wired
+up** — `app/actions.ts`'s `submitSignup` validates the payment step's own
+fields (card number, expiry, CVC, or the EAN/PO pair) and logs them; no card
+is stored or charged. Everything *before* that step is real: `submitSignup`
+creates a `customers` row, one `locations` row per claimed location and a
+`pending` `subscriptions` row (see `lib/signup.ts`'s `buildSignup` for the
+validation — no price is ever read from the form; a plan's price always
+comes from the `plans` table, live, at read time), then invites the signer
+to `/my-odatone` by email rather than asking them to set a password. A
+signup from an email that already has an account is refused rather than
+duplicated; a signup that never receives its invite (a flaky mail send) is
+still kept as a real, pending customer — `/admin/customers/[id]` shows "No
+users yet" for exactly that case, which is how staff notice one needs a
+manual re-invite (there is no button for that yet). `submitSalesLead` is
+still the original prototype: validates and logs, nothing persisted.
+
+## Environment variables
+
+See `.env.example`. `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`
+and `SUPABASE_SERVICE_ROLE_KEY` come from `supabase start`'s own output
+locally, or the project's API settings against a hosted Supabase project.
+`NEXT_PUBLIC_SITE_URL` is this site's own public origin — it must match
+`supabase/config.toml`'s `[auth].site_url` — and is used to build the
+signup invite email's link; left unset, that link degrades to a relative
+path (a warning is logged every time `submitSignup` runs without it, rather
+than failing the signup over a cosmetic link problem).
 
 ## Known placeholders — check before launch
 

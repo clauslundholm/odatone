@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { PLANS, VOLUME_TIERS, quote, type Billing, type PlanId } from "@/lib/pricing";
+import { VOLUME_TIERS, quote, type Billing, type Plan, type PlanId } from "@/lib/pricing";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { pricing as pricingDefaults } from "@/lib/content/pricing";
 import { useCopy } from "@/components/CopyProvider";
@@ -13,10 +13,17 @@ import { CheckIcon } from "@/components/player/Icons";
 
 export default function PricingTable({
   locale,
+  plans,
   recommended = "medium",
   showVolume = true,
 }: {
   locale: Locale;
+  /** Database-backed (see lib/plans-server.ts's activePlans()), with a
+      compiled-PLANS fallback. Passed straight into quote()'s Plan overload —
+      the discount/VAT/rounding maths in lib/pricing.ts is untouched, but the
+      monthly price it starts from is now this object's, not a re-lookup
+      against the compiled PLANS. */
+  plans: Plan[];
   recommended?: PlanId;
   showVolume?: boolean;
 }) {
@@ -49,8 +56,8 @@ export default function PricingTable({
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
-        {PLANS.map((p) => {
-          const q = quote(p.id, billing, 1);
+        {plans.map((p) => {
+          const q = quote(p, billing, 1);
           const featured = p.id === recommended;
           return (
             <div
@@ -85,8 +92,12 @@ export default function PricingTable({
               </div>
 
               <ul className="flex flex-col gap-3 border-t border-line pt-7">
-                {p.features.map((f) => (
-                  <li key={f.da} className="flex items-start gap-3 text-[0.9375rem] text-ink-2">
+                {p.features.map((f, i) => (
+                  // Index, not f.da: f.da is admin-editable free text (Task
+                  // 12) and two rows sharing an empty or duplicated Danish
+                  // string produced a real "two children with the same key"
+                  // warning against live data.
+                  <li key={i} className="flex items-start gap-3 text-[0.9375rem] text-ink-2">
                     <CheckIcon size={13} className="mt-1 shrink-0 text-accent" />
                     <span>{f[l]}</span>
                   </li>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { PLANS, quote, recommendPlan, type Billing, type PlanId } from "@/lib/pricing";
+import { quote, recommendPlan, type Billing, type Plan, type PlanId } from "@/lib/pricing";
 import {
   HOURS_BANDS,
   VENUE_TYPES,
@@ -68,7 +68,23 @@ const EMPTY_PAYMENT: Payment = {
   terms: false,
 };
 
-export default function SignupFlow({ locale }: { locale: Locale }) {
+export default function SignupFlow({
+  locale,
+  plans,
+}: {
+  locale: Locale;
+  /** Database-backed (lib/plans-server.ts's activePlans()), passed down
+      from SignupPage (a server component) the same way PricingTable gets
+      its plans — see that component's doc comment. SignupFlow is a client
+      component and cannot call activePlans() itself.
+
+      Every quote() call in this file must be handed one of these Plan
+      objects, never a bare PlanId: quote()'s PlanId branch re-resolves
+      against the compiled PLANS and ignores whatever a staff member has
+      actually saved, which matters here more than almost anywhere else on
+      the site — a stale price shown at checkout has contractual weight. */
+  plans: Plan[];
+}) {
   const t = useCopy(tDefaults);
   const ui = useCopy(uiDefaults);
   const pricingCopy = useCopy(pricingCopyDefaults);
@@ -86,12 +102,13 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [doneMessage, setDoneMessage] = useState<string | undefined>(undefined);
 
   /* Pick up the calculator's answers and any ?plan= / ?billing= link. */
   useEffect(() => {
     setProfile(loadProfile());
     const p = search.get("plan");
-    if (p && PLANS.some((x) => x.id === p)) setPlanId(p as PlanId);
+    if (p && plans.some((x) => x.id === p)) setPlanId(p as PlanId);
     const b = search.get("billing");
     if (b === "annual" || b === "monthly") setBilling(b);
     const s = Number(search.get("step"));
@@ -100,14 +117,18 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
   }, []);
 
   const suggested = useMemo(
-    () => recommendPlan(profile.m2, profile.type),
-    [profile.m2, profile.type],
+    () => recommendPlan(profile.m2, profile.type, plans),
+    [profile.m2, profile.type, plans],
   );
-  const activePlanId: PlanId = planId ?? suggested.id;
+  const activePlan: Plan = useMemo(
+    () => (planId && plans.find((p) => p.id === planId)) || suggested,
+    [planId, plans, suggested],
+  );
+  const activePlanId: PlanId = activePlan.id;
 
   const q = useMemo(
-    () => quote(activePlanId, billing, profile.locations),
-    [activePlanId, billing, profile.locations],
+    () => quote(activePlan, billing, profile.locations),
+    [activePlan, billing, profile.locations],
   );
 
   const result = useMemo(
@@ -185,26 +206,48 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
       return;
     }
     setBusy(true);
+    setErrors({});
     const fd = new FormData();
     fd.set("name", account.name);
     fd.set("company", account.company);
     fd.set("cvr", account.cvr);
     fd.set("email", account.email);
     fd.set("phone", account.phone);
-    fd.set("address", `${account.address}, ${account.zip} ${account.city}`);
+    /* Sent as three separate fields, not concatenated into one string: they
+       land in customers.address/postcode/city (0001_core.sql), three
+       distinct columns — the fix round that added persisting them at all
+       found the previous single combined "address" field had nowhere
+       structured to go. */
+    fd.set("address", account.address);
+    fd.set("postcode", account.zip);
+    fd.set("city", account.city);
     fd.set("planId", activePlanId);
     fd.set("billing", billing);
     fd.set("locations", String(profile.locations));
     fd.set("venueType", profile.type);
     fd.set("m2", String(profile.m2));
     fd.set("paymentMethod", payment.method);
-    const res = await submitSignup(fd);
-    setBusy(false);
-    if (res.ok) setDone(true);
-    else setErrors(res.errors);
+    try {
+      const res = await submitSignup(fd);
+      if (res.ok) {
+        setDoneMessage(res.message);
+        setDone(true);
+      } else {
+        setErrors(res.errors);
+      }
+    } catch (err) {
+      /* Belt and braces alongside submitSignup's own try/catch around
+         createAdminClient() (app/actions.ts): an unconfigured service role
+         used to throw here uncaught, and with no catch on this call the
+         button sat on "Opretter…" forever with no error and no way out. */
+      console.error("[odatone] signup submission failed unexpectedly", err);
+      setErrors({ form: "server" });
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (done) return <Done locale={l} email={account.email} />;
+  if (done) return <Done locale={l} email={account.email} noInvite={doneMessage === "no-invite"} />;
 
   return (
     <div id="flow" className="u-card grid overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -256,6 +299,7 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
           {step === 1 && (
             <StepPlan
               locale={l}
+              plans={plans}
               activePlanId={activePlanId}
               suggestedId={suggested.id}
               billing={billing}
@@ -298,7 +342,7 @@ export default function SignupFlow({ locale }: { locale: Locale }) {
       <Summary
         locale={l}
         profile={profile}
-        planId={activePlanId}
+        plan={activePlan}
         billing={billing}
         savingYear={result.savingYear}
       />
@@ -442,6 +486,7 @@ function StepVenue({
 
 function StepPlan({
   locale: l,
+  plans,
   activePlanId,
   suggestedId,
   billing,
@@ -450,6 +495,7 @@ function StepPlan({
   onBilling,
 }: {
   locale: Locale;
+  plans: Plan[];
   activePlanId: PlanId;
   suggestedId: PlanId;
   billing: Billing;
@@ -482,10 +528,10 @@ function StepPlan({
       </div>
 
       <div className="flex flex-col gap-3">
-        {PLANS.map((p) => {
+        {plans.map((p) => {
           const active = p.id === activePlanId;
           const tooSmall = p.maxM2 !== null && m2 > p.maxM2;
-          const pq = quote(p.id, billing, 1);
+          const pq = quote(p, billing, 1);
           return (
             <button
               key={p.id}
@@ -564,6 +610,51 @@ function StepAccount({
   );
 }
 
+/** The five field names StepPayment's own inputs write errors under. Any
+    other key in `errors` at this step — a bad plan/venue-type/m2/locations
+    claim only a raw POST could produce, a duplicate-email refusal, or a
+    generic service failure — cannot have come from this step's own client
+    validation (validatePayment only ever sets these five), so it can only
+    be a server-side rejection. Before this fix round, submission (which
+    happens on this step) surfaced errors for exactly these five keys and
+    nothing else: a bogus plan and venue type wrote nothing to the database
+    (correct) but showed zero feedback (wrong) — the visitor's own "Opretter…"
+    button just went back to "Start prøveperioden" with no explanation. */
+const PAYMENT_FIELD_KEYS = new Set(["card", "expiry", "cvc", "ean", "terms"]);
+
+/** `plan`/`venueType`/`m2`/`locations` have no text input of their own for
+    a visitor to have left blank — they're derived from earlier steps'
+    buttons and sliders — so the only way buildSignup ever rejects one is a
+    raw field a legitimate browser session couldn't produce. Routing that
+    through the generic "required" code (fix round 1's own fix) said "Skal
+    udfyldes" on a step where, from the visitor's point of view, nothing
+    was blank at all — demonstrated live in fix round 2's review. These
+    four get their own copy instead, naming what's actually wrong. */
+const FIELD_ERROR_OVERRIDE: Record<string, keyof typeof tDefaults.errors> = {
+  plan: "planInvalid",
+  venueType: "venueTypeInvalid",
+  m2: "m2Invalid",
+  locations: "locationsInvalid",
+};
+
+/** Maps a server-set error code (buildSignup/submitSignup set short codes
+    like "required"/"exists"/"server", never localised text — only
+    client-side validators like validatePayment already write the shown
+    string directly) to copy the visitor can act on, falling back to the
+    generic service message for any code this table doesn't recognise. */
+function formErrorMessage(
+  errors: FieldErrors,
+  t: typeof tDefaults,
+  l: Locale,
+): string | null {
+  const key = Object.keys(errors).find((k) => !PAYMENT_FIELD_KEYS.has(k));
+  if (!key) return null;
+  const code = errors[key];
+  const table = t.errors as unknown as Record<string, Record<Locale, string> | undefined>;
+  const override = FIELD_ERROR_OVERRIDE[key];
+  return (override ? table[override] : undefined)?.[l] ?? table[code]?.[l] ?? table.server?.[l] ?? null;
+}
+
 function StepPayment({
   locale: l,
   payment,
@@ -576,6 +667,7 @@ function StepPayment({
   onChange: (p: Payment) => void;
 }) {
   const t = useCopy(tDefaults);
+  const banner = formErrorMessage(errors, t, l);
 
   const set = (k: keyof Payment) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...payment, [k]: e.target.value });
@@ -583,6 +675,12 @@ function StepPayment({
   return (
     <div className="flex flex-col gap-8">
       <StepHead heading={t.payment.heading[l]} body={t.payment.body[l]} />
+
+      {banner && (
+        <p role="alert" className="rounded-[var(--radius-lg)] bg-bad-soft px-5 py-4 text-[0.9375rem] text-bad">
+          {banner}
+        </p>
+      )}
 
       <div className="inline-flex gap-0.5 self-start rounded-full bg-surface-2 p-1">
         {(["card", "invoice"] as const).map((m) => (
@@ -646,20 +744,20 @@ function StepPayment({
 function Summary({
   locale: l,
   profile,
-  planId,
+  plan,
   billing,
   savingYear,
 }: {
   locale: Locale;
   profile: VenueProfile;
-  planId: PlanId;
+  plan: Plan;
   billing: Billing;
   savingYear: number;
 }) {
   const t = useCopy(tDefaults);
   const pricingCopy = useCopy(pricingCopyDefaults);
 
-  const q = quote(planId, billing, profile.locations);
+  const q = quote(plan, billing, profile.locations);
   const v = venueType(profile.type);
 
   return (
@@ -731,8 +829,21 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
 
 /* -------------------------------- done ------------------------------- */
 
-function Done({ locale: l, email }: { locale: Locale; email: string }) {
+function Done({
+  locale: l,
+  email,
+  noInvite,
+}: {
+  locale: Locale;
+  email: string;
+  /** True when submitSignup (app/actions.ts) returned `message: "no-invite"`
+      — the account was created but the invite email itself could not be
+      sent. Fix round 1's finding: this screen used to say "we've sent a
+      confirmation" regardless, which is simply false in that case. */
+  noInvite?: boolean;
+}) {
   const t = useCopy(tDefaults);
+  const body = (noInvite ? t.done.bodyNoInvite[l] : t.done.body[l]).replace("{email}", email || "—");
 
   return (
     <div className="u-card p-9 sm:p-14">
@@ -741,7 +852,7 @@ function Done({ locale: l, email }: { locale: Locale; email: string }) {
           <CheckIcon size={20} />
         </span>
         <h2 className="u-display text-[clamp(2.2rem,6vw,3.8rem)]">{t.done.heading[l]}</h2>
-        <p className="u-lede">{t.done.body[l].replace("{email}", email || "—")}</p>
+        <p className="u-lede">{body}</p>
 
         <ol className="mt-4 grid gap-4 sm:grid-cols-3">
           {t.done.next[l].map(([title, body], i) => (

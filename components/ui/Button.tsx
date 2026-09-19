@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-type Variant = "primary" | "outline" | "ghost" | "solid" | "quiet";
+type Variant = "primary" | "outline" | "ghost" | "solid" | "quiet" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const base =
@@ -19,6 +19,13 @@ const variants: Record<Variant, string> = {
   outline: "border border-line-strong text-ink hover:bg-surface-2",
   ghost: "text-ink-2 hover:text-ink",
   quiet: "bg-surface-2 text-ink hover:bg-surface-3",
+  /* --c-bad-ink (app/globals.css) is a per-theme pairing, not a fixed
+     white: in dark mode --c-bad is a light #f27d7d, and white text on it
+     measured ~2.6:1 (task-15 fix round 1's Minor) -- well under WCAG AA's
+     4.5:1. --c-bad-ink flips to a dark ink in that theme instead, the same
+     way --c-accent-ink is chosen per accent rather than assumed to always
+     be white. */
+  danger: "bg-bad text-bad-ink hover:opacity-85",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra = "") {

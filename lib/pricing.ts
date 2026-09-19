@@ -90,19 +90,36 @@ export function plan(id: PlanId): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }
 
-/** The plan a venue of this size needs. */
-export function planForM2(m2: number): Plan {
-  return PLANS.find((p) => p.maxM2 === null || m2 <= p.maxM2) ?? PLANS[PLANS.length - 1];
+/** The plan a venue of this size needs.
+
+    `plans` is required, not defaulted to the compiled PLANS, on purpose —
+    Task 12's fix round found that a default here is exactly the same trap
+    as quote()'s bare-PlanId branch: the safe call (pass the resolved,
+    database-backed Plan[]) and the wrong call (fall through to the
+    compiled fallback silently) look identical at the call site, and that
+    exact shape of bug has already shipped three times on this branch. The
+    caller must resolve a `Plan[]` — via lib/plans-server.ts's
+    activePlans() on a marketing page, or the compiled PLANS explicitly
+    when there genuinely is no database (e.g. a unit test) — and the
+    compiler now enforces that every call site makes that choice instead
+    of one being able to forget it. */
+export function planForM2(m2: number, plans: Plan[]): Plan {
+  return plans.find((p) => p.maxM2 === null || m2 <= p.maxM2) ?? plans[plans.length - 1];
 }
 
 /** Venue types that usually run louder and longer get bumped a step. */
 const LOUD: VenueTypeId[] = ["bar", "fitness"];
 
-export function recommendPlan(m2: number, type: VenueTypeId): Plan {
-  const base = planForM2(m2);
+/** See planForM2's doc comment for why `plans` is required: a bumped
+    recommendation must land on the same database-backed plan objects the
+    caller is pricing with, or "bumped one step up from the small plan"
+    and "the small plan" could disagree about what the small plan even
+    costs. */
+export function recommendPlan(m2: number, type: VenueTypeId, plans: Plan[]): Plan {
+  const base = planForM2(m2, plans);
   if (!LOUD.includes(type)) return base;
-  const i = PLANS.findIndex((p) => p.id === base.id);
-  return PLANS[Math.min(i + 1, PLANS.length - 1)];
+  const i = plans.findIndex((p) => p.id === base.id);
+  return plans[Math.min(i + 1, plans.length - 1)];
 }
 
 export type VolumeTier = { min: number; discountPct: number; label: L10n };
@@ -140,8 +157,13 @@ export type Quote = {
   annualSavingYear: number;
 };
 
-export function quote(planId: PlanId, billing: Billing, locations: number): Quote {
-  const p = plan(planId);
+/** Accepts either a plan id (looked up against the compiled PLANS, exactly as
+    before) or an already-resolved Plan object (so a caller holding a
+    database-backed Plan — see lib/plans-server.ts — doesn't have to round-trip
+    through the compiled id lookup just to price it). Everything past this line
+    is unchanged: same rounding, same discounts, same shape. */
+export function quote(planOrId: PlanId | Plan, billing: Billing, locations: number): Quote {
+  const p = typeof planOrId === "string" ? plan(planOrId) : planOrId;
   const n = Math.max(1, Math.round(locations));
   const vol = volumeTier(n);
   const annualPct = billing === "annual" ? ANNUAL_DISCOUNT_PCT : 0;

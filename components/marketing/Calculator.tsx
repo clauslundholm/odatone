@@ -11,7 +11,7 @@ import {
   type HoursBand,
   type VenueTypeId,
 } from "@/lib/rates";
-import { recommendPlan } from "@/lib/pricing";
+import { recommendPlan, type Plan } from "@/lib/pricing";
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
 import { savings as savingsDefaults } from "@/lib/content/savings";
 import { ui as uiDefaults } from "@/lib/content/common";
@@ -23,10 +23,16 @@ import Counter from "@/components/ui/Counter";
 
 export default function Calculator({
   locale,
+  plans,
   compact = false,
   id,
 }: {
   locale: Locale;
+  /** Database-backed (lib/plans-server.ts's activePlans()), with a
+      compiled-PLANS fallback — passed straight into recommendPlan() so the
+      plan this calculator suggests, and prices from, is the same object
+      PricingTable renders on the same page. */
+  plans: Plan[];
   compact?: boolean;
   id?: string;
 }) {
@@ -48,8 +54,8 @@ export default function Calculator({
 
   const v = venueType(profile.type);
   const plan = useMemo(
-    () => recommendPlan(profile.m2, profile.type),
-    [profile.m2, profile.type],
+    () => recommendPlan(profile.m2, profile.type, plans),
+    [profile.m2, profile.type, plans],
   );
 
   const result = useMemo(

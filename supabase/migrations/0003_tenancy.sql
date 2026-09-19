@@ -1,0 +1,272 @@
+/* SECURITY DEFINER is not optional. A policy on profiles that selects from
+   profiles re-enters the policy and recurses; running the lookup as the
+   definer breaks that cycle. search_path is pinned because a SECURITY DEFINER
+   function with a mutable search_path is a privilege-escalation hole. Column
+   references inside these bodies are qualified so a later column added to
+   any joined table cannot silently change what an unqualified name resolves
+   to. */
+create or replace function auth_customer_id() returns uuid
+  language sql stable security definer set search_path = public, pg_temp
+as $$ select customer_id from profiles where profiles.id = auth.uid() $$;
+
+create or replace function is_staff() returns boolean
+  language sql stable security definer set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1 from profiles
+    where profiles.id = auth.uid() and profiles.role in ('staff_admin', 'staff_support')
+  )
+$$;
+
+/* Distinct from is_staff() on purpose. is_staff() answers "is this caller
+   any kind of staff", which is the right test for reading and administering
+   customer-side data. It is the wrong test for anything that controls who
+   gets to become staff or what staff-tier data (prices) says, because it
+   tests the actor and not the row: using is_staff() in both the using and
+   with check of a self-referential write policy lets a staff_support
+   account edit its own row into role = 'staff_admin'. Only staff_admin may
+   grant or hold staff-tier privileges. */
+create or replace function is_staff_admin() returns boolean
+  language sql stable security definer set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1 from profiles
+    where profiles.id = auth.uid() and profiles.role = 'staff_admin'
+  )
+$$;
+
+alter table customers           enable row level security;
+alter table locations           enable row level security;
+alter table profiles            enable row level security;
+alter table plans               enable row level security;
+alter table addons              enable row level security;
+alter table subscriptions       enable row level security;
+alter table subscription_addons enable row level security;
+alter table invoices            enable row level security;
+alter table audit_log           enable row level security;
+
+-- customers ------------------------------------------------------------
+drop policy if exists customers_read on customers;
+create policy customers_read on customers for select
+  using (id = auth_customer_id() or is_staff());
+
+/* Fix round 6: `for all` covered DELETE too, and `using` is the only
+   clause Postgres consults for DELETE (`with check` only ever inspects the
+   NEW row, and there is no new row on a delete). Verified live: as
+   staff_support, `delete from customers where id = ...` cascaded away
+   that customer's locations, subscription and invoices in one call, with
+   nothing written to audit_log -- five years of bookkeeping erased
+   unaudited by the least-privileged staff tier. Nothing in this codebase
+   ever describes staff *deleting* a customer -- only reading one
+   (customers_read below) or changing its status (guard_customer_status).
+   Task 15's whole erasure design (app/admin/customers/[id]/gdpr-actions.ts)
+   exists specifically because deleting a customer outright is wrong: an
+   invoice with no customer behind it is not a record of anything, and
+   Danish bookkeeping law requires the record survive five years. So this
+   is narrowed to INSERT and UPDATE only -- no role, not even staff_admin,
+   gets DELETE through this policy. eraseCustomer's own writes run on the
+   service-role client, which bypasses RLS entirely, so it is unaffected
+   and remains the only path that can ever remove a customer's personal
+   data.
+
+   Fix round 7: this rename dropped neither the old policy's name nor
+   its effect. RLS policies for the same command are OR'ed together, so
+   on a database that already had the previous, single `for all` policy,
+   re-running this file used to leave all three in place at once --
+   `customers_staff_insert`, `customers_staff_update`, and the original
+   `customers_staff_write` still permissive on DELETE, since neither new
+   policy's name collided with it and there was nothing to make Postgres
+   remove it. Worse on a real deploy: Supabase tracks which migrations
+   have already run by filename/version, so `0003` would never even be
+   re-applied to a database that already had it -- the file only reaching
+   its fixed form here would never reach an already-migrated database at
+   all. Proved live: applied the pre-fix version of this file to a scratch
+   database, then this file on top, and `pg_policies` showed all three
+   policies until the explicit drop below was added; with it, only the
+   two new ones remain. */
+drop policy if exists customers_staff_write on customers;
+
+drop policy if exists customers_staff_insert on customers;
+create policy customers_staff_insert on customers for insert
+  with check (is_staff());
+
+drop policy if exists customers_staff_update on customers;
+create policy customers_staff_update on customers for update
+  using (is_staff()) with check (is_staff());
+
+-- An owner may correct their own company details; a manager may not.
+drop policy if exists customers_owner_update on customers;
+create policy customers_owner_update on customers for update
+  using (
+    id = auth_customer_id()
+    and exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'owner')
+  )
+  with check (id = auth_customer_id());
+
+/* customers.status is how staff record a suspension for non-payment.
+   Row-level security has no column granularity, and customers_owner_update
+   otherwise grants the whole row, so without this guard an owner suspended
+   for non-payment could PATCH their own status back to 'active'. A trigger
+   is used instead of a column-level revoke because staff are also
+   `authenticated` and a revoke on that role would take the ability away
+   from them too.
+
+   The service role bypasses row level security but does not bypass
+   triggers. The server-side admin client is session-less, so under a
+   service-role connection auth.uid() is null and is_staff() is false —
+   without the current_user exemption this trigger would raise on every
+   service-role status change, contradicting the bypass RLS already grants
+   it. This adds no new privilege: the service role could already read and
+   write every row before this trigger existed. `postgres` is exempted for
+   the same reason migrations and the Supabase dashboard's SQL editor run
+   as it.
+
+   This function is deliberately NOT security definer, unlike the helpers
+   above. Inside a security definer function, current_user reports the
+   function's owner rather than the caller — verified directly against the
+   local database, where current_user read 'postgres' inside a security
+   definer function even after `set local role authenticated`. That would
+   make the current_user check above always match its own exemption list
+   and disable the guard for everyone. is_staff() still runs with its own
+   elevation regardless of the caller here, so this function needs none of
+   its own. */
+create or replace function guard_customer_status() returns trigger
+  language plpgsql set search_path = public, pg_temp
+as $$
+begin
+  if new.status is distinct from old.status
+     and not is_staff()
+     and current_user not in ('service_role', 'postgres')
+  then
+    raise exception 'only staff may change a customer''s status'
+      using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+create or replace trigger customers_status_guard
+  before update on customers
+  for each row execute function guard_customer_status();
+
+-- locations ------------------------------------------------------------
+drop policy if exists locations_read on locations;
+create policy locations_read on locations for select
+  using (customer_id = auth_customer_id() or is_staff());
+
+drop policy if exists locations_staff_write on locations;
+create policy locations_staff_write on locations for all
+  using (is_staff()) with check (is_staff());
+
+/* The owner test must appear in both using and with check. Postgres only
+   consults with check on INSERT (there is no existing row for using to
+   filter), so when the owner test lived in using alone a manager who was
+   correctly blocked from deleting a location could still insert one — and
+   m2 and location count both drive billing. */
+drop policy if exists locations_owner_write on locations;
+create policy locations_owner_write on locations for all
+  using (
+    customer_id = auth_customer_id()
+    and exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'owner')
+  )
+  with check (
+    customer_id = auth_customer_id()
+    and exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'owner')
+  );
+
+-- profiles -------------------------------------------------------------
+drop policy if exists profiles_read_own on profiles;
+create policy profiles_read_own on profiles for select
+  using (id = auth.uid() or is_staff());
+
+/* is_staff() tests the actor, not the row being written. Using it in both
+   using and with check let a staff_support account PATCH its own row to
+   role = 'staff_admin', which then unlocks plans_admin_write — the ability
+   to rewrite the price of every plan for every customer. Staff may still
+   administer customer-side profiles (owner, manager); only a staff_admin
+   may create or alter a staff row. */
+/* Fix round 6: the same `using`-is-the-only-clause-on-DELETE gap as
+   customers_staff_write above, but worse here -- `using (is_staff())` let
+   any staff_support account both DELETE and demote every staff_admin
+   profile. Verified live: as staff_support, `delete from profiles where
+   id = <a staff_admin>` succeeded, and so did demoting one to 'owner'.
+   This is unrecoverable in-app: once the last staff_admin is gone, nobody
+   can change a price (plans_admin_write), erase a customer
+   (currentStaffAdmin, gdpr-actions.ts) or mint a replacement staff_admin
+   -- all three require is_staff_admin(), and is_staff_admin() requires a
+   profiles row that no longer exists to say so. Narrowing `using` to mirror
+   `with check`'s own is_staff_admin()-or-owner/manager test closes both
+   holes: a staff_support session's DELETE or UPDATE now only ever matches
+   a row it was already allowed to end up with, and only staff_admin may
+   touch a staff-tier row at all. */
+drop policy if exists profiles_staff_write on profiles;
+create policy profiles_staff_write on profiles for all
+  using (
+    is_staff_admin()
+    or (is_staff() and role in ('owner', 'manager'))
+  )
+  with check (
+    is_staff_admin()
+    or (is_staff() and role in ('owner', 'manager'))
+  );
+
+-- subscriptions, addons on them, invoices ------------------------------
+drop policy if exists subscriptions_read on subscriptions;
+create policy subscriptions_read on subscriptions for select
+  using (customer_id = auth_customer_id() or is_staff());
+
+drop policy if exists subscriptions_staff_write on subscriptions;
+create policy subscriptions_staff_write on subscriptions for all
+  using (is_staff()) with check (is_staff());
+
+-- subscription_id is qualified with the policy's own table so that a later
+-- column of the same name on subscriptions cannot silently change which
+-- table an unqualified reference resolves to.
+drop policy if exists subscription_addons_read on subscription_addons;
+create policy subscription_addons_read on subscription_addons for select
+  using (exists (
+    select 1 from subscriptions s
+    where s.id = subscription_addons.subscription_id
+      and (s.customer_id = auth_customer_id() or is_staff())
+  ));
+
+drop policy if exists subscription_addons_staff_write on subscription_addons;
+create policy subscription_addons_staff_write on subscription_addons for all
+  using (is_staff()) with check (is_staff());
+
+drop policy if exists invoices_read on invoices;
+create policy invoices_read on invoices for select
+  using (customer_id = auth_customer_id() or is_staff());
+
+drop policy if exists invoices_staff_write on invoices;
+create policy invoices_staff_write on invoices for all
+  using (is_staff()) with check (is_staff());
+
+-- plans and addons -----------------------------------------------------
+/* Anonymous read of active rows is deliberate: the public pricing page is
+   prerendered without a session and must still see prices. Writes are
+   gated on is_staff_admin(), not an inline role check, so "who may change
+   a price" has exactly one definition instead of three. */
+drop policy if exists plans_public_read on plans;
+create policy plans_public_read on plans for select
+  using (active or is_staff());
+
+drop policy if exists plans_admin_write on plans;
+create policy plans_admin_write on plans for all
+  using (is_staff_admin())
+  with check (is_staff_admin());
+
+drop policy if exists addons_public_read on addons;
+create policy addons_public_read on addons for select
+  using (active or is_staff());
+
+drop policy if exists addons_admin_write on addons;
+create policy addons_admin_write on addons for all
+  using (is_staff_admin())
+  with check (is_staff_admin());
+
+-- audit_log ------------------------------------------------------------
+-- Readable by staff, writable by nobody through the API. Rows arrive via
+-- server actions running as the service role, so the record cannot be edited
+-- by the person it is recording.
+drop policy if exists audit_read on audit_log;
+create policy audit_read on audit_log for select using (is_staff());
