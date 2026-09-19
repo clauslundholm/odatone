@@ -7,7 +7,7 @@ export const player = {
     en: "Press play.\nThose are real\nmusicians.",
   } as L10n,
   lede: {
-    da: "Vælg stemning, genre, tempo og vokal — og hør, hvordan din forretning kommer til at lyde. Ingen konto, ingen kort, ingen betingelser.",
+    da: "Vælg stemning, genre, tempo og vokal  -og hør, hvordan din forretning kommer til at lyde. Prøv gratis i dag. Ingen konto, ingen kort, ingen betingelser.",
     en: "Pick a mood, a genre, a tempo and vocals — and hear how your business is going to sound. No account, no card, no strings.",
   } as L10n,
 

@@ -4,14 +4,13 @@ import Reveal from "@/components/ui/Reveal";
 import { LinkButton, TextLink } from "@/components/ui/Button";
 import { about as aboutDefaults } from "@/lib/content/about";
 import { ui as uiDefaults } from "@/lib/content/common";
-import { serverCopy } from "@/lib/copy-server";
 import { SITE, PROOF } from "@/lib/site";
 import { href, type Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 
-export default async function AboutPage({ locale: l }: { locale: Locale }) {
-  const about = await serverCopy(aboutDefaults, l);
-  const ui = await serverCopy(uiDefaults, l);
+export default function AboutPage({ locale: l }: { locale: Locale }) {
+  const about = aboutDefaults;
+  const ui = uiDefaults;
   const figures: [string, string][] = [
     [`${num(PROOF.tracks, l)}+`, l === "da" ? "numre" : "tracks"],
     [`${num(PROOF.customers, l)}+`, l === "da" ? "kunder" : "customers"],

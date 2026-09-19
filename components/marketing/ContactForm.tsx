@@ -6,15 +6,12 @@ import { submitSalesLead } from "@/app/actions";
 import { Field, TextField } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { CheckIcon } from "@/components/player/Icons";
-import { contact as contactDefaults } from "@/lib/content/contact";
-import { useCopy } from "@/components/CopyProvider";
+import { contact } from "@/lib/content/contact";
 import { EMAIL_RE, type FieldErrors } from "@/lib/forms";
 import { SITE } from "@/lib/site";
 import type { Locale } from "@/lib/i18n";
 
 export default function ContactForm({ locale: l }: { locale: Locale }) {
-  const contact = useCopy(contactDefaults);
-
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);

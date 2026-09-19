@@ -2,10 +2,10 @@ import { exportCustomer, isCurrentSessionStaff } from "../gdpr-actions";
 
 /**
  * Streams the same JSON `exportCustomer` (../gdpr-actions.ts) builds as a
- * file download, the same Content-Disposition pattern
- * app/api/edits/export/route.ts already uses. A route handler rather than
- * the Export button calling the server action directly: a browser can only
- * save a file from an actual navigable response, and `<form
+ * file download, using a Content-Disposition header so the browser saves it
+ * rather than rendering it inline. A route handler rather than the Export
+ * button calling the server action directly: a browser can only save a file
+ * from an actual navigable response, and `<form
  * action={exportCustomer}>`/`useActionState` hand a Server Action's result
  * back across the RSC boundary as React state, not as something the
  * browser's own download machinery ever sees.
@@ -14,10 +14,8 @@ import { exportCustomer, isCurrentSessionStaff } from "../gdpr-actions";
  * under /admin, so lib/supabase/proxy.ts's updateSession already gates it
  * to a signed-in staff session, and RLS backstops every table
  * `exportCustomer` reads regardless — a missing check here could only ever
- * produce an empty file, not a leak. Checked anyway, in-handler, to
- * actually match the app/api/edits/export/route.ts precedent this file's
- * own comment cites, rather than resting entirely on the proxy never
- * regressing.
+ * produce an empty file, not a leak. Checked anyway, in-handler, rather
+ * than resting entirely on the proxy never regressing.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isCurrentSessionStaff())) {

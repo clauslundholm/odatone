@@ -1,7 +1,7 @@
 /* Credentials arrive under different names depending on how the project was
    created: the Vercel Marketplace integration, the Supabase dashboard and the
    newer publishable/secret key scheme all spell them differently. Whichever is
-   present wins, exactly as lib/copy-store.ts does for Upstash. */
+   present wins. */
 
 export type SupabaseEnv = { url: string; anonKey: string };
 

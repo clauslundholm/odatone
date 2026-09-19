@@ -3,14 +3,13 @@ import PageHero from "@/components/ui/PageHero";
 import Reveal from "@/components/ui/Reveal";
 import { LinkButton, TextLink } from "@/components/ui/Button";
 import { artists as artistsDefaults } from "@/lib/content/artists";
-import { serverCopy } from "@/lib/copy-server";
 import { SITE } from "@/lib/site";
 import { TRACKS, GENRES } from "@/lib/tracks";
 import { href, type Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 
-export default async function ArtistsPage({ locale: l }: { locale: Locale }) {
-  const artists = await serverCopy(artistsDefaults, l);
+export default function ArtistsPage({ locale: l }: { locale: Locale }) {
+  const artists = artistsDefaults;
   const roster = [...new Set(TRACKS.map((t) => t.artist))].map((name) => {
     const own = TRACKS.filter((t) => t.artist === name);
     return { name, count: own.length, genres: [...new Set(own.map((t) => t.genre))] };

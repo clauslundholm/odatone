@@ -7,7 +7,7 @@ export const pricing = {
     en: "One price.\nNo licences\non top.",
   } as L10n,
   lede: {
-    da: "Vælg størrelsen på forretningen, og betal én ting. Koda, Gramex og hele musikbiblioteket er inkluderet i tallet, du ser.",
+    da: "Vælg størrelsen på din forretning, og betal kun for én ting. Koda, Gramex og hele musikbiblioteket er inkluderet i tallet, du ser.",
     en: "Pick the size of your business and pay for one thing. Koda, Gramex and the entire music library are inside the number you see.",
   } as L10n,
 

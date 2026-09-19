@@ -32,7 +32,7 @@ export const ui = {
 } as const;
 
 export const NAV: { key: PageKey; label: L10n }[] = [
-  { key: "player", label: { da: "Afspiller", en: "Player" } },
+  { key: "player", label: { da: "Afspil", en: "Player" } },
   { key: "savings", label: { da: "Besparelse", en: "Savings" } },
   { key: "pricing", label: { da: "Priser", en: "Pricing" } },
   { key: "artists", label: { da: "Artister", en: "Artists" } },
@@ -43,7 +43,7 @@ export const FOOTER_NAV: { heading: L10n; items: { key: PageKey; label: L10n }[]
   {
     heading: { da: "Produkt", en: "Product" },
     items: [
-      { key: "player", label: { da: "Afspiller", en: "Player" } },
+      { key: "player", label: { da: "Afspil", en: "Player" } },
       { key: "pricing", label: { da: "Priser", en: "Pricing" } },
       { key: "savings", label: { da: "Besparelsesberegner", en: "Savings calculator" } },
       { key: "signup", label: { da: "Kom i gang", en: "Get started" } },

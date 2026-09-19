@@ -5,9 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { VENUE_TYPES, calculate, venueType, type VenueTypeId } from "@/lib/rates";
 import { recommendPlan, type Plan } from "@/lib/pricing";
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
-import { home as homeDefaults } from "@/lib/content/home";
-import { ui as uiDefaults } from "@/lib/content/common";
-import { useCopy } from "@/components/CopyProvider";
+import { home } from "@/lib/content/home";
+import { ui } from "@/lib/content/common";
 import { href, type Locale } from "@/lib/i18n";
 import { kr, m2 as fmtM2 } from "@/lib/format";
 import { TextLink } from "@/components/ui/Button";
@@ -30,9 +29,6 @@ export default function HeroSavings({
       price from on this same page. See Calculator.tsx's doc comment. */
   plans: Plan[];
 }) {
-  const home = useCopy(homeDefaults);
-  const ui = useCopy(uiDefaults);
-
   const l = locale;
   const [profile, setProfile] = useState<VenueProfile>(DEFAULT_PROFILE);
 

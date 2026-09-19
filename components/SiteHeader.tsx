@@ -8,8 +8,7 @@ import Wordmark from "@/components/ui/Wordmark";
 import ThemeToggle from "@/components/ThemeToggle";
 import LocaleSwitch from "@/components/LocaleSwitch";
 import { LinkButton } from "@/components/ui/Button";
-import { NAV as NAVDefaults, ui as uiDefaults } from "@/lib/content/common";
-import { useCopy } from "@/components/CopyProvider";
+import { NAV, ui } from "@/lib/content/common";
 import { href, keyFromSlug, type Locale, type PageKey } from "@/lib/i18n";
 
 /**
@@ -17,8 +16,6 @@ import { href, keyFromSlug, type Locale, type PageKey } from "@/lib/i18n";
  * so the page appears to run underneath it.
  */
 export default function SiteHeader({ locale }: { locale: Locale }) {
-  const NAV = useCopy(NAVDefaults);
-  const ui = useCopy(uiDefaults);
 
   const pathname = usePathname() ?? `/${locale}`;
   const slug = pathname.split("/").filter(Boolean)[1];

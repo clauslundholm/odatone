@@ -228,10 +228,8 @@ async function currentStaffAdmin(): Promise<{ id: string } | null> {
     by lib/supabase/proxy.ts's `updateSession` before it ever runs, and
     backstopped by RLS on every table it reads through, so this check's
     blast radius if it were ever missing is an empty file rather than a
-    leak -- but a route claiming to follow app/api/edits/export/route.ts's
-    precedent (fix round 1's Minor) should carry the same explicit check
-    that file does, rather than resting entirely on the proxy never
-    regressing. */
+    leak -- checked anyway (fix round 1's Minor), rather than resting
+    entirely on the proxy never regressing. */
 export async function isCurrentSessionStaff(): Promise<boolean> {
   const profile = await currentProfile();
   return profile?.role === "staff_admin" || profile?.role === "staff_support";

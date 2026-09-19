@@ -3,22 +3,16 @@
  * Writes a self-contained static copy of the site to static-export/.
  *
  * The app cannot use Next's own `output: "export"`: it has route handlers that
- * read the request and cookies, a redirect in next.config, server actions
- * behind the forms, and revalidation behind live copy editing — all of which
- * that mode refuses. So this builds the real thing, serves it, and saves what
- * a browser would actually receive.
+ * read the request and cookies, a redirect in next.config, and server actions
+ * behind the forms — all of which that mode refuses. So this builds the real
+ * thing, serves it, and saves what a browser would actually receive.
  *
  * The result keeps the production URL shape (/da/priser -> da/priser/
  * index.html), so any static web server serves it at the same paths. Scripts
  * and styles come along, so the player, calculator and theme toggle still
  * work. What cannot survive without a server: the signup and contact forms
- * (server actions), live copy editing, and the / -> /da redirect, which is
- * replaced by a meta refresh.
- *
- * The snapshot is built from lib/content alone. The override store is switched
- * off for the build and the server behind it, so a static copy never depends on
- * Redis being reachable and never bakes in live edits. Pass --with-overrides to
- * capture the site exactly as it currently reads instead.
+ * (server actions), and the / -> /da redirect, which is replaced by a meta
+ * refresh.
  *
  * Pages are written as individual files — da.html, da-priser.html — with every
  * reference to the site's own root rewritten relative, so one file can be
@@ -29,8 +23,7 @@
  * `npx serve static-export` — has neither problem. --nested writes the
  * production URL shape (da/priser/index.html) for hosting instead.
  *
- * Usage: node scripts/export-static.mjs [--out <dir>] [--skip-build]
- *                                       [--with-overrides] [--nested]
+ * Usage: node scripts/export-static.mjs [--out <dir>] [--skip-build] [--nested]
  */
 
 import { spawn } from "node:child_process";
@@ -45,21 +38,7 @@ const outDir = path.resolve(
   args.includes("--out") ? args[args.indexOf("--out") + 1] : "static-export",
 );
 const skipBuild = args.includes("--skip-build");
-const withOverrides = args.includes("--with-overrides");
 const nested = args.includes("--nested");
-
-/* Next does not overwrite a variable that is already set, so blanking these
-   here beats the credentials in .env.local, and lib/copy-store treats an empty
-   URL or token as no store at all. */
-const REDIS_VARS = [
-  "UPSTASH_REDIS_REST_URL",
-  "UPSTASH_REDIS_REST_TOKEN",
-  "KV_REST_API_URL",
-  "KV_REST_API_TOKEN",
-];
-
-const childEnv = { ...process.env };
-if (!withOverrides) for (const name of REDIS_VARS) childEnv[name] = "";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -171,20 +150,9 @@ async function save(file, body) {
 const server = { proc: null };
 
 try {
-  console.log(
-    withOverrides
-      ? "Including stored copy overrides.\n"
-      : "Building from lib/content only — the override store is switched off.\n",
-  );
-
   if (!skipBuild) {
-    /* Cached copy outlives the credentials. The store is read through
-       unstable_cache, which persists in .next/cache between builds, so an
-       earlier build made with credentials would otherwise hand this one the
-       very overrides it is trying to leave out. */
-    if (!withOverrides) await rm(".next/cache/fetch-cache", { recursive: true, force: true });
     console.log("Building…\n");
-    await run("npx", ["next", "build"], { env: childEnv });
+    await run("npx", ["next", "build"]);
   }
 
   const port = await freePort();
@@ -192,7 +160,6 @@ try {
   console.log(`\nServing the production build on ${origin}`);
   server.proc = spawn("npx", ["next", "start", "-p", String(port)], {
     stdio: ["ignore", "ignore", "ignore"],
-    env: childEnv,
   });
   await waitFor(async () => (await fetch(`${origin}/da`)).ok, { what: "the server" });
 
