@@ -2,7 +2,6 @@ import { HEADLINE_EXAMPLE, calculate, venueType } from "@/lib/rates";
 import { recommendPlan, type Plan } from "@/lib/pricing";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { home as homeDefaults } from "@/lib/content/home";
-import { serverCopy } from "@/lib/copy-server";
 import { kr, m2 as fmtM2, num } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 
@@ -21,7 +20,7 @@ import type { Locale } from "@/lib/i18n";
  * is now whichever one `recommendPlan` actually recommends for
  * `HEADLINE_EXAMPLE`'s venue, not a separately hard-coded name.
  */
-export default async function PriceCompare({
+export default function PriceCompare({
   locale,
   plans,
   compact = false,
@@ -31,8 +30,8 @@ export default async function PriceCompare({
   compact?: boolean;
 }) {
   const l = locale;
-  const ui = await serverCopy(uiDefaults, l);
-  const home = await serverCopy(homeDefaults, l);
+  const ui = uiDefaults;
+  const home = homeDefaults;
   const plan = recommendPlan(HEADLINE_EXAMPLE.m2, HEADLINE_EXAMPLE.type, plans);
   const r = calculate({ ...HEADLINE_EXAMPLE, odatonePerLocationMonth: plan.monthly });
   const v = venueType(HEADLINE_EXAMPLE.type);

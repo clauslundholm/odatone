@@ -4,14 +4,13 @@ import LibraryBrowser from "@/components/player/LibraryBrowser";
 import { LinkButton, TextLink } from "@/components/ui/Button";
 import { player as playerDefaults } from "@/lib/content/player";
 import { ui as uiDefaults } from "@/lib/content/common";
-import { serverCopy } from "@/lib/copy-server";
 import { GENRES, MOODS, TRACKS, countByGenre } from "@/lib/tracks";
 import { href, type Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 
-export default async function PlayerPage({ locale: l }: { locale: Locale }) {
-  const player = await serverCopy(playerDefaults, l);
-  const ui = await serverCopy(uiDefaults, l);
+export default function PlayerPage({ locale: l }: { locale: Locale }) {
+  const player = playerDefaults;
+  const ui = uiDefaults;
   const counts = countByGenre();
 
   return (

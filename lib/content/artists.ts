@@ -7,7 +7,7 @@ export const artists = {
     en: "Behind every tone\nsits a person.",
   } as L10n,
   lede: {
-    da: "Odatones bibliotek bliver ikke genereret og ikke skrabet sammen. Det bliver skrevet, spillet og indspillet af musikere, vi har ringet til, i studier vi har booket, mod et honorar aftalt på forhånd.",
+    da: "Odatones bibliotek bliver ikke genereret igennem AI. Det bliver skrevet, spillet og komponeret af musikere, vi har ringet til, i studier vi har booket, mod et honorar aftalt på forhånd.",
     en: "Odatone's library is not generated and not scraped together. It is written, played and recorded by musicians we phoned, in studios we booked, for a fee agreed up front.",
   } as L10n,
 

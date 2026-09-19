@@ -11,9 +11,6 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import PlayerProvider from "@/components/player/PlayerProvider";
 import PlayerDock, { DockSpacer } from "@/components/player/PlayerDock";
-import EditorShell from "@/components/dev/EditorShell";
-import { CopyProvider } from "@/components/CopyProvider";
-import { overridesFor } from "@/lib/copy-server";
 
 /* One typeface for the whole site. Size and weight carry the hierarchy;
    figures use Inter's tabular set rather than a second, monospaced face. */
@@ -81,10 +78,6 @@ export default async function LocaleLayout({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  /* Read at build time, not request time: this touches no request state, so
-     every page stays prerendered and a save triggers revalidation instead. */
-  const overrides = await overridesFor(locale);
-
   return (
     <html
       lang={HTML_LANG[locale]}
@@ -92,36 +85,30 @@ export default async function LocaleLayout({
       className={sans.variable}
     >
       <body className="min-h-dvh antialiased">
-        {/* Turns the page editable, but only for a visitor who is allowed to
-            edit. Locally that is everyone and edits rewrite lib/content;
-            on the deployed site it takes the password at /da?edit. */}
-        <EditorShell dev={process.env.NODE_ENV === "development"} />
-        <CopyProvider overrides={overrides}>
-          <ThemeProvider
-            attribute="data-theme"
-            defaultTheme="light"
-            enableSystem={false}
-            disableTransitionOnChange
+        <ThemeProvider
+          attribute="data-theme"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <a
+            href="#main"
+            className="u-label sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-accent focus:px-5 focus:py-3 focus:text-accent-ink"
           >
-            <a
-              href="#main"
-              className="u-label sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-accent focus:px-5 focus:py-3 focus:text-accent-ink"
-            >
-              {locale === "da" ? "Spring til indhold" : "Skip to content"}
-            </a>
-            {/* One provider for the whole app: the audio element is mounted
-                once here, so playback survives every navigation and the dock
-                at the bottom of the page is always looking at the same
-                player state. */}
-            <PlayerProvider locale={locale}>
-              <SiteHeader locale={locale} />
-              <main id="main">{children}</main>
-              <SiteFooter locale={locale} />
-              <DockSpacer />
-              <PlayerDock />
-            </PlayerProvider>
-          </ThemeProvider>
-        </CopyProvider>
+            {locale === "da" ? "Spring til indhold" : "Skip to content"}
+          </a>
+          {/* One provider for the whole app: the audio element is mounted
+              once here, so playback survives every navigation and the dock
+              at the bottom of the page is always looking at the same
+              player state. */}
+          <PlayerProvider locale={locale}>
+            <SiteHeader locale={locale} />
+            <main id="main">{children}</main>
+            <SiteFooter locale={locale} />
+            <DockSpacer />
+            <PlayerDock />
+          </PlayerProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

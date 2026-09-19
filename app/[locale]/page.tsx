@@ -5,7 +5,6 @@ import { home as homeDefaults } from "@/lib/content/home";
 import { savings as savingsDefaults } from "@/lib/content/savings";
 import { pricing as pricingDefaults } from "@/lib/content/pricing";
 import { ui as uiDefaults } from "@/lib/content/common";
-import { serverCopy } from "@/lib/copy-server";
 
 import { Container, Section, SectionHead, Label, Tile } from "@/components/ui/Section";
 import { Aurora } from "@/components/ui/PageHero";
@@ -32,10 +31,10 @@ export default async function HomePage({
   const { locale: raw } = await params;
   if (!isLocale(raw)) notFound();
   const l: Locale = raw;
-  const home = await serverCopy(homeDefaults, l);
-  const savings = await serverCopy(savingsDefaults, l);
-  const pricing = await serverCopy(pricingDefaults, l);
-  const ui = await serverCopy(uiDefaults, l);
+  const home = homeDefaults;
+  const savings = savingsDefaults;
+  const pricing = pricingDefaults;
+  const ui = uiDefaults;
   const plans = await activePlans();
 
   return (

@@ -19,7 +19,6 @@ import { EMAIL_RE, digits, type FieldErrors } from "@/lib/forms";
 import { signup as tDefaults } from "@/lib/content/signup";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { pricing as pricingCopyDefaults } from "@/lib/content/pricing";
-import { useCopy } from "@/components/CopyProvider";
 import { href, type Locale } from "@/lib/i18n";
 import { kr, m2 as fmtM2, num } from "@/lib/format";
 import { Button, LinkButton, Arrow } from "@/components/ui/Button";
@@ -85,9 +84,9 @@ export default function SignupFlow({
       the site — a stale price shown at checkout has contractual weight. */
   plans: Plan[];
 }) {
-  const t = useCopy(tDefaults);
-  const ui = useCopy(uiDefaults);
-  const pricingCopy = useCopy(pricingCopyDefaults);
+  const t = tDefaults;
+  const ui = uiDefaults;
+  const pricingCopy = pricingCopyDefaults;
 
   const l = locale;
   const router = useRouter();
@@ -372,8 +371,8 @@ function StepVenue({
   onChange: (p: Partial<VenueProfile>) => void;
   saving: number;
 }) {
-  const t = useCopy(tDefaults);
-  const ui = useCopy(uiDefaults);
+  const t = tDefaults;
+  const ui = uiDefaults;
 
   const v = venueType(profile.type);
   return (
@@ -503,9 +502,9 @@ function StepPlan({
   onPlan: (id: PlanId) => void;
   onBilling: (b: Billing) => void;
 }) {
-  const t = useCopy(tDefaults);
-  const ui = useCopy(uiDefaults);
-  const pricingCopy = useCopy(pricingCopyDefaults);
+  const t = tDefaults;
+  const ui = uiDefaults;
+  const pricingCopy = pricingCopyDefaults;
 
   return (
     <div className="flex flex-col gap-8">
@@ -588,7 +587,7 @@ function StepAccount({
   errors: FieldErrors;
   onChange: (a: Account) => void;
 }) {
-  const t = useCopy(tDefaults);
+  const t = tDefaults;
 
   const set = (k: keyof Account) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...account, [k]: e.target.value });
@@ -666,7 +665,7 @@ function StepPayment({
   errors: FieldErrors;
   onChange: (p: Payment) => void;
 }) {
-  const t = useCopy(tDefaults);
+  const t = tDefaults;
   const banner = formErrorMessage(errors, t, l);
 
   const set = (k: keyof Payment) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -754,8 +753,8 @@ function Summary({
   billing: Billing;
   savingYear: number;
 }) {
-  const t = useCopy(tDefaults);
-  const pricingCopy = useCopy(pricingCopyDefaults);
+  const t = tDefaults;
+  const pricingCopy = pricingCopyDefaults;
 
   const q = quote(plan, billing, profile.locations);
   const v = venueType(profile.type);
@@ -842,7 +841,7 @@ function Done({
       confirmation" regardless, which is simply false in that case. */
   noInvite?: boolean;
 }) {
-  const t = useCopy(tDefaults);
+  const t = tDefaults;
   const body = (noInvite ? t.done.bodyNoInvite[l] : t.done.body[l]).replace("{email}", email || "—");
 
   return (

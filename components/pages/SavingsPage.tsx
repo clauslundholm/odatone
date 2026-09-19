@@ -6,14 +6,13 @@ import Accordion from "@/components/marketing/Accordion";
 import { LinkButton, TextLink } from "@/components/ui/Button";
 import { savings as savingsDefaults } from "@/lib/content/savings";
 import { ui as uiDefaults } from "@/lib/content/common";
-import { serverCopy } from "@/lib/copy-server";
 import { RATES_UPDATED, RATES_VERIFIED } from "@/lib/rates";
 import { activePlans } from "@/lib/plans-server";
 import { href, type Locale } from "@/lib/i18n";
 
 export default async function SavingsPage({ locale: l }: { locale: Locale }) {
-  const savings = await serverCopy(savingsDefaults, l);
-  const ui = await serverCopy(uiDefaults, l);
+  const savings = savingsDefaults;
+  const ui = uiDefaults;
   const plans = await activePlans();
   return (
     <>

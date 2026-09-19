@@ -2,12 +2,11 @@ import { Container, Section, Tile } from "@/components/ui/Section";
 import PageHero from "@/components/ui/PageHero";
 import ContactForm from "@/components/marketing/ContactForm";
 import { contact as contactDefaults } from "@/lib/content/contact";
-import { serverCopy } from "@/lib/copy-server";
 import { SITE } from "@/lib/site";
 import type { Locale } from "@/lib/i18n";
 
-export default async function ContactPage({ locale: l }: { locale: Locale }) {
-  const contact = await serverCopy(contactDefaults, l);
+export default function ContactPage({ locale: l }: { locale: Locale }) {
+  const contact = contactDefaults;
   return (
     <>
       <PageHero label={contact.eyebrow[l]} title={contact.title[l]} lede={contact.lede[l]} />

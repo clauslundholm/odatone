@@ -31,11 +31,13 @@ function anonClient() {
 }
 
 /* Reading the table is a network call, and an uncached one during render
-   opts the route into dynamic rendering — the same trap lib/copy-server.ts
-   documents for the copy store. Caching it puts the read back in the build
-   rather than in the request, so the 25 marketing pages keep prerendering.
-   Nothing expires on a timer — a save revalidates this tag, which is the
-   only thing that ever changes the answer.
+   opts the route into dynamic rendering: Next can no longer prove the page's
+   output is independent of the request, so it stops prerendering it at build
+   time and falls back to rendering on every request instead. Caching it puts
+   the read back in the build rather than in the request, so the 25 marketing
+   pages keep prerendering. A save revalidates this tag immediately; the
+   `revalidate: 300` below is a five-minute floor under every other writer,
+   not a second, independent timer.
 
    Every early return is logged before it fires: the fallback to compiled
    PLANS is deliberate (see activePlans() below), but silent, it makes "the
@@ -86,11 +88,11 @@ const readPlans = unstable_cache(
 
 /** The fallback is deliberate: an unreachable or empty database returns the
     compiled-in PLANS rather than throwing or showing a visitor no prices at
-    all — the same contract lib/copy-server.ts uses for copy.
+    all.
 
-    Wrapped in React's cache() exactly as lib/copy-server.ts wraps
-    overridesFor: one render pass makes one round trip no matter how many
-    components ask, including planById() below calling this directly. */
+    Wrapped in React's cache() so one render pass makes one round trip no
+    matter how many components ask, including planById() below calling this
+    directly. */
 export const activePlans = cache(async (): Promise<Plan[]> => {
   try {
     return await readPlans();
@@ -108,10 +110,10 @@ export async function planById(id: PlanId): Promise<Plan> {
   return plans.find((p) => p.id === id) ?? staticPlan(id);
 }
 
-/* { expire: 0 } mirrors app/api/edits/route.ts's revalidateTag(OVERRIDES_TAG,
-   { expire: 0 }) for the copy store: a price change should never be served
-   stale, so the next request blocks for a fresh read rather than getting
-   stale-while-revalidate's one-year window. */
+/* { expire: 0 } forces an immediate revalidation instead of Next's default
+   stale-while-revalidate: a price change should never be served stale, so
+   the next request blocks for a fresh read rather than getting a year-old
+   cached value while a rebuild happens in the background. */
 export function revalidatePlans(): void {
   revalidateTag(PLANS_TAG, { expire: 0 });
 }

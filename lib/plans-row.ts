@@ -14,11 +14,9 @@ export type PlanRow = {
 /** Converts a `plans` table row into the `Plan` shape the rest of the app
     already reads. Kept in its own module, separate from lib/plans-server.ts
     (which imports next/cache and react's cache — neither resolves under
-    plain `node --test`, the same boundary lib/copy-server.ts vs.
-    lib/copy-store.ts/copy-apply.ts already draws), so the conversion itself
-    — the one place an øre/kroner slip or a dropped `null` would produce a
-    100x price error or break the unbounded plan — can be unit tested
-    directly. */
+    plain `node --test`), so the conversion itself — the one place an
+    øre/kroner slip or a dropped `null` would produce a 100x price error or
+    break the unbounded plan — can be unit tested directly. */
 export function rowToPlan(row: PlanRow): Plan {
   return {
     id: row.id as PlanId,

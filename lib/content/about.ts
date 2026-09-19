@@ -7,7 +7,7 @@ export const about = {
     en: "Someone had to\nredo the\narithmetic.",
   } as L10n,
   lede: {
-    da: "Erhvervslivet stod med to dårlige valg: dyr musik med licenser og efterregninger — eller billig, sjælløs royaltyfri musik, ingen gider høre på. Odatone er det tredje.",
+    da: "Erhvervslivet stod med to dårlige valg: Dyr musik med licenser og efterregninger  -eller billig, sjælløs royaltyfri musik, ingen gider høre på. Odatone er det tredje.",
     en: "Business had two bad options: expensive music with licences and back-bills — or cheap, soulless royalty-free music nobody wants to hear. Odatone is the third.",
   } as L10n,
 

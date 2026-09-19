@@ -7,7 +7,7 @@ export const savings = {
     en: "What are you paying\nfor music today?",
   } as L10n,
   lede: {
-    da: "Tre regninger bliver til én. Sæt din forretning op herunder, så regner vi resten.",
+    da: "Tre regninger bliver til én. Sæt din forretning op herunder, så udregner vi hvor meget du kan spare om året ved at vælge Odatone.",
     en: "Three bills become one. Set up your business below and we do the rest.",
   } as L10n,
 

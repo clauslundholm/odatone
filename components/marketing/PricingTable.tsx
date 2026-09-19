@@ -3,9 +3,8 @@
 import { useState } from "react";
 
 import { VOLUME_TIERS, quote, type Billing, type Plan, type PlanId } from "@/lib/pricing";
-import { ui as uiDefaults } from "@/lib/content/common";
-import { pricing as pricingDefaults } from "@/lib/content/pricing";
-import { useCopy } from "@/components/CopyProvider";
+import { ui } from "@/lib/content/common";
+import { pricing } from "@/lib/content/pricing";
 import { kr, num } from "@/lib/format";
 import { href, type Locale } from "@/lib/i18n";
 import { LinkButton } from "@/components/ui/Button";
@@ -27,9 +26,6 @@ export default function PricingTable({
   recommended?: PlanId;
   showVolume?: boolean;
 }) {
-  const ui = useCopy(uiDefaults);
-  const pricing = useCopy(pricingDefaults);
-
   const l = locale;
   const [billing, setBilling] = useState<Billing>("monthly");
 

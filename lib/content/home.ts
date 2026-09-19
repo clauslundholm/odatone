@@ -3,7 +3,7 @@ import type { L10n } from "@/lib/i18n";
 export const home = {
   hero: {
     eyebrow: {
-      da: "Lovlig baggrundsmusik til erhverv",
+      da: "Lovlig baggrundsmusik til erhverv skal ikke tynge jeres budget",
       en: "Legal background music for business",
     } as L10n,
     /* "op til" is not padding: the calculator only reaches 90 % for the
@@ -16,7 +16,7 @@ export const home = {
     kicker: { da: "Op til", en: "Up to" } as L10n,
     line3: { da: "90 % billigere.", en: "90% cheaper." } as L10n,
     lede: {
-      da: "Koda, Gramex og streamingtjenesten bliver til ét abonnement fra 149 kr. om måneden. Over 4.000 numre, indspillet af professionelle musikere — alle rettigheder betalt, før du trykker play.",
+      da: "Slip for Koda, Gramex og streamingtjenester allerede idag! Få adgang til over 4.000 numre, indspillet af professionelle musikere  -alle rettigheder er betalt, før du trykker play.",
       en: "Koda, Gramex and the streaming service become one subscription from 149 kr. a month. Over 4,000 tracks recorded by professional musicians — every right paid for before you press play.",
     } as L10n,
     pickPrompt: { da: "Hvad driver du?", en: "What do you run?" } as L10n,
