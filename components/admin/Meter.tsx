@@ -9,11 +9,22 @@ export function Meter({
   limit,
   label,
   unit = "m²",
+  noLimitCaption = "no limit",
+  noLimitAria = "no limit on this plan",
 }: {
   used: number;
   limit: number | null;
   label?: string;
   unit?: string;
+  /** The short caption after the figure when `limit` is null — "90 m² ·
+      no limit" by default. Overridable because this component is shared
+      across /admin (English only) and /my-odatone (bilingual — Task 14):
+      a customer on the unbounded Main Stage plan viewing a Danish page
+      must not see an English word hard-coded into a shared component. */
+  noLimitCaption?: string;
+  /** The screen-reader text for the same unbounded case — see the doc
+      comment below on why this isn't just derived from noLimitCaption. */
+  noLimitAria?: string;
 }) {
   const { inPct, overPct } = meterSegments(used, limit);
   const over = overPct > 0;
@@ -38,7 +49,7 @@ export function Meter({
     <div
       className="flex h-2 w-full overflow-hidden rounded-full bg-surface-2"
       {...(unbounded
-        ? { role: "img" as const, "aria-label": `${used} ${unit}, no limit on this plan` }
+        ? { role: "img" as const, "aria-label": `${used} ${unit}, ${noLimitAria}` }
         : { role: "meter" as const, "aria-valuenow": used, "aria-valuemin": 0, "aria-valuemax": limit })}
     >
       {!unbounded && <div className="h-full bg-accent" style={{ width: `${inPct}%` }} />}
@@ -57,7 +68,7 @@ export function Meter({
       <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
         {label && <span className="text-ink-2">{label}</span>}
         <span className={`u-tabular ${over ? "text-warn" : "text-ink-2"}`}>
-          {used} {unbounded ? `${unit} · no limit` : `/ ${limit} ${unit}`}
+          {used} {unbounded ? `${unit} · ${noLimitCaption}` : `/ ${limit} ${unit}`}
         </span>
       </div>
       {bar}

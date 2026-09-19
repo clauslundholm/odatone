@@ -62,10 +62,33 @@ export const portal = {
         en: "Couldn't save the password. Try again.",
       } as L10n,
     },
+
+    /* GoTrue's /verify redirects here with #error=access_denied&error_code=...
+       whenever the link itself is the problem (expired — invites expire in
+       24h — or already used, e.g. by a corporate link scanner that follows
+       it before the person does). This is the ordinary failure mode of an
+       invite link, not an edge case: without this, the visitor lands on a
+       plain sign-in form with no password to type and no explanation. */
+    expired: {
+      heading: { da: "Linket er udløbet", en: "This link has expired" } as L10n,
+      body: {
+        da: "Dette link er udløbet eller allerede brugt. Kontakt os for at få tilsendt en ny invitation.",
+        en: "This link has expired or has already been used. Contact us for a new invitation.",
+      } as L10n,
+    },
   },
 
   summary: {
     crumb: { da: "Oversigt", en: "Summary" } as L10n,
+    /* AppShell/SideNav/TopBar are shared with /admin (English only), which
+       is why each of these has an English default at the component level —
+       this page is their first consumer outside /admin, and without these
+       a customer's screen reader would announce their own portal's nav as
+       "Admin" in English on a lang="da-DK" page. */
+    ariaNav: { da: "Mit Odatone", en: "My Odatone" } as L10n,
+    ariaOpenMenu: { da: "Åbn menu", en: "Open menu" } as L10n,
+    ariaMenu: { da: "Menu", en: "Menu" } as L10n,
+    ariaBreadcrumb: { da: "Brødkrumme", en: "Breadcrumb" } as L10n,
     greeting: { da: "Velkommen,", en: "Welcome," } as L10n,
     signOut: { da: "Log ud", en: "Sign out" } as L10n,
 
@@ -89,6 +112,13 @@ export const portal = {
     locationCity: { da: "By", en: "City" } as L10n,
     locationFit: { da: "Areal", en: "Fit" } as L10n,
     locationOver: { da: "Over grænsen", en: "Over limit" } as L10n,
+    /* Meter's own defaults ("no limit" / "no limit on this plan") are
+       English, since /admin (its only other caller until this task) never
+       localises. A customer on the unbounded Main Stage plan, or with no
+       subscription at all (locationFit's maxM2 is then also null), must
+       not see that hard-coded English word on a lang="da-DK" page. */
+    meterNoLimitCaption: { da: "ingen grænse", en: "no limit" } as L10n,
+    meterNoLimitAria: { da: "ingen grænse på denne plan", en: "no limit on this plan" } as L10n,
     noLocationsTitle: { da: "Ingen lokationer endnu", en: "No locations yet" } as L10n,
     noLocationsBody: {
       da: "Lokationer, du tilføjer, vises her sammen med deres forbrug.",

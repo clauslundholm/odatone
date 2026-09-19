@@ -27,7 +27,22 @@ const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1
  * The mobile menu (hamburger + drawer) is entirely AppShell's own — see
  * TopBar.tsx for why a page's breadcrumb bar does not also carry one.
  */
-export function AppShell({ nav, children }: { nav: ReactNode; children: ReactNode }) {
+export function AppShell({
+  nav,
+  children,
+  menuLabel = "Open menu",
+  menuDialogLabel = "Menu",
+}: {
+  nav: ReactNode;
+  children: ReactNode;
+  /** Task 14 (/my-odatone) is this component's first consumer outside the
+      English-only /admin — these two default to the existing English
+      strings so admin is unchanged, but a Danish portal page passes
+      localised ones instead of leaving English text on a lang="da-DK"
+      page. */
+  menuLabel?: string;
+  menuDialogLabel?: string;
+}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -101,7 +116,7 @@ export function AppShell({ nav, children }: { nav: ReactNode; children: ReactNod
           ref={triggerRef}
           type="button"
           onClick={() => setDrawerOpen(true)}
-          aria-label="Open menu"
+          aria-label={menuLabel}
           aria-haspopup="dialog"
           aria-expanded={drawerOpen}
           className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
@@ -131,7 +146,7 @@ export function AppShell({ nav, children }: { nav: ReactNode; children: ReactNod
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Menu"
+            aria-label={menuDialogLabel}
             tabIndex={-1}
             className="on-dark relative flex h-full w-[248px] flex-col overflow-auto p-3 pt-4 shadow-[var(--shadow-card)] outline-none"
           >

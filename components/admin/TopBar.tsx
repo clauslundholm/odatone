@@ -14,13 +14,18 @@ import type { ReactNode } from "react";
 export function TopBar({
   crumbs,
   actions,
+  breadcrumbLabel = "Breadcrumb",
 }: {
   crumbs: string[];
   actions?: ReactNode;
+  /** Task 14 (/my-odatone) is this component's first consumer outside
+      English-only /admin — defaults to the existing English label so
+      admin is unchanged. */
+  breadcrumbLabel?: string;
 }) {
   return (
     <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-[0.875rem]">
+      <nav aria-label={breadcrumbLabel} className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-[0.875rem]">
         {crumbs.map((crumb, i) => (
           <span key={crumb + i} className="flex items-center gap-1.5">
             {i > 0 && <span className="text-ink-3">/</span>}

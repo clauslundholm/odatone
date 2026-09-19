@@ -18,17 +18,23 @@ export function SideNav({
   items,
   activeHref,
   footer,
+  navLabel = "Admin",
 }: {
   items: NavItem[];
   activeHref?: string;
   footer?: ReactNode;
+  /** Task 14 (/my-odatone) is this component's first consumer outside
+      /admin — a customer's screen reader must not announce their own
+      portal's primary navigation as "Admin". Defaults to the English
+      admin label so every existing call site is unchanged. */
+  navLabel?: string;
 }) {
   return (
     <div className="flex h-full flex-col gap-6">
       <div className="px-2 pt-1">
         <Wordmark height={18} />
       </div>
-      <nav aria-label="Admin" className="flex flex-1 flex-col gap-0.5">
+      <nav aria-label={navLabel} className="flex flex-1 flex-col gap-0.5">
         {items.map((item) => {
           const active =
             activeHref === item.href ||

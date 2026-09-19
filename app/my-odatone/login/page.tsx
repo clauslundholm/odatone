@@ -1,7 +1,6 @@
 import Wordmark from "@/components/ui/Wordmark";
 import { LocaleSwitch } from "@/components/portal/LocaleSwitch";
 import { getPortalLocale } from "@/lib/portal-locale";
-import { portal } from "@/lib/content/portal";
 import LoginForm from "./LoginForm";
 
 /**
@@ -30,14 +29,16 @@ export default async function PortalLoginPage() {
       <div className="flex w-full max-w-sm flex-col gap-4">
         <LocaleSwitch locale={locale} className="justify-center" />
         <div className="rounded-[var(--radius-md)] border border-line bg-surface p-8 shadow-[var(--shadow-card)]">
-          <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <div className="mb-6 flex justify-center">
             <Wordmark height={22} />
-            <div>
-              <h1 className="u-title text-[1.25rem] text-ink">{portal.login.heading[locale]}</h1>
-              <p className="mt-1 text-[0.875rem] text-ink-2">{portal.login.subtitle[locale]}</p>
-            </div>
           </div>
 
+          {/* The heading below the wordmark depends on how the visitor
+              arrived (ordinary sign-in vs. an invite/recovery link vs. an
+              expired one) — a decision LoginForm.tsx can only make
+              client-side, from the URL fragment. It owns its own heading
+              for exactly that reason; a static one here would be wrong for
+              two of its three modes. */}
           <LoginForm locale={locale} />
         </div>
       </div>

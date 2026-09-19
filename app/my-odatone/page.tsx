@@ -17,6 +17,7 @@ import { CUSTOMER_STATUS_LABEL, SUBSCRIPTION_STATUS_LABEL, localizeStatus, porta
 import { formatDkk, toOre } from "@/lib/money";
 import { quote, type Billing, type Plan } from "@/lib/pricing";
 import type { PlanRow } from "@/lib/plans-row";
+import { venueType, type VenueTypeId } from "@/lib/rates";
 import { getPortalLocale } from "@/lib/portal-locale";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./portal-actions";
@@ -175,10 +176,13 @@ export default async function PortalSummaryPage() {
 
   return (
     <AppShell
+      menuLabel={t.ariaOpenMenu[locale]}
+      menuDialogLabel={t.ariaMenu[locale]}
       nav={
         <SideNav
           items={nav}
           activeHref="/my-odatone"
+          navLabel={t.ariaNav[locale]}
           footer={
             <div className="flex flex-col gap-3">
               <LocaleSwitch locale={locale} />
@@ -195,7 +199,7 @@ export default async function PortalSummaryPage() {
         />
       }
     >
-      <TopBar crumbs={[t.crumb[locale]]} />
+      <TopBar crumbs={[t.crumb[locale]]} breadcrumbLabel={t.ariaBreadcrumb[locale]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         {profile.full_name && (
           <p className="shrink-0 text-[0.9375rem] text-ink-2">
@@ -292,12 +296,19 @@ export default async function PortalSummaryPage() {
                   return (
                     <tr key={loc.id} className="border-b border-line last:border-0">
                       <td className="px-5 py-3 text-ink">{loc.name}</td>
-                      <td className="px-5 py-3 capitalize text-ink-2">{loc.venue_type}</td>
+                      <td className="px-5 py-3 text-ink-2">
+                        {venueType(loc.venue_type as VenueTypeId).label[locale]}
+                      </td>
                       <td className="px-5 py-3 text-ink-2">{loc.city ?? "—"}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-40">
-                            <Meter used={loc.m2} limit={maxM2} />
+                            <Meter
+                              used={loc.m2}
+                              limit={maxM2}
+                              noLimitCaption={t.meterNoLimitCaption[locale]}
+                              noLimitAria={t.meterNoLimitAria[locale]}
+                            />
                           </div>
                           {fit === "over" && <Badge tone="warn">{t.locationOver[locale]}</Badge>}
                         </div>
