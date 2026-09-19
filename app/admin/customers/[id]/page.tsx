@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
+import { GdprPanel } from "@/components/admin/GdprPanel";
 import { Meter } from "@/components/admin/Meter";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
@@ -412,6 +413,15 @@ export default async function CustomerDetailPage({
               </tbody>
             </TableCard>
           )}
+        </div>
+
+        {/* Task 15: GDPR export and erasure. Its own Panel, last on the
+            page — everything above is what staff look at day to day;
+            this is the one section whose only job is to end that. */}
+        <div className="shrink-0">
+          <Panel title="Personal data">
+            <GdprPanel customerId={detail.id} customerName={detail.name} />
+          </Panel>
         </div>
       </div>
     </AppShell>
