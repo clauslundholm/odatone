@@ -253,7 +253,7 @@ export function buildSignup(formData: FormData): BuildSignupResult {
  *  concurrently).
  * ---------------------------------------------------------------------- */
 
-export type ExistingCustomer = { id: string; created_at: string };
+export type ExistingCustomer = { id: string; created_at: string; status: string };
 export type ExistingProfile = { customer_id: string | null };
 
 export type SignupDedupeDecision =
@@ -271,9 +271,29 @@ export type SignupDedupeDecision =
   /** No existing customer at all: a genuinely new signup. */
   | { action: "create" };
 
+/** Fix round 3: a customer is only safe to hand a stranger's new order to
+    (`applyOrderToCustomer`/`apply_signup_order` in app/actions.ts, which
+    rewrites the customer's own contact fields, replaces every `locations`
+    row and replaces the `subscriptions` row) when nothing real has
+    happened to it yet. Reproduced live: without this, a repeat visitor —
+    or anyone who merely learned a real customer's billing email — could
+    replace an *active* customer's name/CVR/phone/address, delete a live
+    subscription (its `started_at` included) and recreate it as `pending`
+    on a plan of their choosing, while its existing invoices silently stayed
+    attached to the now-differently-named business. `status` moves away
+    from `pending` only through staff action or a real payment provider
+    activating a subscription (0003_tenancy.sql's `guard_customer_status`
+    trigger), and an invoice only exists once billing has actually
+    started — either one means a real relationship already exists, and
+    `reuse` must not touch it. */
+function isReuseEligible(customer: ExistingCustomer, customerIdsWithInvoices: ReadonlySet<string>): boolean {
+  return customer.status === "pending" && !customerIdsWithInvoices.has(customer.id);
+}
+
 export function decideSignupDedupe(
   existingCustomers: ExistingCustomer[],
   existingProfiles: ExistingProfile[],
+  customerIdsWithInvoices: ReadonlySet<string> = new Set(),
 ): SignupDedupeDecision {
   if (existingCustomers.length === 0) return { action: "create" };
 
@@ -283,8 +303,31 @@ export function decideSignupDedupe(
   const alreadyOwned = existingCustomers.some((c) => ownedCustomerIds.has(c.id));
   if (alreadyOwned) return { action: "already-registered" };
 
-  const oldest = [...existingCustomers].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+  const reuseEligible = existingCustomers.filter((c) => isReuseEligible(c, customerIdsWithInvoices));
+  if (reuseEligible.length === 0) {
+    /* A customer exists for this email, nobody owns it, but it also isn't
+       safe to silently take over (not pending, or already invoiced) — a
+       state an ordinary signup should never produce on its own. Refused
+       with the same outcome as an owned account: there is a real customer
+       here already, and it needs a human, not an automatic decision. */
+    return { action: "already-registered" };
+  }
+
+  const oldest = [...reuseEligible].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
   return { action: "reuse", customerId: oldest.id };
+}
+
+/** Escapes the characters `ILIKE` treats specially (`%`, `_`, and the
+    backslash escape character itself) so a case-insensitive billing-email
+    lookup — needed because `customers_billing_email_unique_idx`
+    (0006_customer_email_unique.sql) is on `lower(billing_email)`, while a
+    plain `.eq()` comparison is case-sensitive — can't also turn into an
+    accidental wildcard search. `EMAIL_RE` permits both `%` and `_` in the
+    local part of an address, so a real signup can legitimately contain
+    either; without escaping them first, looking up "50%off@x.test" would
+    match anything starting with "50" and ending "off@x.test". */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 /** Whether the auth user `inviteUserByEmail` returned was actually created

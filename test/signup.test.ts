@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSignup, decideSignupDedupe, inviteCreatedNewUser } from "../lib/signup.ts";
+import { buildSignup, decideSignupDedupe, escapeLikePattern, inviteCreatedNewUser } from "../lib/signup.ts";
 
 const form = (fields: Record<string, string>) => {
   const fd = new FormData();
@@ -184,19 +184,19 @@ test("decideSignupDedupe: a brand new email creates a new customer", () => {
   assert.deepEqual(decision, { action: "create" });
 });
 
-test("decideSignupDedupe: an existing, un-owned customer is reused rather than duplicated", () => {
+test("decideSignupDedupe: an existing, un-owned, pending, uninvoiced customer is reused rather than duplicated", () => {
   const decision = decideSignupDedupe(
-    [{ id: "customer-1", created_at: "2026-01-01T00:00:00Z" }],
+    [{ id: "customer-1", created_at: "2026-01-01T00:00:00Z", status: "pending" }],
     [],
   );
   assert.deepEqual(decision, { action: "reuse", customerId: "customer-1" });
 });
 
-test("decideSignupDedupe: the oldest un-owned customer is the one reused", () => {
+test("decideSignupDedupe: the oldest eligible customer is the one reused", () => {
   const decision = decideSignupDedupe(
     [
-      { id: "newer", created_at: "2026-02-01T00:00:00Z" },
-      { id: "older", created_at: "2026-01-01T00:00:00Z" },
+      { id: "newer", created_at: "2026-02-01T00:00:00Z", status: "pending" },
+      { id: "older", created_at: "2026-01-01T00:00:00Z", status: "pending" },
     ],
     [],
   );
@@ -205,7 +205,7 @@ test("decideSignupDedupe: the oldest un-owned customer is the one reused", () =>
 
 test("decideSignupDedupe: an owned customer means the email is already registered — never reused, never re-invited", () => {
   const decision = decideSignupDedupe(
-    [{ id: "customer-1", created_at: "2026-01-01T00:00:00Z" }],
+    [{ id: "customer-1", created_at: "2026-01-01T00:00:00Z", status: "pending" }],
     [{ customer_id: "customer-1" }],
   );
   assert.deepEqual(decision, { action: "already-registered" });
@@ -214,12 +214,43 @@ test("decideSignupDedupe: an owned customer means the email is already registere
 test("decideSignupDedupe: one owned customer among several still refuses, even if another is un-owned", () => {
   const decision = decideSignupDedupe(
     [
-      { id: "owned", created_at: "2026-01-01T00:00:00Z" },
-      { id: "unowned", created_at: "2026-01-02T00:00:00Z" },
+      { id: "owned", created_at: "2026-01-01T00:00:00Z", status: "pending" },
+      { id: "unowned", created_at: "2026-01-02T00:00:00Z", status: "pending" },
     ],
     [{ customer_id: "owned" }],
   );
   assert.deepEqual(decision, { action: "already-registered" });
+});
+
+/* Fix round 3: reuse must never touch a real (non-pending, or already
+   invoiced) customer, however it ended up with no owner. */
+
+test("decideSignupDedupe: an un-owned customer that isn't pending is refused, not reused", () => {
+  const decision = decideSignupDedupe(
+    [{ id: "customer-1", created_at: "2026-01-01T00:00:00Z", status: "active" }],
+    [],
+  );
+  assert.deepEqual(decision, { action: "already-registered" });
+});
+
+test("decideSignupDedupe: an un-owned, pending, but already-invoiced customer is refused, not reused", () => {
+  const decision = decideSignupDedupe(
+    [{ id: "customer-1", created_at: "2026-01-01T00:00:00Z", status: "pending" }],
+    [],
+    new Set(["customer-1"]),
+  );
+  assert.deepEqual(decision, { action: "already-registered" });
+});
+
+test("decideSignupDedupe: an ineligible customer alongside an eligible one still reuses the eligible one", () => {
+  const decision = decideSignupDedupe(
+    [
+      { id: "active", created_at: "2026-01-01T00:00:00Z", status: "active" },
+      { id: "pending", created_at: "2026-01-02T00:00:00Z", status: "pending" },
+    ],
+    [],
+  );
+  assert.deepEqual(decision, { action: "reuse", customerId: "pending" });
 });
 
 test("inviteCreatedNewUser: a user created at or after the request started is this request's own", () => {
@@ -249,4 +280,27 @@ test("inviteCreatedNewUser: only positive clock skew (the Auth server's clock ru
 
 test("inviteCreatedNewUser: an unparsable timestamp is never treated as newly created", () => {
   assert.equal(inviteCreatedNewUser("not-a-date", Date.now()), false);
+});
+
+/* ---------------------------------------------------------------------- *
+ *  escapeLikePattern: the case-insensitive billing-email lookup
+ *  (app/actions.ts's lookupSignup) matches against `lower(billing_email)`
+ *  via ILIKE, which treats "%" and "_" as wildcards — both of which
+ *  EMAIL_RE permits in a real address's local part.
+ * ---------------------------------------------------------------------- */
+
+test("escapeLikePattern: an ordinary email is unchanged", () => {
+  assert.equal(escapeLikePattern("jens@nord.test"), "jens@nord.test");
+});
+
+test("escapeLikePattern: a literal % in an address is escaped, not left as a wildcard", () => {
+  assert.equal(escapeLikePattern("50%off@nord.test"), "50\\%off@nord.test");
+});
+
+test("escapeLikePattern: a literal _ is escaped", () => {
+  assert.equal(escapeLikePattern("jens_hansen@nord.test"), "jens\\_hansen@nord.test");
+});
+
+test("escapeLikePattern: a literal backslash is escaped so it can't unescape the next character", () => {
+  assert.equal(escapeLikePattern("a\\%b@nord.test"), "a\\\\\\%b@nord.test");
 });

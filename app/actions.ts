@@ -4,6 +4,7 @@ import { EMAIL_RE, type ActionResult, type FieldErrors } from "@/lib/forms";
 import {
   buildSignup,
   decideSignupDedupe,
+  escapeLikePattern,
   inviteCreatedNewUser,
   type ExistingCustomer,
   type ExistingProfile,
@@ -70,128 +71,137 @@ async function deleteCustomer(admin: AdminClient, customerId: string, context: s
 }
 
 type LookupResult =
-  | { ok: true; customers: ExistingCustomer[]; profiles: ExistingProfile[] }
+  | {
+      ok: true;
+      customers: ExistingCustomer[];
+      profiles: ExistingProfile[];
+      customerIdsWithInvoices: Set<string>;
+    }
   | { ok: false };
 
 /** Everything already on file for a billing email: every `customers` row,
-    and every `profiles` row against any of them. decideSignupDedupe
-    (lib/signup.ts) turns this into the actual decision; this only reads. */
+    every `profiles` row against any of them, and which of them already
+    have an invoice. decideSignupDedupe (lib/signup.ts) turns this into the
+    actual decision; this only reads.
+
+    Fix round 3's Important: `customers_billing_email_unique_idx`
+    (0006_customer_email_unique.sql) is on `lower(billing_email)`, but this
+    lookup used to compare with a plain `.eq()`, which Postgres evaluates
+    case-sensitively. Reproduced live: a `customers` row holding
+    "Mixed@Case.test" was invisible to a signup for "mixed@case.test" (every
+    email this app itself ever writes is already lower-cased by
+    `buildSignup`, but a row created out of band — Studio, an import, a
+    future admin "create customer" screen — need not be), so the lookup
+    found nothing, the insert then lost to the unique index, the *re*-lookup
+    missed it for the identical reason, and the request landed in the
+    "conflicting row must have vanished" branch — permanently, on every
+    retry, for that address. `.ilike()` against an escaped pattern
+    (`escapeLikePattern`, lib/signup.ts) matches case-insensitively without
+    also becoming a wildcard search over an address that happens to contain
+    a literal `%` or `_` (both are valid in the local part). */
 async function lookupSignup(admin: AdminClient, email: string): Promise<LookupResult> {
   const { data: customersRaw, error: customersError } = await admin
     .from("customers")
-    .select("id, created_at")
-    .eq("billing_email", email);
+    .select("id, created_at, status")
+    .ilike("billing_email", escapeLikePattern(email));
   if (customersError) {
     console.error("[odatone] signup: failed to check for an existing customer", customersError);
     return { ok: false };
   }
   const customers = customersRaw ?? [];
-  if (customers.length === 0) return { ok: true, customers, profiles: [] };
+  if (customers.length === 0) {
+    return { ok: true, customers, profiles: [], customerIdsWithInvoices: new Set() };
+  }
 
-  const { data: profilesRaw, error: profilesError } = await admin
-    .from("profiles")
-    .select("customer_id")
-    .in(
-      "customer_id",
-      customers.map((c) => c.id),
-    );
-  if (profilesError) {
-    console.error("[odatone] signup: failed to check for an existing profile", profilesError);
+  const customerIds = customers.map((c) => c.id);
+  const [profilesResult, invoicesResult] = await Promise.all([
+    admin.from("profiles").select("customer_id").in("customer_id", customerIds),
+    admin.from("invoices").select("customer_id").in("customer_id", customerIds),
+  ]);
+  if (profilesResult.error) {
+    console.error("[odatone] signup: failed to check for an existing profile", profilesResult.error);
     return { ok: false };
   }
-  return { ok: true, customers, profiles: profilesRaw ?? [] };
+  if (invoicesResult.error) {
+    console.error("[odatone] signup: failed to check for an existing invoice", invoicesResult.error);
+    return { ok: false };
+  }
+
+  return {
+    ok: true,
+    customers,
+    profiles: profilesResult.data ?? [],
+    customerIdsWithInvoices: new Set((invoicesResult.data ?? []).map((r) => r.customer_id as string)),
+  };
 }
 
 type OrderResult = { ok: true } | { ok: false };
 
 /** Writes `value`'s order onto an *existing* customer — its own contact and
     billing fields, its locations (replaced, not merged) and its
-    subscription (replaced, not merged).
+    subscription (replaced, not merged) — via `apply_signup_order`
+    (0007_apply_signup_order.sql), a single Postgres transaction rather than
+    a sequence of separate statements from here.
 
     Fix round 2's Important: the `reuse` path used to skip this entirely and
     only insert a `profiles` row, silently discarding the visitor's real
     plan, locations and business details onto whatever a pre-existing,
-    unrelated customer row happened to hold — reproduced live (a Main Stage
-    / annual / 7-location / 900m² order was bound to an old "Small Venue /
-    monthly / 1 location" customer, every new field discarded, and the
-    visitor was told their subscription was active). Refusing outright
-    would be safer against writing onto someone else's row, but with no
-    re-invite affordance anywhere in /admin, refusing would permanently
-    strand exactly the people `reuse` exists to help — a repeat visitor
-    whose first invite never arrived. The risk is bounded: `reuse` only
-    ever targets a customer decideSignupDedupe already confirmed has no
-    owner, and the invite that follows only ever goes to the email on that
-    customer's own record — never to anyone else's address. */
+    unrelated customer row happened to hold. Refusing outright would be
+    safer against writing onto someone else's row, but with no re-invite
+    affordance anywhere in /admin, refusing would permanently strand exactly
+    the people `reuse` exists to help — a repeat visitor whose first invite
+    never arrived.
+
+    Fix round 3's Important: doing that write as several separate statements
+    from application code (`update`, then `delete`+`insert` on `locations`,
+    then `delete`+`insert` on `subscriptions`) is not atomic, and two
+    concurrent signups reusing the SAME customer interleaved their deletes
+    and inserts — measured live with 4 concurrent requests: 8 `locations`
+    rows drawn from three different visitors' orders, and 3 `subscriptions`
+    rows for one customer, with the request that reported success back to
+    its own visitor ending up with none of its own locations (a later
+    request's `delete` had already removed them). Both admin screens price a
+    customer as `quote(plan, billing, locations.length)`, so this wasn't
+    just a display glitch — a race here bills whatever count of locations
+    happens to survive it. `apply_signup_order` closes this by locking the
+    customer row (`for update`) for the length of one transaction that does
+    the update and both replacements together: a second, concurrent call for
+    the same customer blocks behind the first rather than racing it, and
+    whichever call runs second then fully overwrites the first's rows —
+    always one visitor's complete, consistent order, never a mix of two.
+
+    The risk of writing onto a stranger's row at all is bounded two ways:
+    `reuse` only ever targets a customer decideSignupDedupe (lib/signup.ts)
+    already confirmed has no owner AND is still `pending` with no invoice
+    (fix round 3 — a real, active or already-billed customer is never a
+    `reuse` target, however it lost its owner), and the invite that follows
+    only ever goes to the email already on that customer's own record —
+    never to anyone else's address. */
 async function applyOrderToCustomer(
   admin: AdminClient,
   customerId: string,
   value: SignupInput,
   context: string,
 ): Promise<OrderResult> {
-  const { error: updateError } = await admin
-    .from("customers")
-    .update({
-      name: value.customer.name,
-      cvr: value.customer.cvr,
-      address: value.customer.address,
-      postcode: value.customer.postcode,
-      city: value.customer.city,
-      phone: value.customer.phone,
-    })
-    .eq("id", customerId);
-  if (updateError) {
-    console.error(`[odatone] signup: failed to update the reused customer's details (${context})`, {
-      customer: customerId,
-      error: updateError,
-    });
-    return { ok: false };
-  }
-
-  /* Replaced, not appended: a customer only ever reaches this path with no
-     owner yet, so its previous locations/subscription belong to an order
-     nobody ever confirmed — the new submission is what the visitor actually
-     wants set up. */
-  const { error: deleteLocationsError } = await admin.from("locations").delete().eq("customer_id", customerId);
-  if (deleteLocationsError) {
-    console.error(`[odatone] signup: failed to clear the reused customer's old locations (${context})`, {
-      customer: customerId,
-      error: deleteLocationsError,
-    });
-    return { ok: false };
-  }
-  const { error: locationsError } = await admin.from("locations").insert(
-    value.locations.map((l) => ({ customer_id: customerId, ...l })),
-  );
-  if (locationsError) {
-    console.error(`[odatone] signup: failed to write the reused customer's new locations (${context})`, {
-      customer: customerId,
-      error: locationsError,
-    });
-    return { ok: false };
-  }
-
-  const { error: deleteSubscriptionsError } = await admin.from("subscriptions").delete().eq("customer_id", customerId);
-  if (deleteSubscriptionsError) {
-    console.error(`[odatone] signup: failed to clear the reused customer's old subscription (${context})`, {
-      customer: customerId,
-      error: deleteSubscriptionsError,
-    });
-    return { ok: false };
-  }
-  const { error: subscriptionError } = await admin.from("subscriptions").insert({
-    customer_id: customerId,
-    plan_id: value.planId,
-    billing: value.billing,
-    status: "pending",
+  const { error } = await admin.rpc("apply_signup_order", {
+    p_customer_id: customerId,
+    p_name: value.customer.name,
+    p_cvr: value.customer.cvr,
+    p_address: value.customer.address,
+    p_postcode: value.customer.postcode,
+    p_city: value.customer.city,
+    p_phone: value.customer.phone,
+    p_plan_id: value.planId,
+    p_billing: value.billing,
+    p_locations: value.locations,
   });
-  if (subscriptionError) {
-    console.error(`[odatone] signup: failed to write the reused customer's new subscription (${context})`, {
+  if (error) {
+    console.error(`[odatone] signup: failed to apply the reused customer's order (${context})`, {
       customer: customerId,
-      error: subscriptionError,
+      error,
     });
     return { ok: false };
   }
-
   return { ok: true };
 }
 
@@ -305,7 +315,7 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
   const lookup = await lookupSignup(admin, built.value.customer.email);
   if (!lookup.ok) return { ok: false, errors: { form: "server" } };
 
-  const dedupe = decideSignupDedupe(lookup.customers, lookup.profiles);
+  const dedupe = decideSignupDedupe(lookup.customers, lookup.profiles, lookup.customerIdsWithInvoices);
 
   if (dedupe.action === "already-registered") {
     /* An owner already exists for this email. Never invite, never create a
@@ -336,7 +346,7 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
          would have if that row had existed from the start. */
       const relookup = await lookupSignup(admin, built.value.customer.email);
       if (!relookup.ok) return { ok: false, errors: { form: "server" } };
-      const redecide = decideSignupDedupe(relookup.customers, relookup.profiles);
+      const redecide = decideSignupDedupe(relookup.customers, relookup.profiles, relookup.customerIdsWithInvoices);
 
       if (redecide.action === "already-registered") {
         return { ok: false, errors: { email: "exists" } };
