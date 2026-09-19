@@ -1,9 +1,8 @@
-import { AdminSignOut } from "@/components/admin/AdminSignOut";
+import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Kpi } from "@/components/admin/Kpi";
-import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
 import { fetchAllRows } from "@/lib/admin/paginate";
@@ -13,12 +12,6 @@ import { formatDkk } from "@/lib/money";
 import type { Billing } from "@/lib/pricing";
 import type { PlanRow } from "@/lib/plans-row";
 import { createClient } from "@/lib/supabase/server";
-
-const NAV: NavItem[] = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/customers", label: "Customers" },
-  { href: "/admin/products", label: "Products" },
-];
 
 type SubscriptionRow = {
   customer_id: string;
@@ -152,7 +145,7 @@ export default async function AdminDashboardPage() {
   const recentCustomers = (recentCustomerRows ?? []) as CustomerRow[];
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin" footer={<AdminSignOut />} />}>
+    <AppShell nav={<AdminSideNav activeHref="/admin" />}>
       <TopBar crumbs={["Admin", "Dashboard"]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid grid-cols-4 gap-4 max-[1100px]:grid-cols-2 max-[520px]:grid-cols-1">

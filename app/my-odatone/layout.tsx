@@ -40,7 +40,11 @@ export default async function PortalLayout({ children }: { children: ReactNode }
         <ThemeProvider
           attribute="data-theme"
           defaultTheme="light"
-          enableSystem={false}
+          /* The sidebar's ThemeSegments offers light / system / dark, and
+             `system` is inert unless next-themes is watching the media
+             query. `defaultTheme` stays "light", so anyone who has never
+             touched the control sees exactly what they saw before. */
+          enableSystem
           disableTransitionOnChange
         >
           {children}

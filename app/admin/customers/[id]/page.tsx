@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { AdminSignOut } from "@/components/admin/AdminSignOut";
+import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { GdprPanel } from "@/components/admin/GdprPanel";
 import { Meter } from "@/components/admin/Meter";
-import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
 import { fetchAllRows } from "@/lib/admin/paginate";
@@ -17,12 +16,6 @@ import { formatDkk, invoiceTotals, toOre } from "@/lib/money";
 import { quote, type Billing, type Plan } from "@/lib/pricing";
 import type { PlanRow } from "@/lib/plans-row";
 import { createClient } from "@/lib/supabase/server";
-
-const NAV: NavItem[] = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/customers", label: "Customers" },
-  { href: "/admin/products", label: "Products" },
-];
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -226,8 +219,12 @@ export default async function CustomerDetailPage({
   const allInvoicesSeeded = invoices.length > 0 && invoices.every((inv) => inv.source === "seed");
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" footer={<AdminSignOut />} />}>
-      <TopBar crumbs={["Admin", "Customers", detail.name]} />
+    <AppShell nav={<AdminSideNav activeHref="/admin/customers" />}>
+      <TopBar
+        crumbs={["Admin", "Customers", detail.name]}
+        status={<Badge tone={statusTone(detail.status)}>{detail.status}</Badge>}
+        meta={[detail.city, `joined ${formatDate(detail.created_at)}`].filter(Boolean).join(" · ")}
+      />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid shrink-0 grid-cols-2 gap-4 max-[900px]:grid-cols-1">
           <Panel title="Customer">

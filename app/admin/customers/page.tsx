@@ -1,10 +1,9 @@
 import Link from "next/link";
 
-import { AdminSignOut } from "@/components/admin/AdminSignOut";
+import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
-import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
 import { fetchAllRows } from "@/lib/admin/paginate";
@@ -15,12 +14,6 @@ import type { Billing } from "@/lib/pricing";
 import type { PlanRow } from "@/lib/plans-row";
 import type { SubscriptionStatus } from "@/lib/admin/stats";
 import { createClient } from "@/lib/supabase/server";
-
-const NAV: NavItem[] = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/customers", label: "Customers" },
-  { href: "/admin/products", label: "Products" },
-];
 
 /* customer_status, mirrored from supabase/migrations/0001_core.sql. Kept as
    a plain array here rather than generated from the database enum — the
@@ -160,7 +153,7 @@ export default async function CustomersPage({
   const rows = customerRows(raw);
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" footer={<AdminSignOut />} />}>
+    <AppShell nav={<AdminSideNav activeHref="/admin/customers" />}>
       <TopBar crumbs={["Admin", "Customers"]} />
       <div className="flex flex-1 flex-col gap-4 overflow-auto p-5">
         <nav aria-label="Filter by status" className="flex flex-wrap items-center gap-2">

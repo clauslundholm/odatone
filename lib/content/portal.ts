@@ -92,6 +92,20 @@ export const portal = {
     greeting: { da: "Velkommen,", en: "Welcome," } as L10n,
     signOut: { da: "Log ud", en: "Sign out" } as L10n,
 
+    /* The sidebar chrome: the identity card under the wordmark, the
+       account overflow menu at the bottom, and the theme control between
+       them. The role names are the customer-facing halves of the
+       `user_role` enum (0001_core.sql) — a customer only ever sees
+       'owner' or 'manager', never the two staff roles. */
+    ariaUserMenu: { da: "Kontomenu", en: "Account menu" } as L10n,
+    roleOwner: { da: "Ejer", en: "Owner" } as L10n,
+    roleManager: { da: "Administrator", en: "Manager" } as L10n,
+    languageGroup: { da: "Sprog", en: "Language" } as L10n,
+    themeGroup: { da: "Tema", en: "Theme" } as L10n,
+    themeLight: { da: "Lyst", en: "Light" } as L10n,
+    themeSystem: { da: "System", en: "System" } as L10n,
+    themeDark: { da: "Mørkt", en: "Dark" } as L10n,
+
     companyPanel: { da: "Virksomhed", en: "Company" } as L10n,
     companyLabel: { da: "Firma", en: "Company" } as L10n,
     statusLabel: { da: "Status", en: "Status" } as L10n,
