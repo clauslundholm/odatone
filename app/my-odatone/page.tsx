@@ -6,6 +6,10 @@ import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Meter } from "@/components/admin/Meter";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
+import { ThemeSegments } from "@/components/admin/ThemeSegments";
+import { UserCard } from "@/components/admin/UserCard";
+import { WorkspaceCard } from "@/components/admin/WorkspaceCard";
+import { HouseGlyph } from "@/components/admin/icons";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
 import { LocaleSwitch } from "@/components/portal/LocaleSwitch";
@@ -22,7 +26,7 @@ import { getPortalLocale } from "@/lib/portal-locale";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./portal-actions";
 
-type ProfileRow = { customer_id: string | null; full_name: string | null };
+type ProfileRow = { customer_id: string | null; full_name: string | null; role: string | null };
 
 type CustomerDetail = {
   id: string;
@@ -102,6 +106,10 @@ export default async function PortalSummaryPage() {
 
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
+  // Shown under the name on the sidebar's account card. It comes from the
+  // verified JWT rather than a `profiles` column because `profiles` has no
+  // email of its own — auth.users is the one record of it.
+  const email = typeof claims?.claims?.email === "string" ? claims.claims.email : undefined;
   // proxy.ts (lib/supabase/proxy.ts) already denies any request here with
   // no verified session, so this should be unreachable in practice —
   // guarded anyway rather than trusting that invariant a second time.
@@ -109,7 +117,7 @@ export default async function PortalSummaryPage() {
 
   const { data: profileRow, error: profileError } = await supabase
     .from("profiles")
-    .select("customer_id, full_name")
+    .select("customer_id, full_name, role")
     .eq("id", userId)
     .single();
 
@@ -172,7 +180,19 @@ export default async function PortalSummaryPage() {
     );
 
   const t = portal.summary;
-  const nav: NavItem[] = [{ href: "/my-odatone", label: t.crumb[locale] }];
+  const nav: NavItem[] = [
+    { href: "/my-odatone", label: t.crumb[locale], icon: <HouseGlyph /> },
+  ];
+
+  /* Only the two customer roles can reach this route (proxy.ts's mayEnter),
+     so an unrecognised value is a bug rather than a staff member — the card
+     drops the line instead of inventing a label for it. */
+  const roleLabel =
+    profile.role === "owner"
+      ? t.roleOwner[locale]
+      : profile.role === "manager"
+        ? t.roleManager[locale]
+        : undefined;
 
   return (
     <AppShell
@@ -183,18 +203,42 @@ export default async function PortalSummaryPage() {
           items={nav}
           activeHref="/my-odatone"
           navLabel={t.ariaNav[locale]}
+          header={<WorkspaceCard name={detail.name} subtitle={roleLabel} />}
+          theme={
+            <div className="flex flex-col gap-0.5">
+              {/* Language sits beside theme rather than inside the account
+                  menu: it is the one control a visitor may need *before*
+                  they can read the menu that would otherwise hide it. */}
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <span className="text-[0.6875rem] text-ink-3">{t.languageGroup[locale]}</span>
+                <LocaleSwitch locale={locale} />
+              </div>
+              <ThemeSegments
+                labels={{
+                  group: t.themeGroup[locale],
+                  light: t.themeLight[locale],
+                  system: t.themeSystem[locale],
+                  dark: t.themeDark[locale],
+                }}
+              />
+            </div>
+          }
           footer={
-            <div className="flex flex-col gap-3">
-              <LocaleSwitch locale={locale} />
+            <UserCard
+              name={profile.full_name || email || t.crumb[locale]}
+              email={profile.full_name ? email : undefined}
+              menuLabel={t.ariaUserMenu[locale]}
+            >
               <form>
                 <button
                   formAction={signOut}
-                  className="u-label w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-ink-2 transition-colors hover:bg-surface-2/60 hover:text-ink"
+                  role="menuitem"
+                  className="w-full rounded-[var(--radius-xs)] px-2.5 py-1.5 text-left text-[0.8125rem] font-medium leading-[1.3] text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
                 >
                   {t.signOut[locale]}
                 </button>
               </form>
-            </div>
+            </UserCard>
           }
         />
       }

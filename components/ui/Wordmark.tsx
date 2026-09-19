@@ -1,20 +1,30 @@
 /* eslint-disable @next/next/no-img-element */
 
 /**
- * The supplied wordmark, `public/odatone-logo_colour.svg` — a 476×76
- * gradient lockup. It carries its own colour, so one file serves both
- * themes and there is nothing to tint.
+ * The supplied wordmark — a 476×76 lockup in two variants.
+ *
+ * Only the "Oda" and the bars are gradient-filled; the "tone." letterforms
+ * carry no fill at all and so render black. That is right on the light
+ * page and invisible on the dark sidebar frame, where the wordmark sat
+ * reading "Oda" alone. `tone="on-dark"` swaps in
+ * `public/odatone-logo_on-dark.svg`, which differs from the colour file
+ * only in giving those five paths `#f5f5f7`.
+ *
+ * Two files rather than one inlined SVG because this renders as an `<img>`
+ * — `currentColor` cannot reach inside an external image.
  */
 export default function Wordmark({
   height = 20,
   className = "",
+  tone = "colour",
 }: {
   height?: number;
   className?: string;
+  tone?: "colour" | "on-dark";
 }) {
   return (
     <img
-      src="/odatone-logo_colour.svg"
+      src={tone === "on-dark" ? "/odatone-logo_on-dark.svg" : "/odatone-logo_colour.svg"}
       alt="Odatone"
       width={Math.round(height * (476.01 / 76.12))}
       height={height}

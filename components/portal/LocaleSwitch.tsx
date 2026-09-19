@@ -23,8 +23,10 @@ export function LocaleSwitch({ locale, className = "" }: { locale: Locale; class
           type="submit"
           formAction={setPortalLocale.bind(null, l)}
           aria-current={l === locale ? "true" : undefined}
-          className={`u-label rounded-full px-2.5 py-1 transition-colors ${
-            l === locale ? "bg-surface-2 text-ink" : "text-ink-2 hover:text-ink"
+          /* Not `.u-label`: its own `color` outranks these text-* utilities,
+             so the selected language read the same as the unselected one. */
+          className={`rounded-full px-2.5 py-1 text-[0.8125rem] font-medium leading-[1.3] transition-colors ${
+            l === locale ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink"
           }`}
         >
           {LOCALE_SHORT[l]}
