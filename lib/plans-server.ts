@@ -70,7 +70,18 @@ const readPlans = unstable_cache(
     return (data as PlanRow[]).map(rowToPlan);
   },
   ["plans"],
-  { tags: [PLANS_TAG] },
+  /* Fix round 6: revalidatePlans() (below) was the *only* thing that ever
+     invalidated this cache, and only updatePlan calls it -- a price
+     changed by any other writer (a direct SQL update, a future admin
+     script, a support fix applied by hand) left this cache serving the
+     old number indefinitely. Verified live: a price changed by SQL left
+     /admin/products showing the new value while /da/priser kept showing
+     the old one under a banner reading "These prices are live on
+     odatone.com." `revalidate: 300` is a floor under every writer that
+     doesn't go through updatePlan, not a replacement for the tag: a form
+     save still revalidates instantly via revalidatePlans(), this only
+     bounds how stale any *other* path can ever leave the public price. */
+  { tags: [PLANS_TAG], revalidate: 300 },
 );
 
 /** The fallback is deliberate: an unreachable or empty database returns the

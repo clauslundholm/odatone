@@ -46,13 +46,38 @@ alter table invoices            enable row level security;
 alter table audit_log           enable row level security;
 
 -- customers ------------------------------------------------------------
+drop policy if exists customers_read on customers;
 create policy customers_read on customers for select
   using (id = auth_customer_id() or is_staff());
 
-create policy customers_staff_write on customers for all
+/* Fix round 6: `for all` covered DELETE too, and `using` is the only
+   clause Postgres consults for DELETE (`with check` only ever inspects the
+   NEW row, and there is no new row on a delete). Verified live: as
+   staff_support, `delete from customers where id = ...` cascaded away
+   that customer's locations, subscription and invoices in one call, with
+   nothing written to audit_log -- five years of bookkeeping erased
+   unaudited by the least-privileged staff tier. Nothing in this codebase
+   ever describes staff *deleting* a customer -- only reading one
+   (customers_read below) or changing its status (guard_customer_status).
+   Task 15's whole erasure design (app/admin/customers/[id]/gdpr-actions.ts)
+   exists specifically because deleting a customer outright is wrong: an
+   invoice with no customer behind it is not a record of anything, and
+   Danish bookkeeping law requires the record survive five years. So this
+   is narrowed to INSERT and UPDATE only -- no role, not even staff_admin,
+   gets DELETE through this policy. eraseCustomer's own writes run on the
+   service-role client, which bypasses RLS entirely, so it is unaffected
+   and remains the only path that can ever remove a customer's personal
+   data. */
+drop policy if exists customers_staff_insert on customers;
+create policy customers_staff_insert on customers for insert
+  with check (is_staff());
+
+drop policy if exists customers_staff_update on customers;
+create policy customers_staff_update on customers for update
   using (is_staff()) with check (is_staff());
 
 -- An owner may correct their own company details; a manager may not.
+drop policy if exists customers_owner_update on customers;
 create policy customers_owner_update on customers for update
   using (
     id = auth_customer_id()
@@ -101,14 +126,16 @@ begin
   return new;
 end $$;
 
-create trigger customers_status_guard
+create or replace trigger customers_status_guard
   before update on customers
   for each row execute function guard_customer_status();
 
 -- locations ------------------------------------------------------------
+drop policy if exists locations_read on locations;
 create policy locations_read on locations for select
   using (customer_id = auth_customer_id() or is_staff());
 
+drop policy if exists locations_staff_write on locations;
 create policy locations_staff_write on locations for all
   using (is_staff()) with check (is_staff());
 
@@ -117,6 +144,7 @@ create policy locations_staff_write on locations for all
    filter), so when the owner test lived in using alone a manager who was
    correctly blocked from deleting a location could still insert one — and
    m2 and location count both drive billing. */
+drop policy if exists locations_owner_write on locations;
 create policy locations_owner_write on locations for all
   using (
     customer_id = auth_customer_id()
@@ -128,6 +156,7 @@ create policy locations_owner_write on locations for all
   );
 
 -- profiles -------------------------------------------------------------
+drop policy if exists profiles_read_own on profiles;
 create policy profiles_read_own on profiles for select
   using (id = auth.uid() or is_staff());
 
@@ -137,23 +166,44 @@ create policy profiles_read_own on profiles for select
    to rewrite the price of every plan for every customer. Staff may still
    administer customer-side profiles (owner, manager); only a staff_admin
    may create or alter a staff row. */
+/* Fix round 6: the same `using`-is-the-only-clause-on-DELETE gap as
+   customers_staff_write above, but worse here -- `using (is_staff())` let
+   any staff_support account both DELETE and demote every staff_admin
+   profile. Verified live: as staff_support, `delete from profiles where
+   id = <a staff_admin>` succeeded, and so did demoting one to 'owner'.
+   This is unrecoverable in-app: once the last staff_admin is gone, nobody
+   can change a price (plans_admin_write), erase a customer
+   (currentStaffAdmin, gdpr-actions.ts) or mint a replacement staff_admin
+   -- all three require is_staff_admin(), and is_staff_admin() requires a
+   profiles row that no longer exists to say so. Narrowing `using` to mirror
+   `with check`'s own is_staff_admin()-or-owner/manager test closes both
+   holes: a staff_support session's DELETE or UPDATE now only ever matches
+   a row it was already allowed to end up with, and only staff_admin may
+   touch a staff-tier row at all. */
+drop policy if exists profiles_staff_write on profiles;
 create policy profiles_staff_write on profiles for all
-  using (is_staff())
+  using (
+    is_staff_admin()
+    or (is_staff() and role in ('owner', 'manager'))
+  )
   with check (
     is_staff_admin()
     or (is_staff() and role in ('owner', 'manager'))
   );
 
 -- subscriptions, addons on them, invoices ------------------------------
+drop policy if exists subscriptions_read on subscriptions;
 create policy subscriptions_read on subscriptions for select
   using (customer_id = auth_customer_id() or is_staff());
 
+drop policy if exists subscriptions_staff_write on subscriptions;
 create policy subscriptions_staff_write on subscriptions for all
   using (is_staff()) with check (is_staff());
 
 -- subscription_id is qualified with the policy's own table so that a later
 -- column of the same name on subscriptions cannot silently change which
 -- table an unqualified reference resolves to.
+drop policy if exists subscription_addons_read on subscription_addons;
 create policy subscription_addons_read on subscription_addons for select
   using (exists (
     select 1 from subscriptions s
@@ -161,12 +211,15 @@ create policy subscription_addons_read on subscription_addons for select
       and (s.customer_id = auth_customer_id() or is_staff())
   ));
 
+drop policy if exists subscription_addons_staff_write on subscription_addons;
 create policy subscription_addons_staff_write on subscription_addons for all
   using (is_staff()) with check (is_staff());
 
+drop policy if exists invoices_read on invoices;
 create policy invoices_read on invoices for select
   using (customer_id = auth_customer_id() or is_staff());
 
+drop policy if exists invoices_staff_write on invoices;
 create policy invoices_staff_write on invoices for all
   using (is_staff()) with check (is_staff());
 
@@ -175,16 +228,20 @@ create policy invoices_staff_write on invoices for all
    prerendered without a session and must still see prices. Writes are
    gated on is_staff_admin(), not an inline role check, so "who may change
    a price" has exactly one definition instead of three. */
+drop policy if exists plans_public_read on plans;
 create policy plans_public_read on plans for select
   using (active or is_staff());
 
+drop policy if exists plans_admin_write on plans;
 create policy plans_admin_write on plans for all
   using (is_staff_admin())
   with check (is_staff_admin());
 
+drop policy if exists addons_public_read on addons;
 create policy addons_public_read on addons for select
   using (active or is_staff());
 
+drop policy if exists addons_admin_write on addons;
 create policy addons_admin_write on addons for all
   using (is_staff_admin())
   with check (is_staff_admin());
@@ -193,4 +250,5 @@ create policy addons_admin_write on addons for all
 -- Readable by staff, writable by nobody through the API. Rows arrive via
 -- server actions running as the service role, so the record cannot be edited
 -- by the person it is recording.
+drop policy if exists audit_read on audit_log;
 create policy audit_read on audit_log for select using (is_staff());

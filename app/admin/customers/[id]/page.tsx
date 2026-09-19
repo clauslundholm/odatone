@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { AdminSignOut } from "@/components/admin/AdminSignOut";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
@@ -225,7 +226,7 @@ export default async function CustomerDetailPage({
   const allInvoicesSeeded = invoices.length > 0 && invoices.every((inv) => inv.source === "seed");
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" />}>
+    <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" footer={<AdminSignOut />} />}>
       <TopBar crumbs={["Admin", "Customers", detail.name]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid shrink-0 grid-cols-2 gap-4 max-[900px]:grid-cols-1">

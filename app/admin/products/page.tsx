@@ -1,3 +1,4 @@
+import { AdminSignOut } from "@/components/admin/AdminSignOut";
 import { AppShell } from "@/components/admin/AppShell";
 import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { TopBar } from "@/components/admin/TopBar";
@@ -62,7 +63,7 @@ export default async function AdminProductsPage() {
   const addons = (addonRows ?? []) as AddonRow[];
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin/products" />}>
+    <AppShell nav={<SideNav items={NAV} activeHref="/admin/products" footer={<AdminSignOut />} />}>
       <TopBar crumbs={["Admin", "Products"]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <p className="rounded-[var(--radius-md)] bg-surface-2 px-4 py-3 text-[0.875rem] text-ink-2">

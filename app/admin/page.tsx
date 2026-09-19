@@ -1,3 +1,4 @@
+import { AdminSignOut } from "@/components/admin/AdminSignOut";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
@@ -151,7 +152,7 @@ export default async function AdminDashboardPage() {
   const recentCustomers = (recentCustomerRows ?? []) as CustomerRow[];
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin" />}>
+    <AppShell nav={<SideNav items={NAV} activeHref="/admin" footer={<AdminSignOut />} />}>
       <TopBar crumbs={["Admin", "Dashboard"]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid grid-cols-4 gap-4 max-[1100px]:grid-cols-2 max-[520px]:grid-cols-1">

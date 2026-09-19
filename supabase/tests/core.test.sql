@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(10);
 
 select has_table('public', 'customers', 'customers table exists');
 select has_table('public', 'locations', 'locations table exists');
@@ -72,6 +72,48 @@ select lives_ok(
   $$ insert into profiles (id, customer_id, role, full_name)
      values ('00000000-0000-0000-0000-000000000002', null, 'staff_admin', 'Staff') $$,
   'a staff_admin without a customer is accepted'
+);
+
+-- 0004_audit_triggers.sql's fix round: customers had no audit trigger at
+-- all. It has one now, but unlike plans_audit/addons_audit it must never
+-- store a customer's actual PII, in either direction, because
+-- eraseCustomer (app/admin/customers/[id]/gdpr-actions.ts) relies on this
+-- audit trail never becoming a second place a name or email outlives its
+-- own erasure.
+insert into customers (id, name, billing_email) values
+  ('00000000-0000-0000-0000-0000000000c1', 'Audit Test Co', 'audit@example.test');
+
+update customers set billing_email = 'changed@example.test' where id = '00000000-0000-0000-0000-0000000000c1';
+
+select is(
+  (select count(*)::int from audit_log where entity = 'customer' and entity_id = '00000000-0000-0000-0000-0000000000c1'),
+  2,
+  'customers_audit logs both the insert and the billing_email change'
+);
+
+select is(
+  (select (before ->> 'billing_email') from audit_log
+     where entity = 'customer' and entity_id = '00000000-0000-0000-0000-0000000000c1' and action = 'UPDATE'),
+  '[redacted]',
+  'a customer''s real billing_email never lands in audit_log''s before column'
+);
+
+select is(
+  (select (after ->> 'billing_email') from audit_log
+     where entity = 'customer' and entity_id = '00000000-0000-0000-0000-0000000000c1' and action = 'UPDATE'),
+  '[redacted]',
+  'a customer''s real billing_email never lands in audit_log''s after column either'
+);
+
+-- Same no-op guard log_plan_change() already had: re-saving a customer
+-- with nothing actually changed (only updated_at moves) must not write a
+-- second, identical audit row.
+update customers set updated_at = now() where id = '00000000-0000-0000-0000-0000000000c1';
+
+select is(
+  (select count(*)::int from audit_log where entity = 'customer' and entity_id = '00000000-0000-0000-0000-0000000000c1'),
+  2,
+  'a no-op customer save (only updated_at moves) writes no new audit_log row'
 );
 
 select * from finish();

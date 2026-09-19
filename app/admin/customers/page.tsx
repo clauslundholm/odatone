@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AdminSignOut } from "@/components/admin/AdminSignOut";
 import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
@@ -159,7 +160,7 @@ export default async function CustomersPage({
   const rows = customerRows(raw);
 
   return (
-    <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" />}>
+    <AppShell nav={<SideNav items={NAV} activeHref="/admin/customers" footer={<AdminSignOut />} />}>
       <TopBar crumbs={["Admin", "Customers"]} />
       <div className="flex flex-1 flex-col gap-4 overflow-auto p-5">
         <nav aria-label="Filter by status" className="flex flex-wrap items-center gap-2">

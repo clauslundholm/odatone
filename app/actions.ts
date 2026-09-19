@@ -406,9 +406,13 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
         /* The conflicting row must have vanished between the two reads
            (e.g. another request's own compensating delete) — vanishingly
            unlikely, and not safe to retry indefinitely from here. */
-        console.error("[odatone] signup: unique-email conflict but no customer found on re-check", {
-          email: built.value.customer.email,
-        });
+        /* No customer id to attach here -- this branch means the row that
+           caused the original conflict has already vanished, so there is
+           nothing left to identify by id. The email is still not logged:
+           a log line is a place erasure can never reach, so it is exactly
+           the wrong place for the one piece of PII this whole request is
+           built around. */
+        console.error("[odatone] signup: unique-email conflict but no customer found on re-check");
         return { ok: false, errors: { form: "server" } };
       }
 
@@ -460,7 +464,6 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
       if (createdCustomerThisRequest) await deleteCustomer(admin, customerId, "invite target already registered");
       console.error("[odatone] signup: email already fully registered", {
         customer: customerId,
-        email: built.value.customer.email,
       });
       return { ok: false, errors: { email: "exists" } };
     }
@@ -480,7 +483,6 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
        is the flag this fix round was asked for — no schema change needed. */
     console.error("[odatone] signup: invite failed — customer created without a portal user", {
       customer: customerId,
-      email: built.value.customer.email,
       error: inviteError,
     });
     return { ok: true, message: "no-invite" };

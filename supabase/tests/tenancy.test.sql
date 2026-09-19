@@ -1,5 +1,5 @@
 begin;
-select plan(22);
+select plan(40);
 
 -- Two customers: an owner and a manager at Café A, an owner at Café B, plus
 -- one staff_admin and one staff_support member of staff. The manager and
@@ -15,14 +15,19 @@ insert into auth.users (id, email) values
   ('bbbbbbbb-0000-0000-0000-000000000002', 'owner-b@example.test'),
   ('cccccccc-0000-0000-0000-000000000003', 'staff@odatone.test'),
   ('dddddddd-0000-0000-0000-000000000004', 'manager-a@example.test'),
-  ('eeeeeeee-0000-0000-0000-000000000005', 'support@odatone.test');
+  ('eeeeeeee-0000-0000-0000-000000000005', 'support@odatone.test'),
+  ('ffffffff-0000-0000-0000-000000000006', 'staff-admin-2@odatone.test');
 
+-- A second staff_admin, kept only as a target for the delete/demote
+-- assertions below -- disposable so the primary cccccccc fixture used
+-- throughout the rest of this file is never itself at risk of vanishing.
 insert into profiles (id, customer_id, role, full_name) values
   ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'owner', 'Owner A'),
   ('bbbbbbbb-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'owner', 'Owner B'),
   ('cccccccc-0000-0000-0000-000000000003', null, 'staff_admin', 'Staff Admin'),
   ('dddddddd-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'manager', 'Manager A'),
-  ('eeeeeeee-0000-0000-0000-000000000005', null, 'staff_support', 'Staff Support');
+  ('eeeeeeee-0000-0000-0000-000000000005', null, 'staff_support', 'Staff Support'),
+  ('ffffffff-0000-0000-0000-000000000006', null, 'staff_admin', 'Staff Admin 2');
 
 insert into locations (customer_id, name, venue_type, m2) values
   ('11111111-1111-1111-1111-111111111111', 'A Main', 'cafe', 80),
@@ -39,8 +44,32 @@ insert into plans (id, name, monthly_ore, max_m2, tagline, features, sort, activ
 -- clause exists for, and Task 14's account summary must price correctly
 -- rather than silently falling back to a compiled price the database no
 -- longer agrees with.
-insert into subscriptions (customer_id, plan_id, billing, status) values
-  ('11111111-1111-1111-1111-111111111111', 'legacy', 'monthly', 'active');
+insert into subscriptions (id, customer_id, plan_id, billing, status) values
+  ('c3c3c3c3-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'legacy', 'monthly', 'active');
+
+-- Fixtures for the invoices/subscriptions/subscription_addons/audit_log
+-- tenancy assertions below (Task 7's fix round). Before this, only
+-- customers, locations and plans had a tenancy assertion at all —
+-- widening invoices_read to `using (true)` in some future migration, say,
+-- would leave every one of the 47 pre-existing assertions green while
+-- every customer read every other customer's invoices.
+insert into subscriptions (id, customer_id, plan_id, billing, status) values
+  ('d4d4d4d4-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'small', 'monthly', 'active');
+
+insert into subscription_addons (subscription_id, addon_id) values
+  ('c3c3c3c3-0000-0000-0000-000000000001', 'streaming'),
+  ('d4d4d4d4-0000-0000-0000-000000000001', 'streaming');
+
+insert into invoices (id, customer_id, number, subtotal_ore, vat_ore, total_ore, source) values
+  ('e5e5e5e5-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'INV-A-1', 10000, 2500, 12500, 'seed'),
+  ('f6f6f6f6-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'INV-B-1', 10000, 2500, 12500, 'seed');
+
+-- audit_log has no customer_id of its own -- 0003_tenancy.sql's audit_read
+-- is `using (is_staff())`, with no owner-of-row exception at all, so the
+-- correct tenancy assertion for this table is that no customer session
+-- sees any row here, not merely "only their own".
+insert into audit_log (actor_id, action, entity, entity_id, before, after) values
+  (null, 'INSERT', 'customer', '11111111-1111-1111-1111-111111111111', null, '{}'::jsonb);
 
 -- Owner A --------------------------------------------------------------
 set local role authenticated;
@@ -144,6 +173,44 @@ select is(
   'owner A can read their own subscription''s plan even though it is inactive'
 );
 
+-- Task 7's fix round: invoices, subscriptions, subscription_addons and
+-- audit_log had no tenancy assertion at all before this.
+select is(
+  (select count(*)::int from invoices),
+  1,
+  'owner A sees exactly one invoice — their own'
+);
+
+select is(
+  (select count(*)::int from invoices where id = 'f6f6f6f6-0000-0000-0000-000000000001'),
+  0,
+  'owner A cannot read customer B''s invoice by id'
+);
+
+select is(
+  (select count(*)::int from subscriptions),
+  1,
+  'owner A sees exactly one subscription — their own'
+);
+
+select is(
+  (select count(*)::int from subscriptions where id = 'd4d4d4d4-0000-0000-0000-000000000001'),
+  0,
+  'owner A cannot read customer B''s subscription by id'
+);
+
+select is(
+  (select count(*)::int from subscription_addons),
+  1,
+  'owner A sees exactly one subscription_addons row — their own subscription''s'
+);
+
+select is(
+  (select count(*)::int from audit_log),
+  0,
+  'owner A cannot read any audit_log row — audit_read has no owner-of-row exception'
+);
+
 -- Owner B --------------------------------------------------------------
 set local "request.jwt.claims" to '{"sub":"bbbbbbbb-0000-0000-0000-000000000002","role":"authenticated"}';
 
@@ -198,20 +265,98 @@ select is(
   'staff can see the inactive plan too'
 );
 
+select is((select count(*)::int from invoices), 2, 'staff can see every invoice');
+
+select is((select count(*)::int from subscriptions), 2, 'staff can see every subscription');
+
+select is(
+  (select count(*)::int from subscription_addons),
+  2,
+  'staff can see every subscription_addons row'
+);
+
+select ok((select count(*)::int from audit_log) > 0, 'staff can see audit_log rows');
+
+-- Task 2's fix round: customers_staff_write was `for all`, so `using
+-- (is_staff())` also governed DELETE, and any staff role -- staff_admin
+-- included -- could hard-delete a customer, cascading away its locations,
+-- subscription and invoices with nothing written to audit_log. The policy
+-- is now split into INSERT/UPDATE only; no role gets DELETE through it.
+with attempted as (
+  delete from customers where id = '22222222-2222-2222-2222-222222222222'
+  returning 1
+)
+select is(
+  (select count(*)::int from attempted),
+  0,
+  'not even staff_admin can delete a customer — erasure anonymises instead'
+);
+
 -- Staff (staff_support) ------------------------------------------------------
 set local "request.jwt.claims" to '{"sub":"eeeeeeee-0000-0000-0000-000000000005","role":"authenticated"}';
 
--- is_staff() is true for staff_support, so profiles_staff_write's using
--- clause lets this update proceed to the with check stage. There, only
--- is_staff_admin() (or staff editing an owner/manager row) is accepted, so
--- a support account promoting itself to staff_admin is rejected with a with
--- check violation, not a silent no-op.
+-- Fix round 6 narrowed profiles_staff_write's `using` clause to mirror its
+-- `with check`. Acting on its own row (role = 'staff_support', not staff_admin
+-- and not owner/manager), staff_support's using clause is now false before
+-- with check is ever consulted -- a using-only denial affects zero rows
+-- rather than raising, the same shape locations_owner_write's comment above
+-- documents for UPDATE in general.
+with attempted as (
+  update profiles set role = 'staff_admin'
+  where id = 'eeeeeeee-0000-0000-0000-000000000005'
+  returning 1
+)
+select is(
+  (select count(*)::int from attempted),
+  0,
+  'a staff_support account cannot promote itself to staff_admin'
+);
+
+-- Owner A's row still passes using (role = 'owner' is in the allowed set),
+-- so this one reaches with check and is rejected there instead — proving
+-- the with check half of the policy still does its job for a row using
+-- lets through.
 select throws_ok(
   $$ update profiles set role = 'staff_admin'
-     where id = 'eeeeeeee-0000-0000-0000-000000000005' $$,
+     where id = 'aaaaaaaa-0000-0000-0000-000000000001' $$,
   '42501',
   null,
-  'a staff_support account cannot promote itself to staff_admin'
+  'a staff_support account cannot promote a customer''s owner to staff_admin'
+);
+
+-- Task 1's fix: using is the only clause Postgres consults on DELETE.
+-- ffffffff-...-6 (Staff Admin 2) exists purely as a disposable target for
+-- these two assertions.
+with attempted as (
+  delete from profiles
+  where id = 'ffffffff-0000-0000-0000-000000000006'
+  returning 1
+)
+select is(
+  (select count(*)::int from attempted),
+  0,
+  'a staff_support account cannot delete a staff_admin profile'
+);
+
+with attempted as (
+  update profiles set role = 'owner', customer_id = '11111111-1111-1111-1111-111111111111'
+  where id = 'ffffffff-0000-0000-0000-000000000006'
+  returning 1
+)
+select is(
+  (select count(*)::int from attempted),
+  0,
+  'a staff_support account cannot demote a staff_admin to owner'
+);
+
+with attempted as (
+  delete from customers where id = '22222222-2222-2222-2222-222222222222'
+  returning 1
+)
+select is(
+  (select count(*)::int from attempted),
+  0,
+  'a staff_support account cannot delete a customer'
 );
 
 -- plans_admin_write requires is_staff_admin(), which is false for
@@ -223,6 +368,23 @@ with attempted as (
   returning 1
 )
 select is((select count(*)::int from attempted), 0, 'a staff_support account cannot change a plan''s price');
+
+-- Positive control: staff_admin retains full authority over staff-tier
+-- rows, including deleting one -- without this, the two denials above
+-- could pass merely because DELETE on profiles is broken for everyone,
+-- not because it is correctly scoped to is_staff_admin().
+set local "request.jwt.claims" to '{"sub":"cccccccc-0000-0000-0000-000000000003","role":"authenticated"}';
+
+with attempted as (
+  delete from profiles
+  where id = 'ffffffff-0000-0000-0000-000000000006'
+  returning 1
+)
+select is(
+  (select count(*)::int from attempted),
+  1,
+  'a staff_admin account can delete another staff_admin profile'
+);
 
 -- Anonymous ------------------------------------------------------------
 set local role anon;
@@ -243,6 +405,36 @@ select is(
    where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity),
   0,
   'every table in public has row level security enabled'
+);
+
+-- Task 7's fix round: 0007_apply_signup_order.sql's revoke is what stands
+-- between any logged-in customer and rewriting a stranger's name, address
+-- and locations over PostgREST's RPC endpoint. Postgres grants EXECUTE on
+-- a new function to PUBLIC by default, and `create or replace function`
+-- re-creates the function without touching its ACL — but a future
+-- `create or replace` with a *changed signature* creates what Postgres
+-- treats as a distinct function, which silently starts life with the
+-- default PUBLIC grant again unless the revoke/grant lines are re-run
+-- alongside it. These two assertions are the only thing that would catch
+-- that regression.
+select is(
+  has_function_privilege(
+    'anon',
+    'public.apply_signup_order(uuid, text, text, text, text, text, text, text, billing_term, jsonb)',
+    'EXECUTE'
+  ),
+  false,
+  'anon has no EXECUTE on apply_signup_order'
+);
+
+select is(
+  has_function_privilege(
+    'authenticated',
+    'public.apply_signup_order(uuid, text, text, text, text, text, text, text, billing_term, jsonb)',
+    'EXECUTE'
+  ),
+  false,
+  'authenticated has no EXECUTE on apply_signup_order'
 );
 
 select * from finish();
