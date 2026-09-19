@@ -44,7 +44,7 @@ create table if not exists addons (
 );
 
 create table if not exists subscriptions (
-  id                 uuid primary key default uuid_generate_v4(),
+  id                 uuid primary key default gen_random_uuid(),
   customer_id        uuid not null references customers(id) on delete cascade,
   plan_id            text not null references plans(id),
   billing            billing_term not null default 'monthly',
@@ -66,7 +66,7 @@ create table if not exists subscription_addons (
 -- source distinguishes seeded rows from real ones, so slice 4 can find every
 -- placeholder it must replace and nobody ever reads a fake total as revenue.
 create table if not exists invoices (
-  id           uuid primary key default uuid_generate_v4(),
+  id           uuid primary key default gen_random_uuid(),
   customer_id  uuid not null references customers(id) on delete cascade,
   number       text not null unique,
   issued_at    timestamptz not null default now(),

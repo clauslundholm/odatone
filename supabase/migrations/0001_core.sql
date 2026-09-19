@@ -1,4 +1,10 @@
-create extension if not exists "uuid-ossp";
+/* Ids use gen_random_uuid(), which Postgres 13+ provides in pg_catalog —
+   no extension, and reachable from any search_path. The uuid-ossp
+   extension that used to back uuid_generate_v4() here is installed into
+   the `extensions` schema on hosted Supabase, which is NOT on the
+   search_path `supabase db push` connects with, so the unqualified call
+   resolved locally and failed on the first real deploy with
+   "function uuid_generate_v4() does not exist". */
 
 -- Fix round 6: `create type` has no `if not exists` form in Postgres, so
 -- re-running this migration against a database it already applied to
@@ -19,7 +25,7 @@ exception when duplicate_object then null;
 end $$;
 
 create table if not exists customers (
-  id            uuid primary key default uuid_generate_v4(),
+  id            uuid primary key default gen_random_uuid(),
   name          text not null,
   cvr           text,
   billing_email text not null,
@@ -36,7 +42,7 @@ create table if not exists customers (
 -- They are text rather than enums so adding a venue type stays a code change
 -- and does not need a migration.
 create table if not exists locations (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   customer_id uuid not null references customers(id) on delete cascade,
   name        text not null,
   address     text,
