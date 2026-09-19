@@ -39,6 +39,18 @@
 -- otherwise: a customer left with one visitor's name and locations but
 -- two different visitors' subscription rows, because the race could still
 -- land in the gap between the first-time path's own two unlocked inserts.
+--
+-- Fix round 5 added the third leg: round 4's re-check covered `status` and
+-- invoices but not ownership. Proved at the RPC layer: a `pending`,
+-- uninvoiced customer that already had an owner profile still had its
+-- name, CVR, address, city, every location and its subscription replaced.
+-- Reachable through the app via create -> 23505 -> re-lookup ->
+-- reuse-after-race, if the race's winner's own invite and profile insert
+-- land between the loser's re-lookup and the loser's call into this
+-- function. Same destructive class the previous four rounds exist to
+-- close; the guarantee is only as real as its weakest unchecked leg, so
+-- all three conditions decideSignupDedupe (lib/signup.ts) tests in
+-- application code are now re-tested here, under the same lock, together.
 create or replace function apply_signup_order(
   p_customer_id uuid,
   p_name        text,
@@ -83,6 +95,10 @@ begin
   end if;
   if exists (select 1 from invoices where customer_id = p_customer_id) then
     raise exception 'apply_signup_order: customer % already has an invoice', p_customer_id
+      using errcode = 'P0001';
+  end if;
+  if exists (select 1 from profiles where customer_id = p_customer_id) then
+    raise exception 'apply_signup_order: customer % already has an owner', p_customer_id
       using errcode = 'P0001';
   end if;
 

@@ -22,8 +22,12 @@
 -- functional index on `lower(billing_email)` could never give a query that
 -- filters the raw `billing_email` column: every signup's lookup was a
 -- sequential scan against `customers_billing_email_unique_idx` until now.
+-- `if not exists`/`if exists` throughout, matching 0006's own deliberate
+-- idempotence (fix round 5's Minor — this file didn't have it, unlike the
+-- migration right before it): re-running this file against a database it
+-- has already applied to must be a no-op, not an error.
 alter table customers
-  add column billing_email_lower text generated always as (lower(billing_email)) stored;
+  add column if not exists billing_email_lower text generated always as (lower(billing_email)) stored;
 
 -- Superseded by the index below — kept working right up to this line by
 -- 0006_customer_email_unique.sql, but a functional index on an expression
@@ -32,4 +36,4 @@ alter table customers
 -- mean maintaining two indexes to enforce the same one constraint.
 drop index if exists customers_billing_email_unique_idx;
 
-create unique index customers_billing_email_lower_unique_idx on customers (billing_email_lower);
+create unique index if not exists customers_billing_email_lower_unique_idx on customers (billing_email_lower);

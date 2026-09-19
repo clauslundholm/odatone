@@ -58,8 +58,44 @@ function isAlreadyRegisteredError(error: unknown): boolean {
     used to be discarded, so a failed cleanup logged "removing the
     customer" while the customer stayed — demonstrated live. `context` goes
     straight into the log line so a failure here is diagnosable without
-    guessing which of several call sites it came from. */
+    guessing which of several call sites it came from.
+
+    Fix round 5's Minor: every caller of this function only ever deletes a
+    customer it believes has no owner — but "believes" is the operative
+    word. In the narrow window a `create` request's own re-lookup-then-reuse
+    race opens (create -> 23505 -> re-lookup -> reuse-after-race), a
+    DIFFERENT concurrent signup for the identical email can legitimately
+    finish its own invite and attach a real owner profile to this exact
+    customer id between this request's last check and this delete actually
+    running. Deleting it anyway would cascade away that other visitor's
+    working profile (`profiles.customer_id references customers on delete
+    cascade`) and orphan their auth user into Task 7's 404 trap — the exact
+    failure class fix round 1 exists to close, reopened by this function's
+    own cleanup path. Not reproduced locally (GoTrue rejected the losers'
+    own invites in testing), reasoned from the code rather than observed —
+    guarded regardless, since the cost of checking is one read and the cost
+    of skipping the check is someone else's account. */
 async function deleteCustomer(admin: AdminClient, customerId: string, context: string): Promise<void> {
+  const { data: ownerCheck, error: ownerCheckError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("customer_id", customerId)
+    .maybeSingle();
+  if (ownerCheckError) {
+    console.error(
+      `[odatone] signup: failed to check for an owner before removing the customer (${context}) — leaving it in place`,
+      { customer: customerId, error: ownerCheckError },
+    );
+    return;
+  }
+  if (ownerCheck) {
+    console.error(
+      `[odatone] signup: NOT removing the customer (${context}) — a concurrent signup already attached an owner to it`,
+      { customer: customerId },
+    );
+    return;
+  }
+
   const { error } = await admin.from("customers").delete().eq("id", customerId);
   if (error) {
     console.error(`[odatone] signup: failed to remove the customer (${context}) — it was NOT removed`, {
@@ -213,7 +249,7 @@ async function applyOrderToCustomer(
     p_locations: value.locations,
   });
   if (error) {
-    console.error(`[odatone] signup: failed to apply the reused customer's order (${context})`, {
+    console.error(`[odatone] signup: failed to apply the customer's order (${context})`, {
       customer: customerId,
       error,
     });

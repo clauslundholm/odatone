@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 import { buildSignup, decideSignupDedupe, inviteCreatedNewUser } from "../lib/signup.ts";
 import { EMAIL_RE } from "../lib/forms.ts";
@@ -300,4 +303,30 @@ test("EMAIL_RE (lib/forms.ts) rejects a literal * — the exact character PostgR
 
 test("EMAIL_RE still accepts a real address containing % or _, both valid in a local part", () => {
   assert.equal(EMAIL_RE.test("a_b%c@example.test"), true);
+});
+
+/* Fix round 5: the pgTAP coverage in supabase/tests/signup.test.sql pins
+   the database side of the primary fix (the generated column, its unique
+   index, apply_signup_order's three re-checked conditions) — none of which
+   a plain `node --test` run touches at all. This is the cheap thing a Node
+   test *can* still pin without a live database: app/actions.ts's own
+   source text must filter on billing_email_lower, never fall back to a
+   plain, case-sensitive filter on billing_email directly (whether via
+   .eq(), or via the .ilike()/.like() shape fix round 4 found exploitable
+   through PostgREST's own wildcard rewrite). A source-text check, not a
+   behavioural one — but a revert of either shape is exactly what it's
+   built to catch, and it needs no database connection to run. */
+test("submitSignup's customer lookup filters on billing_email_lower, never the raw billing_email column", () => {
+  const actionsPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "app", "actions.ts");
+  const source = readFileSync(actionsPath, "utf8");
+  assert.match(
+    source,
+    /\.eq\(\s*"billing_email_lower"/,
+    "expected the customer lookup to filter on billing_email_lower",
+  );
+  assert.doesNotMatch(
+    source,
+    /\.(eq|ilike|like)\(\s*"billing_email"\s*,/,
+    "the lookup must never filter on the raw, case-sensitive billing_email column directly — .ilike() against it is the exact shape fix round 4 found exploitable via PostgREST's \"*\" -> \"%\" rewrite",
+  );
 });
