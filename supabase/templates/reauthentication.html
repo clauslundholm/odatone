@@ -1,0 +1,144 @@
+<!--
+  Odatone auth email — reauthentication (Supabase key: reauthentication)
+
+  Code only, no link and no button: per Supabase's docs, this is the one
+  template where {{ .ConfirmationURL }} and {{ .TokenHash }} are NOT
+  populated — only {{ .Token }}, {{ .Email }}, {{ .SiteURL }} and
+  {{ .Data }} are available. There is nothing to build a plain-text link
+  fallback out of here, unlike magic_link.html.
+
+  Brand tokens below (colors, gradient, radii) are copied BY HAND from
+  app/globals.css's :root design tokens, as of 2026-09-19. Email HTML
+  cannot read CSS custom properties or Tailwind's @theme layer, so every
+  value here is a frozen, literal copy. If the brand palette in
+  globals.css changes, this file will NOT follow automatically — it has
+  to be updated by hand, in every one of the six templates.
+
+    accent    #7a3aff       ink      #1c1c1e      bg      #f5f5f7
+    ink-2     #6e6e73       ink-3    #8e8e93      surface #ffffff
+    line      rgba(0,0,0,0.09)
+    gradient  linear-gradient(100deg, #db00ff 0%, #7a3aff 46%, #3d7aff 100%)
+    radius    14px (md, buttons/code box) / 20px (lg, card)
+
+  Table-based layout, fully inline styles: Outlook renders this through
+  Word, not a browser engine, so there is no flexbox, no grid, no CSS
+  variables, and no rem. Inter will not load in Outlook or Gmail, so the
+  font stack below is a system stack — this will not look identical to
+  the site, on purpose. The brand gradient is applied to the wordmark
+  only, layered over a solid #7a3aff so clients that ignore
+  background-clip still get a brand-purple wordmark, never blank text.
+  There is no other image anywhere in this file.
+-->
+<!DOCTYPE html>
+<html lang="da" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Bekræft din identitet hos Odatone</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<style>
+table { border-collapse: collapse; }
+</style>
+<![endif]-->
+<style>
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  img { border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { text-decoration: none; }
+  @media screen and (max-width: 600px) {
+    .oda-container { width: 100% !important; }
+    .oda-pad { padding-left: 20px !important; padding-right: 20px !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f5f7; -webkit-font-smoothing:antialiased;">
+<div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; line-height:0; font-size:0;">
+Din bekræftelseskode til Odatone. &#8203;&#847; Your Odatone verification code.
+&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;
+</div>
+
+<!--[if mso]>
+<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600"><tr><td>
+<![endif]-->
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color:#f5f5f7;">
+<tr>
+<td align="center" style="padding:40px 16px;">
+
+<table role="presentation" class="oda-container" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px; max-width:600px; background-color:#ffffff; border:1px solid rgba(0,0,0,0.09); border-radius:20px;">
+
+<tr>
+<td class="oda-pad" align="left" style="padding:32px 40px 0 40px;">
+<span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:800; letter-spacing:-0.02em; color:#7a3aff; background:linear-gradient(100deg,#db00ff 0%,#7a3aff 46%,#3d7aff 100%); background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Odatone</span>
+</td>
+</tr>
+
+<tr>
+<td class="oda-pad" lang="da" style="padding:24px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<h1 style="margin:0 0 16px 0; font-size:24px; line-height:1.25; font-weight:700; color:#1c1c1e;">Bekræft din identitet</h1>
+<p style="margin:0 0 24px 0; font-size:16px; line-height:1.6; color:#1c1c1e;">Indtast denne kode for at bekræfte handlingen:</p>
+
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin:0 0 20px 0;">
+<tr>
+<td align="center" bgcolor="#f5f5f7" style="padding:20px; border:1px solid rgba(0,0,0,0.09); border-radius:14px;">
+<span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; font-size:32px; font-weight:700; letter-spacing:10px; color:#1c1c1e;">{{ .Token }}</span>
+</td>
+</tr>
+</table>
+
+<p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#8e8e93;">Koden er gyldig i 60 minutter. Har du ikke selv bedt om denne handling, bør du kontakte os.</p>
+</td>
+</tr>
+
+<tr>
+<td class="oda-pad" style="padding:28px 40px 0 40px;">
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td style="border-top:1px solid rgba(0,0,0,0.09); font-size:0; line-height:0;">&nbsp;</td>
+</tr>
+</table>
+<p align="center" style="margin:16px 0 0 0; font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#8e8e93; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">In English</p>
+</td>
+</tr>
+
+<tr>
+<td class="oda-pad" lang="en" style="padding:12px 40px 32px 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<h2 style="margin:0 0 16px 0; font-size:18px; line-height:1.3; font-weight:700; color:#1c1c1e;">Confirm it's you</h2>
+<p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:#1c1c1e;">Enter this code to confirm the action:</p>
+
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;">
+<tr>
+<td align="center" bgcolor="#f5f5f7" style="padding:18px; border:1px solid rgba(0,0,0,0.09); border-radius:14px;">
+<span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; font-size:28px; font-weight:700; letter-spacing:9px; color:#1c1c1e;">{{ .Token }}</span>
+</td>
+</tr>
+</table>
+
+<p style="margin:0; font-size:12px; line-height:1.6; color:#8e8e93;">The code is valid for 60 minutes. If you didn't request this, please contact us.</p>
+</td>
+</tr>
+
+<tr>
+<td class="oda-pad" style="padding:20px 40px 32px 40px; border-top:1px solid rgba(0,0,0,0.09);">
+<p style="margin:0; font-size:12px; line-height:1.6; color:#8e8e93; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Odatone &middot; {{ .SiteURL }}</p>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+</body>
+</html>
