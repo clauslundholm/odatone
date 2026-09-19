@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import { buttonClass } from "@/components/ui/Button";
+import { Button, buttonClass } from "@/components/ui/Button";
 import { eraseCustomer } from "@/app/admin/customers/[id]/gdpr-actions";
 
 const ERASE_ERRORS: Record<string, string> = {
@@ -82,9 +82,10 @@ export function GdprPanel({ customerId, customerName }: { customerId: string; cu
         <div>
           <h3 className="text-[0.875rem] font-medium text-ink">Erase this customer</h3>
           <p className="text-[0.8125rem] text-ink-2">
-            Replaces this customer&rsquo;s name, CVR, address and email with a tombstone and deletes their users — they
-            can no longer sign in. Their invoices are kept, unchanged, because Danish bookkeeping law requires
-            accounting records to be kept for five years. This cannot be undone.
+            Replaces this customer&rsquo;s name, CVR, address, phone and email — and their locations&rsquo; own names and
+            addresses — with a tombstone, cancels their subscription and deletes their users — they can no longer sign
+            in. Their invoices are kept, unchanged, because Danish bookkeeping law requires accounting records to be
+            kept for five years. This cannot be undone.
           </p>
         </div>
 
@@ -115,14 +116,16 @@ export function GdprPanel({ customerId, customerName }: { customerId: string; cu
         )}
 
         {!done && (
-          <button
+          <Button
             type="button"
+            variant="danger"
+            size="sm"
+            className="w-fit"
             onClick={handleErase}
             disabled={!confirmed || pending}
-            className="inline-flex w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-bad px-4 py-2 text-[0.8125rem] font-medium text-white transition-opacity duration-200 hover:opacity-85 disabled:pointer-events-none disabled:opacity-40"
           >
             {pending ? "Erasing…" : "Erase customer"}
-          </button>
+          </Button>
         )}
       </div>
     </div>

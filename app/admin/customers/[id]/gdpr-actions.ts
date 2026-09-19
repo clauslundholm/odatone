@@ -125,6 +125,7 @@ export async function exportCustomer(id: string): Promise<Blob> {
         )
       : { rows: [] as Row[], error: null };
 
+  const failures: string[] = [];
   for (const [label, error] of [
     ["customer", customerError],
     ["locations", locationsResult.error],
@@ -134,7 +135,24 @@ export async function exportCustomer(id: string): Promise<Blob> {
     ["invoices", invoicesResult.error],
     ["audit_log", auditResult.error],
   ] as const) {
-    if (error) console.error(`[gdpr] exportCustomer: failed to read ${label}`, { customerId: id, error });
+    if (error) {
+      console.error(`[gdpr] exportCustomer: failed to read ${label}`, { customerId: id, error });
+      failures.push(label);
+    }
+  }
+
+  /* Fix round 1's Important: this used to log the failure above and still
+     return a Blob built from whatever *did* come back -- demonstrated
+     live as an HTTP 200, a real Content-Disposition header, and
+     "invoices": [] for a customer with 12 invoices, with nothing on
+     screen or in the response to say the file was incomplete. This
+     module's own doc comment already says an export that quietly drops
+     rows is a false statement to the data subject it's made for; the
+     fix is to mean that, not just say it. ../export/route.ts turns this
+     throw into a non-200 response with no Content-Disposition, so
+     nothing is ever offered as a download that isn't actually complete. */
+  if (failures.length > 0) {
+    throw new Error(`gdpr export incomplete for customer ${id}: failed to read ${failures.join(", ")}`);
   }
 
   const payload = {
@@ -151,21 +169,12 @@ export async function exportCustomer(id: string): Promise<Blob> {
   return new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
 }
 
-/** The caller's own profile, but only when it is `staff_admin`. Everything
-    below this line either bypasses RLS outright (the service-role client,
-    for the two things only it can do -- delete an auth user, and insert
-    into `audit_log`, which 0003_tenancy.sql gives no INSERT policy to any
-    role at all, staff included) or changes `customers.status`, which
-    `guard_customer_status` (0003_tenancy.sql) already lets *any* staff role
-    do. Neither of those checks the narrower thing this action needs: that
-    erasure -- unlike viewing a customer, which `staff_support` does every
-    day -- is staff_admin-only. Plan and add-on prices get that narrowing
-    for free from `plans_admin_write`/`addons_admin_write`'s own
-    `is_staff_admin()` check; erasure has no equivalent policy to lean on
-    because the writes it needs to make don't go through a policy at all,
-    so the check has to be made explicitly, here, before anything
-    irreversible happens. */
-async function currentStaffAdmin(): Promise<{ id: string } | null> {
+/** The caller's own profile row, or null if there is no session or no
+    matching profile. Shared by `currentStaffAdmin` (erasure's own,
+    staff_admin-only gate) and `isCurrentSessionStaff` (../export/route.ts's
+    in-handler check) so the "who is this request, really" lookup exists
+    exactly once. */
+async function currentProfile(): Promise<{ id: string; role: string } | null> {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
@@ -181,11 +190,51 @@ async function currentStaffAdmin(): Promise<{ id: string } | null> {
     // console.error calls and lib/signup.ts's Task 13 precedent: an actor
     // id is enough to investigate a failure, and PII belongs in the export
     // this file produces on purpose, not in a log line nobody asked for.
-    console.error("[gdpr] currentStaffAdmin: failed to read the caller's profile", { error });
+    console.error("[gdpr] currentProfile: failed to read the caller's profile", { error });
     return null;
   }
+  return profile ?? null;
+}
+
+/** The caller's own profile, but only when it is `staff_admin`. Everything
+    below this line either bypasses RLS outright (the service-role client,
+    for the things only it can do -- delete an auth user, and insert into
+    `audit_log`, which 0003_tenancy.sql gives no INSERT policy to any role
+    at all, staff included) or changes `customers.status`/`subscriptions`,
+    which `guard_customer_status` (0003_tenancy.sql) and the ordinary
+    `subscriptions_staff_write` policy already let *any* staff role do.
+    None of that checks the narrower thing this action needs: that erasure
+    -- unlike viewing a customer, which `staff_support` does every day --
+    is staff_admin-only. Plan and add-on prices get that narrowing for
+    free from `plans_admin_write`/`addons_admin_write`'s own
+    `is_staff_admin()` check; erasure has no equivalent policy to lean on
+    because the writes it needs to make don't go through a policy at all,
+    so the check has to be made explicitly, here, before anything
+    irreversible happens. Demonstrated live in fix round 1: extracting the
+    real Server Action id and POSTing it directly from a customer's own
+    session (not just a staff_support one) still gets refused -- this
+    check runs before any of the writes below, regardless of how the
+    request arrived. */
+async function currentStaffAdmin(): Promise<{ id: string } | null> {
+  const profile = await currentProfile();
   if (!profile || profile.role !== "staff_admin") return null;
   return { id: profile.id };
+}
+
+/** Whether the caller's own session belongs to any staff role (admin or
+    support) -- the same test `is_staff()` (0003_tenancy.sql) makes at the
+    database layer for every table `exportCustomer` reads. Exported for
+    ../export/route.ts's own in-handler check: that route is already gated
+    by lib/supabase/proxy.ts's `updateSession` before it ever runs, and
+    backstopped by RLS on every table it reads through, so this check's
+    blast radius if it were ever missing is an empty file rather than a
+    leak -- but a route claiming to follow app/api/edits/export/route.ts's
+    precedent (fix round 1's Minor) should carry the same explicit check
+    that file does, rather than resting entirely on the proxy never
+    regressing. */
+export async function isCurrentSessionStaff(): Promise<boolean> {
+  const profile = await currentProfile();
+  return profile?.role === "staff_admin" || profile?.role === "staff_support";
 }
 
 /**
@@ -197,20 +246,37 @@ async function currentStaffAdmin(): Promise<{ id: string } | null> {
  * `profiles` row (`profiles.id references auth.users(id) on delete
  * cascade`, 0001_core.sql) without a separate statement.
  *
- * Every invoice row is left exactly as it was: no column on `invoices` is
- * touched, so `total_ore`/`subtotal_ore`/`vat_ore` and every other field
- * survive erasure unchanged, still attributed to this (now-anonymous)
- * customer id for as long as Danish bookkeeping law requires them kept.
+ * `locations` (fix round 1's Important) also gets a tombstone: `name` is
+ * `not null` (0001_core.sql) so it becomes `Slettet lokation <location
+ * id>`, and `address`/`postcode`/`city` are nulled -- the same street
+ * value `customers.address` had, demonstrated live surviving here even
+ * after `customers` was correctly blanked. `m2`, `venue_type` and
+ * `hours_band` are deliberately left alone: they are the billing basis
+ * behind the retained invoices (`quote()`, lib/pricing.ts, prices a
+ * subscription from exactly these), carry no personal data of their own,
+ * and touching them would be moving the goalposts of the five-year
+ * retention reading this task exists to honour, not protecting anyone.
  *
- * Runs on the service-role client throughout, not just for the two steps
- * that strictly require it (auth deletion, the audit_log insert) -- once
- * the staff_admin check above has already gated the whole action, doing
- * the `customers` update on the same client keeps this one function
- * auditable as a single unit rather than mixing which client does which
- * statement. The `guard_customer_status` trigger (0003_tenancy.sql)
- * explicitly exempts `service_role` from its "only staff may change
- * status" check, so this does not need is_staff() to be true under this
- * client the way a session-based write would.
+ * `subscriptions` (fix round 1's Important) are set `cancelled` with
+ * `cancelled_at` recorded, in the same pass: left alone, an erased
+ * customer's subscription kept reporting as a live, earning relationship
+ * on `/admin` (`mrrOre`/`isEarning`, lib/admin/stats.ts, count `active`/
+ * `trialing`/`past_due` as still-billing) -- wrong on its own terms, and a
+ * live commercial relationship is not something erasure can leave
+ * standing regardless. No column on `invoices` is touched by any of this:
+ * `total_ore`/`subtotal_ore`/`vat_ore` and every other field survive
+ * erasure unchanged, still attributed to this (now-anonymous) customer id
+ * for as long as Danish bookkeeping law requires them kept.
+ *
+ * Runs on the service-role client throughout, not just for the steps that
+ * strictly require it (auth deletion, the audit_log insert) -- once the
+ * staff_admin check above has already gated the whole action, doing every
+ * write on the same client keeps this one function auditable as a single
+ * unit rather than mixing which client does which statement. The
+ * `guard_customer_status` trigger (0003_tenancy.sql) explicitly exempts
+ * `service_role` from its "only staff may change status" check, so this
+ * does not need is_staff() to be true under this client the way a
+ * session-based write would.
  */
 export async function eraseCustomer(id: string): Promise<{ error?: string }> {
   const actor = await currentStaffAdmin();
@@ -251,6 +317,45 @@ export async function eraseCustomer(id: string): Promise<{ error?: string }> {
       });
       return { error: "erase" };
     }
+  }
+
+  const { data: locations, error: locationsError } = await admin
+    .from("locations")
+    .select("id")
+    .eq("customer_id", id);
+  if (locationsError) {
+    console.error("[gdpr] eraseCustomer: failed to read the customer's locations", {
+      customerId: id,
+      error: locationsError,
+    });
+    return { error: "erase" };
+  }
+
+  for (const location of locations ?? []) {
+    const { error: locationUpdateError } = await admin
+      .from("locations")
+      .update({ name: `Slettet lokation ${location.id}`, address: null, postcode: null, city: null })
+      .eq("id", location.id);
+    if (locationUpdateError) {
+      console.error("[gdpr] eraseCustomer: failed to tombstone a location", {
+        customerId: id,
+        locationId: location.id,
+        error: locationUpdateError,
+      });
+      return { error: "erase" };
+    }
+  }
+
+  const { error: subscriptionsError } = await admin
+    .from("subscriptions")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+    .eq("customer_id", id);
+  if (subscriptionsError) {
+    console.error("[gdpr] eraseCustomer: failed to cancel the customer's subscriptions", {
+      customerId: id,
+      error: subscriptionsError,
+    });
+    return { error: "erase" };
   }
 
   const tombstone = anonymisedCustomer(id);

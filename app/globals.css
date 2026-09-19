@@ -34,6 +34,7 @@
   --color-ok-soft: var(--c-ok-soft);
   --color-bad: var(--c-bad);
   --color-bad-soft: var(--c-bad-soft);
+  --color-bad-ink: var(--c-bad-ink);
 
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -80,6 +81,7 @@
   --c-ok-soft: rgba(29, 132, 72, 0.1);
   --c-bad: #c23b3b;
   --c-bad-soft: rgba(194, 59, 59, 0.1);
+  --c-bad-ink: #ffffff;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.06);
   --shadow-dock: 0 -1px 0 rgba(0, 0, 0, 0.06), 0 -12px 40px rgba(0, 0, 0, 0.08);
 }
@@ -103,6 +105,10 @@
   --c-ok-soft: rgba(86, 197, 135, 0.13);
   --c-bad: #f27d7d;
   --c-bad-soft: rgba(242, 125, 125, 0.13);
+  /* Dark text on this light-red background, not white: --c-bad itself is
+     much lighter in dark mode than in light, and white-on-#f27d7d measures
+     ~2.6:1 -- below WCAG AA. #1c1c1e on it measures ~6.5:1. */
+  --c-bad-ink: #1c1c1e;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 40px rgba(0, 0, 0, 0.4);
   --shadow-dock: 0 -1px 0 rgba(255, 255, 255, 0.06), 0 -12px 40px rgba(0, 0, 0, 0.5);
 }
@@ -127,6 +133,10 @@
   --c-ok-soft: rgba(86, 197, 135, 0.13);
   --c-bad: #f27d7d;
   --c-bad-soft: rgba(242, 125, 125, 0.13);
+  /* Dark text on this light-red background, not white: --c-bad itself is
+     much lighter in dark mode than in light, and white-on-#f27d7d measures
+     ~2.6:1 -- below WCAG AA. #1c1c1e on it measures ~6.5:1. */
+  --c-bad-ink: #1c1c1e;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 40px rgba(0, 0, 0, 0.4);
   background-color: var(--c-bg);
   color: var(--c-ink);
