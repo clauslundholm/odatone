@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(22);
 
 -- Two customers: an owner and a manager at Café A, an owner at Café B, plus
 -- one staff_admin and one staff_support member of staff. The manager and
@@ -33,6 +33,14 @@ insert into locations (customer_id, name, venue_type, m2) values
 -- different assertions instead of both being true by coincidence.
 insert into plans (id, name, monthly_ore, max_m2, tagline, features, sort, active) values
   ('legacy', 'Legacy Plan', 9900, 50, '{"da":"Udgået","en":"Discontinued"}', '[]'::jsonb, 99, false);
+
+-- Café A is still paying for a plan staff have since deactivated — the
+-- scenario 0009_customer_plan_visibility.sql's extra plans_public_read
+-- clause exists for, and Task 14's account summary must price correctly
+-- rather than silently falling back to a compiled price the database no
+-- longer agrees with.
+insert into subscriptions (customer_id, plan_id, billing, status) values
+  ('11111111-1111-1111-1111-111111111111', 'legacy', 'monthly', 'active');
 
 -- Owner A --------------------------------------------------------------
 set local role authenticated;
@@ -125,6 +133,24 @@ select throws_ok(
   '42501',
   null,
   'owner A cannot change their own customer''s status'
+);
+
+-- 0009_customer_plan_visibility.sql: an inactive plan is visible to a
+-- customer session only via their own subscription, not to every customer
+-- generally.
+select is(
+  (select count(*)::int from plans),
+  4,
+  'owner A can read their own subscription''s plan even though it is inactive'
+);
+
+-- Owner B --------------------------------------------------------------
+set local "request.jwt.claims" to '{"sub":"bbbbbbbb-0000-0000-0000-000000000002","role":"authenticated"}';
+
+select is(
+  (select count(*)::int from plans),
+  3,
+  'owner B cannot see the legacy plan — it is not on any of their subscriptions'
 );
 
 -- Service role -----------------------------------------------------------
