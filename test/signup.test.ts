@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSignup, decideSignupDedupe, escapeLikePattern, inviteCreatedNewUser } from "../lib/signup.ts";
+import { buildSignup, decideSignupDedupe, inviteCreatedNewUser } from "../lib/signup.ts";
+import { EMAIL_RE } from "../lib/forms.ts";
 
 const form = (fields: Record<string, string>) => {
   const fd = new FormData();
@@ -282,25 +283,21 @@ test("inviteCreatedNewUser: an unparsable timestamp is never treated as newly cr
   assert.equal(inviteCreatedNewUser("not-a-date", Date.now()), false);
 });
 
-/* ---------------------------------------------------------------------- *
- *  escapeLikePattern: the case-insensitive billing-email lookup
- *  (app/actions.ts's lookupSignup) matches against `lower(billing_email)`
- *  via ILIKE, which treats "%" and "_" as wildcards — both of which
- *  EMAIL_RE permits in a real address's local part.
- * ---------------------------------------------------------------------- */
+/* Fix round 4 removed escapeLikePattern and its tests that lived here: an
+   .ilike()-based lookup was itself the Critical this round closes (see
+   lib/signup.ts's comment where the function used to be) — PostgREST
+   rewrites a literal "*" to "%" before Postgres ever sees an ilike
+   pattern, which no amount of escaping on this side could reach.
+   lookupSignup (app/actions.ts) now compares a generated, stored
+   `billing_email_lower` column with a plain `.eq()` instead, so there is
+   no `like`/`ilike` pattern left anywhere in this path to escape. */
 
-test("escapeLikePattern: an ordinary email is unchanged", () => {
-  assert.equal(escapeLikePattern("jens@nord.test"), "jens@nord.test");
+test("EMAIL_RE (lib/forms.ts) rejects a literal * — the exact character PostgREST's ilike rewrite exploited", () => {
+  assert.equal(EMAIL_RE.test("*@nord.test"), false);
+  assert.equal(EMAIL_RE.test("*@*.test"), false);
+  assert.equal(EMAIL_RE.test("jens*hansen@nord.test"), false);
 });
 
-test("escapeLikePattern: a literal % in an address is escaped, not left as a wildcard", () => {
-  assert.equal(escapeLikePattern("50%off@nord.test"), "50\\%off@nord.test");
-});
-
-test("escapeLikePattern: a literal _ is escaped", () => {
-  assert.equal(escapeLikePattern("jens_hansen@nord.test"), "jens\\_hansen@nord.test");
-});
-
-test("escapeLikePattern: a literal backslash is escaped so it can't unescape the next character", () => {
-  assert.equal(escapeLikePattern("a\\%b@nord.test"), "a\\\\\\%b@nord.test");
+test("EMAIL_RE still accepts a real address containing % or _, both valid in a local part", () => {
+  assert.equal(EMAIL_RE.test("a_b%c@example.test"), true);
 });

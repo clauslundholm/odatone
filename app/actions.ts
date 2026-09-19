@@ -4,7 +4,6 @@ import { EMAIL_RE, type ActionResult, type FieldErrors } from "@/lib/forms";
 import {
   buildSignup,
   decideSignupDedupe,
-  escapeLikePattern,
   inviteCreatedNewUser,
   type ExistingCustomer,
   type ExistingProfile,
@@ -85,25 +84,39 @@ type LookupResult =
     actual decision; this only reads.
 
     Fix round 3's Important: `customers_billing_email_unique_idx`
-    (0006_customer_email_unique.sql) is on `lower(billing_email)`, but this
-    lookup used to compare with a plain `.eq()`, which Postgres evaluates
-    case-sensitively. Reproduced live: a `customers` row holding
-    "Mixed@Case.test" was invisible to a signup for "mixed@case.test" (every
-    email this app itself ever writes is already lower-cased by
-    `buildSignup`, but a row created out of band — Studio, an import, a
-    future admin "create customer" screen — need not be), so the lookup
-    found nothing, the insert then lost to the unique index, the *re*-lookup
-    missed it for the identical reason, and the request landed in the
-    "conflicting row must have vanished" branch — permanently, on every
-    retry, for that address. `.ilike()` against an escaped pattern
-    (`escapeLikePattern`, lib/signup.ts) matches case-insensitively without
-    also becoming a wildcard search over an address that happens to contain
-    a literal `%` or `_` (both are valid in the local part). */
+    (0006_customer_email_unique.sql) was on `lower(billing_email)`, but this
+    lookup compared with a plain `.eq()`, which Postgres evaluates
+    case-sensitively — a `customers` row holding "Mixed@Case.test" was
+    invisible to a signup for "mixed@case.test".
+
+    Fix round 4's Critical: round 3's own fix for that — matching via
+    `.ilike()` against an escaped pattern — was itself exploitable.
+    PostgREST rewrites a literal `*` in a `like`/`ilike` filter's pattern to
+    `%` BEFORE Postgres ever sees it, and that rewrite happens entirely
+    outside Postgres — no escaping on this app's side can reach it.
+    `EMAIL_RE` (lib/forms.ts) permitted `*`, so an anonymous signup for an
+    address like "*@*.test" reached the database as the pattern "%@%.test",
+    matching every `customers` row; the `reuse` path (`applyOrderToCustomer`
+    below) then rewrote whichever one it landed on — name, CVR, phone,
+    address, every location, the subscription — as the attacker's own, and
+    permanently refused the real business as "already registered" from
+    then on. Reproduced live end to end through the real signup form.
+
+    The fix is to never go through `like`/`ilike` for this lookup at all.
+    `billing_email_lower` (0008_customer_email_lower_column.sql) is a
+    generated, stored column — Postgres maintains it from `billing_email`
+    itself — so this is now a plain `.eq()`, which PostgREST sends to
+    Postgres as an ordinary `=` with no wildcard semantics from either
+    side, and which can actually use an index (a functional index on
+    `lower(billing_email)` could never serve a query filtering the raw
+    `billing_email` column — every signup was a sequential scan before
+    this). `EMAIL_RE` also now excludes `*`, as defence in depth, not as
+    the fix itself. */
 async function lookupSignup(admin: AdminClient, email: string): Promise<LookupResult> {
   const { data: customersRaw, error: customersError } = await admin
     .from("customers")
     .select("id, created_at, status")
-    .ilike("billing_email", escapeLikePattern(email));
+    .eq("billing_email_lower", email);
   if (customersError) {
     console.error("[odatone] signup: failed to check for an existing customer", customersError);
     return { ok: false };
@@ -137,11 +150,15 @@ async function lookupSignup(admin: AdminClient, email: string): Promise<LookupRe
 
 type OrderResult = { ok: true } | { ok: false };
 
-/** Writes `value`'s order onto an *existing* customer — its own contact and
-    billing fields, its locations (replaced, not merged) and its
-    subscription (replaced, not merged) — via `apply_signup_order`
+/** Writes `value`'s order onto a customer — its own contact and billing
+    fields, its locations (replaced, not merged) and its subscription
+    (replaced, not merged) — via `apply_signup_order`
     (0007_apply_signup_order.sql), a single Postgres transaction rather than
-    a sequence of separate statements from here.
+    a sequence of separate statements from here. Called for both the
+    `reuse` path (an existing, ownerless customer) and, since fix round 4,
+    the `create` path too (a customer this same request just inserted) —
+    see `createCustomerWithOrder`'s own doc comment for why every writer
+    needs to go through the same locked function, not just `reuse`.
 
     Fix round 2's Important: the `reuse` path used to skip this entirely and
     only insert a `profiles` row, silently discarding the visitor's real
@@ -210,20 +227,37 @@ type CreateResult =
   | { status: "conflict" }
   | { status: "error" };
 
-/** Creates a brand-new customer plus its locations and subscription. Not
-    wrapped in a database transaction (no RPC function exists for this yet):
-    any failure past the customer insert deletes that customer via
+/** Creates a brand-new customer, then writes its locations and subscription
+    via the SAME `apply_signup_order` function (0007_apply_signup_order.sql)
+    the `reuse` path uses.
+
+    Fix round 4's Important: this used to insert `locations` and
+    `subscriptions` as two further statements of its own, with no lock of
+    any kind — the bare `customers` row becomes visible to every other
+    request the instant its own insert commits, so a concurrent signup that
+    lost the `23505` race below, re-looked-up, and found this row
+    `pending`/un-owned/uninvoiced could run `apply_signup_order`'s locked
+    replacement in the gap *between* these two unlocked inserts. Reproduced
+    once in 57 four-way concurrent runs: one customer left with one
+    visitor's name and locations but TWO subscriptions — the interloper's
+    and this path's own — which would have priced against whichever
+    subscription a query happened to pick up first. Routing this write
+    through the same locked function `reuse` uses closes it: every path
+    that can write a customer's order now takes the same row lock, so no
+    other request's write can ever land in the middle of this one's.
+
+    Any failure past the customer insert deletes that customer via
     `deleteCustomer`, and `on delete cascade` (0002_commerce.sql) takes its
     locations and subscription with it, so a failed signup never leaves a
     half-created customer sitting in /admin/customers indistinguishable from
     a real pending one.
 
-    `customers_billing_email_unique_idx` (0006_customer_email_unique.sql,
-    fix round 2) means this insert itself can now lose a race to a
-    concurrent signup for the same email — reported as `"conflict"` rather
-    than a generic error, so the caller can recover via decideSignupDedupe
-    instead of showing the visitor a raw database error for something that
-    isn't really a failure. */
+    `customers_billing_email_lower_unique_idx` (0008_customer_email_lower_column.sql)
+    means the customer insert itself can lose a race to a concurrent signup
+    for the same email — reported as `"conflict"` rather than a generic
+    error, so the caller can recover via decideSignupDedupe instead of
+    showing the visitor a raw database error for something that isn't
+    really a failure. */
 async function createCustomerWithOrder(admin: AdminClient, value: SignupInput): Promise<CreateResult> {
   const { data: customer, error: customerError } = await admin
     .from("customers")
@@ -248,28 +282,9 @@ async function createCustomerWithOrder(admin: AdminClient, value: SignupInput): 
 
   const customerId = customer.id as string;
 
-  const { error: locationsError } = await admin.from("locations").insert(
-    value.locations.map((l) => ({ customer_id: customerId, ...l })),
-  );
-  if (locationsError) {
-    console.error("[odatone] signup: failed to create locations — removing the customer", locationsError, {
-      customer: customerId,
-    });
-    await deleteCustomer(admin, customerId, "locations insert failed");
-    return { status: "error" };
-  }
-
-  const { error: subscriptionError } = await admin.from("subscriptions").insert({
-    customer_id: customerId,
-    plan_id: value.planId,
-    billing: value.billing,
-    status: "pending",
-  });
-  if (subscriptionError) {
-    console.error("[odatone] signup: failed to create subscription — removing the customer", subscriptionError, {
-      customer: customerId,
-    });
-    await deleteCustomer(admin, customerId, "subscription insert failed");
+  const applied = await applyOrderToCustomer(admin, customerId, value, "create");
+  if (!applied.ok) {
+    await deleteCustomer(admin, customerId, "order write failed after create");
     return { status: "error" };
   }
 

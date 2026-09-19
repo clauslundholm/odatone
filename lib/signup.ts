@@ -317,18 +317,19 @@ export function decideSignupDedupe(
   return { action: "reuse", customerId: oldest.id };
 }
 
-/** Escapes the characters `ILIKE` treats specially (`%`, `_`, and the
-    backslash escape character itself) so a case-insensitive billing-email
-    lookup — needed because `customers_billing_email_unique_idx`
-    (0006_customer_email_unique.sql) is on `lower(billing_email)`, while a
-    plain `.eq()` comparison is case-sensitive — can't also turn into an
-    accidental wildcard search. `EMAIL_RE` permits both `%` and `_` in the
-    local part of an address, so a real signup can legitimately contain
-    either; without escaping them first, looking up "50%off@x.test" would
-    match anything starting with "50" and ending "off@x.test". */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
-}
+/* Fix round 4 removed escapeLikePattern, which used to live here.
+   Escaping `%`/`_`/`\` made `.ilike()` safe against Postgres's own
+   wildcard semantics, but PostgREST rewrites a literal `*` in a
+   `like`/`ilike` filter's pattern to `%` BEFORE Postgres ever sees it —
+   entirely outside Postgres, so no amount of escaping on this side could
+   ever reach it. `EMAIL_RE` (lib/forms.ts) permitted `*`, and the result
+   was exploitable end to end: a signup for "*@*.test" reached the
+   database as the pattern "%@%.test", matching every `customers` row.
+   `lookupSignup` (app/actions.ts) now compares `billing_email_lower`, a
+   generated column (0008_customer_email_lower_column.sql), with a plain
+   `.eq()` — no `like`/`ilike` operator, no wildcard semantics from either
+   PostgREST or Postgres, nothing left for this function to protect
+   against. */
 
 /** Whether the auth user `inviteUserByEmail` returned was actually created
     by *this* call, or already existed before it. `createdAt` never changes

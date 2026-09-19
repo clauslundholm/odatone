@@ -25,6 +25,20 @@
 -- endpoint with an arbitrary customer id and rewrite a stranger's contact
 -- details, locations and subscription — a far worse hole than the race
 -- this function exists to close. The revokes below are not optional.
+--
+-- Fix round 4 added two things: the eligibility check below (status =
+-- 'pending', no invoice) now runs a second time, inside this function,
+-- after the lock — closing a TOCTOU window where lib/signup.ts's
+-- decideSignupDedupe had already approved a customer as safe to reuse from
+-- a read that could be stale by the time this function's lock actually
+-- lands. And app/actions.ts's first-time `create` path (which used to
+-- insert `locations`/`subscriptions` as two further, unlocked statements
+-- of its own after the `customers` insert) now calls this same function
+-- for that write too, so every path that can write a customer's order
+-- takes the same lock — reproduced once in 57 four-way concurrent runs
+-- otherwise: a customer left with one visitor's name and locations but
+-- two different visitors' subscription rows, because the race could still
+-- land in the gap between the first-time path's own two unlocked inserts.
 create or replace function apply_signup_order(
   p_customer_id uuid,
   p_name        text,
@@ -42,12 +56,34 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  locked_id uuid;
+  locked_id     uuid;
+  locked_status customer_status;
 begin
-  select id into locked_id from customers where id = p_customer_id for update;
+  select id, status into locked_id, locked_status
+  from customers where id = p_customer_id for update;
   if locked_id is null then
     raise exception 'apply_signup_order: customer % not found', p_customer_id
       using errcode = 'P0002';
+  end if;
+
+  /* Fix round 4's TOCTOU close: decideSignupDedupe (lib/signup.ts) decides
+     eligibility — status = 'pending', no invoice — in application code,
+     from a read that can be stale by the time this function actually
+     acquires the lock above. Without re-checking here, a customer that a
+     payment provider activated or that staff started invoicing in that
+     window would still be silently overwritten: the guarantee would be
+     advisory, resting on a caller doing the right check, rather than real.
+     Checked only now, AFTER the lock, so nothing else can change either
+     answer out from under this transaction between here and the writes
+     below. */
+  if locked_status <> 'pending' then
+    raise exception 'apply_signup_order: customer % is no longer pending (status=%)',
+      p_customer_id, locked_status
+      using errcode = 'P0001';
+  end if;
+  if exists (select 1 from invoices where customer_id = p_customer_id) then
+    raise exception 'apply_signup_order: customer % already has an invoice', p_customer_id
+      using errcode = 'P0001';
   end if;
 
   update customers set
