@@ -1,0 +1,159 @@
+<!--
+  Odatone auth email — invite (Supabase key: invite)
+
+  This is the only one of the six templates the app currently sends —
+  triggered by admin.auth.admin.inviteUserByEmail() in app/actions.ts
+  during signup.
+
+  Brand tokens below (colors, gradient, radii) are copied BY HAND from
+  app/globals.css's :root design tokens, as of 2026-09-19. Email HTML
+  cannot read CSS custom properties or Tailwind's @theme layer, so every
+  value here is a frozen, literal copy. If the brand palette in
+  globals.css changes, this file will NOT follow automatically — it has
+  to be updated by hand, in every one of the six templates.
+
+    accent    #7a3aff       ink      #1c1c1e      bg      #f5f5f7
+    ink-2     #6e6e73       ink-3    #8e8e93      surface #ffffff
+    line      rgba(0,0,0,0.09)
+    gradient  linear-gradient(100deg, #db00ff 0%, #7a3aff 46%, #3d7aff 100%)
+    radius    14px (md, buttons/code box) / 20px (lg, card)
+
+  Table-based layout, fully inline styles: Outlook renders this through
+  Word, not a browser engine, so there is no flexbox, no grid, no CSS
+  variables, and no rem. Inter will not load in Outlook or Gmail, so the
+  font stack below is a system stack — this will not look identical to
+  the site, on purpose. The brand gradient is applied to the wordmark
+  only, layered over a solid #7a3aff so clients that ignore
+  background-clip (effectively all of them except modern WebKit/Blink
+  mail clients) still get a brand-purple wordmark, never blank text.
+  There is no other image anywhere in this file.
+-->
+<!DOCTYPE html>
+<html lang="da" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Din invitation til Odatone</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<style>
+table { border-collapse: collapse; }
+</style>
+<![endif]-->
+<style>
+  /* Progressive enhancement only — nothing here is load-bearing for
+     layout, since Outlook ignores <style> almost entirely and every
+     rule that matters is also set as an inline attribute below. */
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  img { border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { text-decoration: none; }
+  @media screen and (max-width: 600px) {
+    .oda-container { width: 100% !important; }
+    .oda-pad { padding-left: 20px !important; padding-right: 20px !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f5f7; -webkit-font-smoothing:antialiased;">
+<!-- Preheader: shown in the inbox list, hidden in the body. Padded with
+     zero-width non-joiners so clients don't append the body text after it. -->
+<div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; line-height:0; font-size:0;">
+Tryk for at oprette din adgangskode til Odatone. &#8203;&#847; Tap to set up your Odatone password.
+&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;&#8203;&#847;
+</div>
+
+<!--[if mso]>
+<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600"><tr><td>
+<![endif]-->
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color:#f5f5f7;">
+<tr>
+<td align="center" style="padding:40px 16px;">
+
+<table role="presentation" class="oda-container" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px; max-width:600px; background-color:#ffffff; border:1px solid rgba(0,0,0,0.09); border-radius:20px;">
+
+<!-- Wordmark -->
+<tr>
+<td class="oda-pad" align="left" style="padding:32px 40px 0 40px;">
+<span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:800; letter-spacing:-0.02em; color:#7a3aff; background:linear-gradient(100deg,#db00ff 0%,#7a3aff 46%,#3d7aff 100%); background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Odatone</span>
+</td>
+</tr>
+
+<!-- Danish block -->
+<tr>
+<td class="oda-pad" lang="da" style="padding:24px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<h1 style="margin:0 0 16px 0; font-size:24px; line-height:1.25; font-weight:700; color:#1c1c1e;">Du er inviteret til Odatone</h1>
+<p style="margin:0 0 28px 0; font-size:16px; line-height:1.6; color:#1c1c1e;">Du er blevet inviteret til at oprette en konto i Odatone-kundeportalen. Tryk på knappen for at vælge en adgangskode og komme i gang.</p>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;">
+<tr>
+<td align="center" bgcolor="#7a3aff" style="border-radius:14px;">
+<a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:16px; font-weight:600; color:#ffffff; background-color:#7a3aff; border-radius:14px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Kom i gang</a>
+</td>
+</tr>
+</table>
+
+<p style="margin:0 0 4px 0; font-size:13px; line-height:1.6; color:#6e6e73;">Virker knappen ikke? Kopiér linket ind i browseren:</p>
+<p style="margin:0 0 24px 0; font-size:13px; line-height:1.6; word-break:break-all;"><a href="{{ .ConfirmationURL }}" target="_blank" style="color:#7a3aff;">{{ .ConfirmationURL }}</a></p>
+
+<p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#8e8e93;">Linket er gyldigt i 24 timer. Har du ikke ventet en invitation fra Odatone, kan du roligt ignorere denne mail.</p>
+</td>
+</tr>
+
+<!-- Divider -->
+<tr>
+<td class="oda-pad" style="padding:28px 40px 0 40px;">
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td style="border-top:1px solid rgba(0,0,0,0.09); font-size:0; line-height:0;">&nbsp;</td>
+</tr>
+</table>
+<p align="center" style="margin:16px 0 0 0; font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#8e8e93; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">In English</p>
+</td>
+</tr>
+
+<!-- English block -->
+<tr>
+<td class="oda-pad" lang="en" style="padding:12px 40px 32px 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<h2 style="margin:0 0 16px 0; font-size:18px; line-height:1.3; font-weight:700; color:#1c1c1e;">You're invited to Odatone</h2>
+<p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:#1c1c1e;">You've been invited to set up an account in the Odatone customer portal. Tap the button to choose a password and get started.</p>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+<tr>
+<td align="center" bgcolor="#7a3aff" style="border-radius:14px;">
+<a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block; padding:12px 28px; font-size:15px; font-weight:600; color:#ffffff; background-color:#7a3aff; border-radius:14px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Get started</a>
+</td>
+</tr>
+</table>
+
+<p style="margin:0 0 4px 0; font-size:12px; line-height:1.6; color:#6e6e73;">Button not working? Copy the link into your browser:</p>
+<p style="margin:0 0 20px 0; font-size:12px; line-height:1.6; word-break:break-all;"><a href="{{ .ConfirmationURL }}" target="_blank" style="color:#7a3aff;">{{ .ConfirmationURL }}</a></p>
+
+<p style="margin:0; font-size:12px; line-height:1.6; color:#8e8e93;">This link is valid for 24 hours. If you weren't expecting an invitation from Odatone, you can safely ignore this email.</p>
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td class="oda-pad" style="padding:20px 40px 32px 40px; border-top:1px solid rgba(0,0,0,0.09);">
+<p style="margin:0; font-size:12px; line-height:1.6; color:#8e8e93; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Odatone &middot; {{ .SiteURL }}</p>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+</body>
+</html>
