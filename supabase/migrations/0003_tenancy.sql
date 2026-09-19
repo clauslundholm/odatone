@@ -67,7 +67,25 @@ create policy customers_read on customers for select
    gets DELETE through this policy. eraseCustomer's own writes run on the
    service-role client, which bypasses RLS entirely, so it is unaffected
    and remains the only path that can ever remove a customer's personal
-   data. */
+   data.
+
+   Fix round 7: this rename dropped neither the old policy's name nor
+   its effect. RLS policies for the same command are OR'ed together, so
+   on a database that already had the previous, single `for all` policy,
+   re-running this file used to leave all three in place at once --
+   `customers_staff_insert`, `customers_staff_update`, and the original
+   `customers_staff_write` still permissive on DELETE, since neither new
+   policy's name collided with it and there was nothing to make Postgres
+   remove it. Worse on a real deploy: Supabase tracks which migrations
+   have already run by filename/version, so `0003` would never even be
+   re-applied to a database that already had it -- the file only reaching
+   its fixed form here would never reach an already-migrated database at
+   all. Proved live: applied the pre-fix version of this file to a scratch
+   database, then this file on top, and `pg_policies` showed all three
+   policies until the explicit drop below was added; with it, only the
+   two new ones remain. */
+drop policy if exists customers_staff_write on customers;
+
 drop policy if exists customers_staff_insert on customers;
 create policy customers_staff_insert on customers for insert
   with check (is_staff());
