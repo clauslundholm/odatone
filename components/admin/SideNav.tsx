@@ -67,14 +67,17 @@ export function SideNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              /* The type styling is spelled out rather than reusing
+              /* 8px, not --radius-sm's 10px: measured off the reference
+                 design, and on a 34px-tall row the 10px token starts
+                 rounding the row towards a lozenge.
+                 The type styling is spelled out rather than reusing
                  `.u-label`, whose own `color: var(--c-ink-3)` outranks a
                  Tailwind text-* utility and flattened the active row to
                  the same grey as the rest. */
-              className={`flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[0.8125rem] font-medium leading-[1.3] tracking-[-0.004em] transition-colors ${
+              className={`flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[0.875rem] font-medium leading-[1.3] tracking-[-0.004em] transition-colors ${
                 active
-                  ? "bg-surface-2 text-ink"
-                  : "text-ink-2 hover:bg-surface-2/60 hover:text-ink"
+                  ? "bg-surface-3 text-ink"
+                  : "text-ink-2 hover:bg-surface-2 hover:text-ink"
               }`}
             >
               {item.icon}

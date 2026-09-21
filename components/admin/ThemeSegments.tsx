@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 
-import { SunGlyph, ContrastGlyph, MoonGlyph } from "@/components/admin/icons";
+import { SunGlyph, SystemThemeGlyph, MoonGlyph } from "@/components/admin/icons";
 
 /**
  * The three-way theme control in the sidebar's footer: light, system,
@@ -22,7 +22,7 @@ import { SunGlyph, ContrastGlyph, MoonGlyph } from "@/components/admin/icons";
  */
 const OPTIONS = [
   { value: "light", Glyph: SunGlyph },
-  { value: "system", Glyph: ContrastGlyph },
+  { value: "system", Glyph: SystemThemeGlyph },
   { value: "dark", Glyph: MoonGlyph },
 ] as const;
 
@@ -41,11 +41,14 @@ export function ThemeSegments({ labels }: { labels: ThemeSegmentLabels }) {
 
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-1">
-      <span className="text-[0.6875rem] text-ink-3">{labels.group}</span>
+      <span className="text-[0.75rem] text-ink-2">{labels.group}</span>
+      {/* A rounded rectangle, not a pill: at 32px tall a fully-rounded track
+          turns the outer two segments into lozenges and the control starts
+          reading as three separate buttons rather than one switch. */}
       <div
         role="radiogroup"
         aria-label={labels.group}
-        className="flex items-center gap-0.5 rounded-full bg-surface-2 p-0.5"
+        className="flex items-center gap-0.5 rounded-[var(--radius-sm)] bg-surface-2 p-px"
       >
         {OPTIONS.map(({ value, Glyph }) => {
           const selected = mounted && theme === value;
@@ -58,11 +61,11 @@ export function ThemeSegments({ labels }: { labels: ThemeSegmentLabels }) {
               aria-label={labels[value]}
               title={labels[value]}
               onClick={() => setTheme(value)}
-              className={`grid h-6 w-7 place-items-center rounded-full transition-colors ${
+              className={`grid h-[26px] w-[30px] place-items-center rounded-[8px] transition-colors ${
                 selected ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink"
               }`}
             >
-              <Glyph className="h-[13px] w-[13px]" />
+              <Glyph className="h-[15px] w-[15px]" />
             </button>
           );
         })}

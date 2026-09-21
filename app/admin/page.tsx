@@ -1,5 +1,6 @@
 import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
+import { GridGlyph } from "@/components/admin/icons";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Kpi } from "@/components/admin/Kpi";
@@ -146,7 +147,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <AppShell nav={<AdminSideNav activeHref="/admin" />}>
-      <TopBar crumbs={["Admin", "Dashboard"]} />
+      <TopBar crumbs={["Admin", "Dashboard"]} icon={<GridGlyph />} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid grid-cols-4 gap-4 max-[1100px]:grid-cols-2 max-[520px]:grid-cols-1">
           <Kpi label="Customers" value={String(customerCount ?? 0)} />

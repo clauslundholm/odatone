@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
+import { UsersGlyph } from "@/components/admin/icons";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { GdprPanel } from "@/components/admin/GdprPanel";
@@ -222,6 +223,7 @@ export default async function CustomerDetailPage({
     <AppShell nav={<AdminSideNav activeHref="/admin/customers" />}>
       <TopBar
         crumbs={["Admin", "Customers", detail.name]}
+        icon={<UsersGlyph />}
         status={<Badge tone={statusTone(detail.status)}>{detail.status}</Badge>}
         meta={[detail.city, `joined ${formatDate(detail.created_at)}`].filter(Boolean).join(" · ")}
       />

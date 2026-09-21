@@ -29,15 +29,15 @@ export function WorkspaceCard({
     <div className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-2">
       <span
         aria-hidden="true"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-xs)] text-[0.75rem] font-semibold tracking-[0.02em] text-white"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-[0.6875rem] font-semibold tracking-[0.02em] text-white"
         style={{ backgroundImage: "var(--g-brand)" }}
       >
         {monogram}
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[0.8125rem] font-medium leading-tight text-ink">{name}</span>
+        <span className="truncate text-[0.875rem] font-semibold leading-tight text-ink">{name}</span>
         {subtitle && (
-          <span className="truncate text-[0.6875rem] leading-tight text-ink-3">{subtitle}</span>
+          <span className="truncate text-[0.75rem] leading-tight text-ink-3">{subtitle}</span>
         )}
       </span>
     </div>
