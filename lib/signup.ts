@@ -359,3 +359,14 @@ export function inviteCreatedNewUser(createdAt: string, requestStartedAtMs: numb
   if (!Number.isFinite(created)) return false;
   return created >= requestStartedAtMs;
 }
+
+/** Whether an invite failed because the address already has a fully
+    registered auth user. GoTrue reports this as `email_exists`; older
+    versions only as HTTP 422, so both are accepted. Shared by the public
+    signup (app/actions.ts) and the staff invite (app/admin/users/actions.ts)
+    — two copies of this predicate would drift the next time GoTrue changes
+    how it spells the error. */
+export function isAlreadyRegisteredError(error: unknown): boolean {
+  const e = error as { code?: string; status?: number } | null | undefined;
+  return e?.code === "email_exists" || e?.status === 422;
+}
