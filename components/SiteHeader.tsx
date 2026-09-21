@@ -66,12 +66,19 @@ export default function SiteHeader({ locale }: { locale: Locale }) {
               <LocaleSwitch locale={locale} pageKey={pageKey} />
             </div>
             <ThemeToggle locale={locale} />
-            <a
-              href="https://odatone.1000trax.com/app"
+            {/* The customer portal, not the player app this used to point
+                at. /my-odatone rather than its /login: proxy.ts sends a
+                visitor with no session to the login carrying ?next=, so a
+                customer who is already signed in lands on their own page
+                instead of a form they don't need. No locale segment —
+                the portal takes its language from a cookie
+                (lib/portal-locale.ts), defaulting to Danish. */}
+            <Link
+              href="/my-odatone"
               className="hidden text-[0.8125rem] text-ink opacity-70 transition-opacity hover:opacity-100 md:block"
             >
               {ui.logIn[locale]}
-            </a>
+            </Link>
             <div className="hidden sm:block">
               <LinkButton href={href(locale, "signup")} variant="primary" size="sm">
                 {ui.tryFree[locale]}
@@ -122,12 +129,12 @@ export default function SiteHeader({ locale }: { locale: Locale }) {
             </Link>
             <div className="flex items-center gap-3 pt-5">
               <LocaleSwitch locale={locale} pageKey={pageKey} />
-              <a
-                href="https://odatone.1000trax.com/app"
+              <Link
+                href="/my-odatone"
                 className="rounded-full bg-surface-2 px-4 py-2 text-[0.8125rem] text-ink"
               >
                 {ui.logIn[locale]}
-              </a>
+              </Link>
             </div>
             <LinkButton href={href(locale, "signup")} variant="primary" size="lg" className="mt-4">
               {ui.startTrial[locale]}
