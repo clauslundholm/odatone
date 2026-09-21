@@ -19,7 +19,7 @@ export function AdminSignOut() {
       <button
         formAction={signOut}
         role="menuitem"
-        className="w-full rounded-[var(--radius-xs)] px-2.5 py-1.5 text-left text-[0.8125rem] font-medium leading-[1.3] text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+        className="w-full rounded-[7px] px-2.5 py-2 text-left text-[0.875rem] font-medium leading-[1.3] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
       >
         Sign out
       </button>

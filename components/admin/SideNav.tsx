@@ -50,14 +50,15 @@ export function SideNav({
   navLabel?: string;
 }) {
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="px-2 pt-1">
-        <Wordmark height={18} tone="on-dark" />
+    <div className="flex h-full flex-col gap-1">
+      {/* .brand: padding 2px 8px 16px */}
+      <div className="px-2 pb-4 pt-0.5">
+        <Wordmark height={20} tone="on-dark" />
       </div>
 
       {header}
 
-      <nav aria-label={navLabel} className="flex flex-1 flex-col gap-0.5">
+      <nav aria-label={navLabel} className="mt-2.5 flex flex-1 flex-col gap-0.5">
         {items.map((item) => {
           const active =
             activeHref === item.href ||
@@ -74,7 +75,7 @@ export function SideNav({
                  `.u-label`, whose own `color: var(--c-ink-3)` outranks a
                  Tailwind text-* utility and flattened the active row to
                  the same grey as the rest. */
-              className={`flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[0.875rem] font-medium leading-[1.3] tracking-[-0.004em] transition-colors ${
+              className={`flex items-center gap-[11px] rounded-[8px] px-2.5 py-2 text-[0.875rem] font-medium leading-[1.3] tracking-[-0.004em] transition-colors ${
                 active
                   ? "bg-surface-3 text-ink"
                   : "text-ink-2 hover:bg-surface-2 hover:text-ink"
@@ -85,7 +86,8 @@ export function SideNav({
               {item.badge !== undefined && item.badge > 0 && (
                 <span
                   aria-label={item.badgeLabel}
-                  className="shrink-0 rounded-full bg-surface-3 px-1.5 py-0.5 text-[0.6875rem] font-medium leading-none text-ink"
+                  className="ml-auto min-w-[20px] shrink-0 rounded-full px-1.5 py-px text-center text-[0.71875rem] font-semibold tabular-nums"
+                  style={{ background: "var(--count-bg)", color: "var(--count-ink)" }}
                 >
                   {item.badge}
                 </span>
@@ -95,8 +97,8 @@ export function SideNav({
         })}
       </nav>
 
-      {theme}
-      {footer && <div className="border-t border-line pt-2">{footer}</div>}
+      {theme && <div className="border-b border-line pb-3">{theme}</div>}
+      {footer}
     </div>
   );
 }

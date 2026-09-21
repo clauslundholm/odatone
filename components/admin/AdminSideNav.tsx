@@ -50,16 +50,16 @@ export async function AdminSideNav({ activeHref }: { activeHref: string }) {
   const roleLabel = isStaffRole(role) ? STAFF_ROLE_LABEL[role] : (role as string | undefined);
 
   const nav: NavItem[] = [
-    { href: "/admin", label: "Dashboard", icon: <GridGlyph /> },
+    { href: "/admin", label: "Dashboard", icon: <GridGlyph className="h-[17px] w-[17px]" /> },
     {
       href: "/admin/customers",
       label: "Customers",
-      icon: <UsersGlyph />,
+      icon: <UsersGlyph className="h-[17px] w-[17px]" />,
       badge: pendingCount ?? undefined,
       badgeLabel: `${pendingCount} pending signups`,
     },
-    { href: "/admin/products", label: "Products", icon: <BoxGlyph /> },
-    { href: "/admin/users", label: "Users", icon: <ShieldGlyph /> },
+    { href: "/admin/products", label: "Products", icon: <BoxGlyph className="h-[17px] w-[17px]" /> },
+    { href: "/admin/users", label: "Users", icon: <ShieldGlyph className="h-[17px] w-[17px]" /> },
   ];
 
   return (

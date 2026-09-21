@@ -40,15 +40,15 @@ export function ThemeSegments({ labels }: { labels: ThemeSegmentLabels }) {
   useEffect(() => setMounted(true), []);
 
   return (
-    <div className="flex items-center justify-between gap-2 px-2 py-1">
-      <span className="text-[0.75rem] text-ink-2">{labels.group}</span>
+    <div className="flex items-center justify-between gap-2 px-2 pt-1.5">
+      <span className="text-[0.78125rem] text-ink-2">{labels.group}</span>
       {/* A rounded rectangle, not a pill: at 32px tall a fully-rounded track
           turns the outer two segments into lozenges and the control starts
           reading as three separate buttons rather than one switch. */}
       <div
         role="radiogroup"
         aria-label={labels.group}
-        className="flex items-center gap-0.5 rounded-[var(--radius-sm)] bg-surface-2 p-px"
+        className="flex items-center gap-0.5 rounded-[8px] border border-line bg-surface-2 p-0.5"
       >
         {OPTIONS.map(({ value, Glyph }) => {
           const selected = mounted && theme === value;
@@ -61,7 +61,7 @@ export function ThemeSegments({ labels }: { labels: ThemeSegmentLabels }) {
               aria-label={labels[value]}
               title={labels[value]}
               onClick={() => setTheme(value)}
-              className={`grid h-[26px] w-[30px] place-items-center rounded-[8px] transition-colors ${
+              className={`grid h-[26px] w-[30px] place-items-center rounded-[6px] transition-colors ${
                 selected ? "bg-surface-3 text-ink" : "text-ink-3 hover:text-ink"
               }`}
             >

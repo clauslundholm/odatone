@@ -45,7 +45,7 @@ export function TopBar({
       with the crumb rather than with the page actions on the far right. */
   status?: ReactNode;
   /** Muted context pushed to the right: who, where, when. Hidden below
-      900px, where the crumb trail alone already fills the bar and this
+      760px, where the crumb trail alone already fills the bar and this
       would wrap into a second line of small grey text. */
   meta?: ReactNode;
   actions?: ReactNode;
@@ -55,10 +55,10 @@ export function TopBar({
   breadcrumbLabel?: string;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-5 py-5">
+    <div className="flex min-h-[62px] shrink-0 flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-line bg-surface px-[22px] py-3 max-[760px]:px-4">
       <nav
         aria-label={breadcrumbLabel}
-        className="flex min-w-0 items-center gap-2 overflow-hidden"
+        className="flex min-w-0 flex-wrap items-center gap-2"
       >
         {icon && <span className="shrink-0 text-ink-3">{icon}</span>}
         {crumbs.map((crumb, i) => {
@@ -70,7 +70,7 @@ export function TopBar({
                 className={
                   last
                     ? "truncate text-[1rem] font-semibold tracking-[-0.01em] text-ink"
-                    : "truncate text-[0.875rem] text-ink-2"
+                    : "truncate text-[0.9375rem] text-ink-2"
                 }
               >
                 {crumb}
@@ -86,7 +86,7 @@ export function TopBar({
           stays pinned right on a bar that has neither. */}
       <div className="min-w-0 flex-1 text-right">
         {meta && (
-          <span className="truncate text-[0.8125rem] text-ink-3 max-[900px]:hidden">{meta}</span>
+          <span className="truncate text-[0.8125rem] text-ink-2 max-[760px]:hidden">{meta}</span>
         )}
       </div>
 
