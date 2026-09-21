@@ -26,18 +26,18 @@ export function WorkspaceCard({
   const monogram = initials(name);
 
   return (
-    <div className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-2">
+    <div className="flex items-center gap-2.5 rounded-[8px] px-2 py-[7px]">
       <span
         aria-hidden="true"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-[0.6875rem] font-semibold tracking-[0.02em] text-white"
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-[6px] text-[0.625rem] font-bold tracking-[0.02em] text-white"
         style={{ backgroundImage: "var(--g-brand)" }}
       >
         {monogram}
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[0.875rem] font-semibold leading-tight text-ink">{name}</span>
+        <span className="truncate text-[0.875rem] font-medium leading-[1.3] text-ink">{name}</span>
         {subtitle && (
-          <span className="truncate text-[0.75rem] leading-tight text-ink-3">{subtitle}</span>
+          <span className="truncate text-[0.75rem] leading-[1.3] text-ink-2">{subtitle}</span>
         )}
       </span>
     </div>

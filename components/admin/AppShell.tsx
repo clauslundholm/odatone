@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import Wordmark from "@/components/ui/Wordmark";
+
 function MenuGlyph() {
   return (
     <svg width="18" height="14" viewBox="0 0 18 14" fill="none" aria-hidden="true">
@@ -16,7 +18,7 @@ const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1
 /**
  * The shell every admin and portal screen renders inside: a fixed 248px dark
  * frame next to a rounded panel, inset 8px on three sides and flush against
- * the frame on the fourth. Below 900px the frame collapses into a slim dark
+ * the frame on the fourth. Below 760px the frame collapses into a slim dark
  * top strip with a hamburger that opens the same nav as a drawer, rather
  * than trying to squeeze a 248px column onto a phone.
  *
@@ -101,7 +103,7 @@ export function AppShell({
       }
     };
 
-    const mq = window.matchMedia("(min-width: 900px)");
+    const mq = window.matchMedia("(min-width: 760px)");
     const onResize = () => mq.matches && setDrawerOpen(false);
 
     document.addEventListener("keydown", onKey);
@@ -113,12 +115,12 @@ export function AppShell({
   }, [drawerOpen]);
 
   return (
-    <div className="grid h-dvh grid-cols-[248px_minmax(0,1fr)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[auto_1fr]">
-      <nav className="on-dark app-frame flex min-h-0 flex-col overflow-auto p-3 pt-4 max-[900px]:hidden">
+    <div className="app-frame-bg grid h-dvh grid-cols-[248px_minmax(0,1fr)] max-[760px]:grid-cols-1 max-[760px]:grid-rows-[auto_1fr]">
+      <nav className="on-dark app-frame flex min-h-0 flex-col overflow-auto px-3 pb-3 pt-[18px] max-[760px]:hidden">
         {nav}
       </nav>
 
-      <header className="on-dark app-frame hidden items-center gap-3 px-3 py-3 max-[900px]:flex">
+      <header className="on-dark app-frame hidden h-14 items-center gap-2 px-3 max-[760px]:flex">
         <button
           ref={triggerRef}
           type="button"
@@ -130,14 +132,15 @@ export function AppShell({
         >
           <MenuGlyph />
         </button>
+        <Wordmark height={18} tone="on-dark" />
       </header>
 
-      <main className="m-2 ml-0 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--radius-md)] bg-bg max-[900px]:m-2 max-[900px]:mt-0">
+      <main className="m-2 ml-0 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--radius-md)] bg-bg max-[760px]:mx-1.5 max-[760px]:mb-1.5 max-[760px]:mt-0 max-[760px]:rounded-[12px]">
         {children}
       </main>
 
       {drawerOpen && (
-        <div className="fixed inset-0 z-50 min-[900px]:hidden">
+        <div className="fixed inset-0 z-50 min-[760px]:hidden">
           {/* Backdrop: pointer/touch dismissal only. It's deliberately not
               part of the tab order (tabIndex -1) — a keyboard user closes
               with Escape, not by tabbing onto an invisible full-screen
@@ -147,7 +150,7 @@ export function AppShell({
             tabIndex={-1}
             aria-hidden="true"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/45"
           />
           <div
             ref={dialogRef}
@@ -155,7 +158,8 @@ export function AppShell({
             aria-modal="true"
             aria-label={menuDialogLabel}
             tabIndex={-1}
-            className="on-dark app-frame relative flex h-full w-[248px] flex-col overflow-auto p-3 pt-4 shadow-[var(--shadow-card)] outline-none"
+            data-focus-container
+            className="on-dark app-frame relative flex h-full w-[min(84vw,300px)] flex-col overflow-auto px-3 pb-3 pt-[18px] shadow-[var(--shadow-card)]"
           >
             {nav}
           </div>

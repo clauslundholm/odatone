@@ -181,7 +181,7 @@ export default async function PortalSummaryPage() {
 
   const t = portal.summary;
   const nav: NavItem[] = [
-    { href: "/my-odatone", label: t.crumb[locale], icon: <HouseGlyph /> },
+    { href: "/my-odatone", label: t.crumb[locale], icon: <HouseGlyph className="h-[17px] w-[17px]" /> },
   ];
 
   /* Only the two customer roles can reach this route (proxy.ts's mayEnter),
@@ -233,7 +233,7 @@ export default async function PortalSummaryPage() {
                 <button
                   formAction={signOut}
                   role="menuitem"
-                  className="w-full rounded-[var(--radius-xs)] px-2.5 py-1.5 text-left text-[0.8125rem] font-medium leading-[1.3] text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+                  className="w-full rounded-[7px] px-2.5 py-2 text-left text-[0.875rem] font-medium leading-[1.3] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
                 >
                   {t.signOut[locale]}
                 </button>

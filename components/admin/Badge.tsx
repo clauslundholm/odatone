@@ -40,7 +40,10 @@ export function Badge({
 }) {
   return (
     <span
-      className={`u-label inline-flex items-center rounded-full px-2.5 py-1 leading-none ${TONE_CLASS[tone]}`}
+      /* A 6px rounded rectangle, not a full pill. At this size a pill
+         reads as a button you can press; the rectangle reads as a label,
+         which is what a status is. */
+      className={`inline-flex items-center gap-1.5 rounded-[6px] px-2 py-0.5 text-[0.8125rem] font-medium leading-[20px] ${TONE_CLASS[tone]}`}
       style={tone === "warn" ? { backgroundColor: "color-mix(in srgb, var(--c-warn) 12%, transparent)" } : undefined}
     >
       {children}

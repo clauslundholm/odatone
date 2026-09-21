@@ -77,16 +77,17 @@ export function UserCard({
   const monogram = initials(name);
 
   return (
-    <div ref={rootRef} className="relative flex items-center gap-2.5 px-2 py-1.5">
+    <div ref={rootRef} className="relative flex items-center gap-2.5 p-2">
       <span
         aria-hidden="true"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-3 text-[0.6875rem] font-semibold text-ink"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[0.6875rem] font-semibold"
+        style={{ background: "#2e2e36", color: "#ececf0" }}
       >
         {monogram}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[0.875rem] font-semibold leading-tight text-ink">{name}</span>
-        {email && <span className="truncate text-[0.75rem] leading-tight text-ink-3">{email}</span>}
+        <span className="truncate text-[0.875rem] font-medium leading-[1.3] text-ink">{name}</span>
+        {email && <span className="truncate text-[0.75rem] leading-[1.3] text-ink-2">{email}</span>}
       </span>
 
       <button
@@ -116,7 +117,13 @@ export function UserCard({
              an outside pointerdown, and every item in it navigates, which
              unmounts the whole card anyway. An item that does NOT navigate
              must close the menu itself, after its own work. */
-          className="absolute bottom-[calc(100%+6px)] right-2 z-20 flex w-[176px] flex-col gap-1 rounded-[var(--radius-sm)] border border-line bg-surface-2 p-1.5 shadow-[var(--shadow-card)]"
+          /* The reference makes this a light sheet floating off the dark
+             frame. Doing that here would mean either portalling the menu
+             out of `.app-frame` or restating the whole light palette on a
+             reset class — both more machinery than a two-item menu earns.
+             It keeps the frame's own raised tone and the reference's
+             geometry: 10px radius, 236px minimum, 6px padding. */
+          className="absolute bottom-[calc(100%+4px)] left-0 right-0 z-30 flex min-w-[236px] flex-col gap-0.5 rounded-[10px] border border-line bg-surface-3 p-1.5 shadow-[var(--shadow-card)]"
         >
           {children}
         </div>

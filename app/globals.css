@@ -153,13 +153,44 @@
    Scoped to a class rather than edited into `.on-dark` itself, because
    that island is also the marketing player dock, which nobody asked to
    restyle. */
+/* The frame colour, named once. `.app-frame` wears it as a background and
+   re-points the dark tokens at it; `.app-frame-bg` only paints, which is
+   what the shell's root needs — the 8px gutter around the panel is frame,
+   not page, and a root carrying the full `.app-frame` override would
+   cascade the dark palette straight into the light panel. */
+:root {
+  --c-frame: #111114;
+}
+
+[data-theme="dark"] {
+  /* Below the panel's own canvas (--c-bg, #0b0b0c) so the frame still
+     reads as the layer behind it rather than a lighter border around it. */
+  --c-frame: #09090b;
+}
+
+.app-frame-bg {
+  background-color: var(--c-frame);
+}
+
 .app-frame {
-  --c-bg: #111114;
+  --c-bg: var(--c-frame);
   --c-surface: #17171c;
   /* Recessed: the theme control's track. */
   --c-surface-2: #1a1a20;
-  /* Raised: the active nav row, the selected theme segment, the menu. */
+  /* Raised: the active nav row and the selected theme segment. */
   --c-surface-3: #212128;
+  /* A real line rather than `.on-dark`'s rgba(255,255,255,.1): the frame's
+     dividers and the theme control's border need to be visible against
+     #111114 without lifting the surfaces they sit between. */
+  --c-line: #2b2b32;
+  --c-ink-2: #9d9da7;
+  --c-ink: #f3f3f5;
+  /* The nav row's count. Amber rather than the neutral grey it started as:
+     the number means unattended work, and a grey pill reads as decoration.
+     Frame-scoped because --c-warn is tuned for text on the light panel and
+     measures far too dark here. */
+  --count-bg: rgba(232, 183, 90, 0.16);
+  --count-ink: #efc46e;
   background-color: var(--c-bg);
 }
 
@@ -204,6 +235,17 @@ body {
   outline: 2px solid var(--c-accent);
   outline-offset: 3px;
   border-radius: 4px;
+}
+
+/* A container that is focused only to move the reader into it — a dialog,
+   the mobile nav drawer — is not a control, and the ring above runs its
+   full height as a 2px accent line down the edge of the panel, which reads
+   as a rendering fault rather than as feedback. Tailwind's `outline-none`
+   cannot win this on its own: both it and the bare `:focus-visible` above
+   are one class of specificity, and this stylesheet is ordered after the
+   utilities. */
+[data-focus-container]:focus-visible {
+  outline: none;
 }
 
 /* ---------------------------------------------------------------- *
