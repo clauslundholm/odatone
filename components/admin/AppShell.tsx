@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 import Wordmark from "@/components/ui/Wordmark";
 
@@ -12,8 +14,6 @@ function MenuGlyph() {
     </svg>
   );
 }
-
-const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * The shell every admin and portal screen renders inside: a fixed 248px dark
@@ -56,62 +56,22 @@ export function AppShell({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Move focus into the drawer when it opens, and back to the button that
-  // opened it when it closes — a dialog that merely traps Tab but never
-  // relocates focus on open still leaves a keyboard user reading whatever
-  // was already focused underneath it.
-  useEffect(() => {
-    if (drawerOpen) {
-      dialogRef.current?.focus();
-    } else {
-      triggerRef.current?.focus();
-    }
-  }, [drawerOpen]);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // Escape closes; Tab is trapped inside the dialog while it's open; and the
-  // drawer doesn't stay mounted-but-invisible once the viewport grows past
-  // the breakpoint that made it necessary.
+  // Escape, Tab cycling, focus in on open and back to the hamburger on
+  // close all come from the shared trap (lib/use-focus-trap.ts), which the
+  // products dialog uses too.
+  useFocusTrap(drawerOpen, closeDrawer, dialogRef, triggerRef);
+
+  // The drawer must not stay mounted-but-invisible once the viewport grows
+  // past the breakpoint that made it necessary — that is this component's
+  // own concern, not the trap's.
   useEffect(() => {
     if (!drawerOpen) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setDrawerOpen(false);
-        return;
-      }
-      if (e.key !== "Tab" || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-      if (focusable.length === 0) {
-        e.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      // The dialog root itself is the initial focus target (see the effect
-      // above), so shift+Tab from *it* — before any forward Tab has moved
-      // focus onto a link — must also wrap to the last item, or it falls
-      // through to the (skipped, tabIndex -1) backdrop and from there back
-      // into the page underneath, reopening the exact defect this trap
-      // exists to close.
-      if (e.shiftKey && (active === first || active === dialogRef.current)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && active === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
     const mq = window.matchMedia("(min-width: 760px)");
     const onResize = () => mq.matches && setDrawerOpen(false);
-
-    document.addEventListener("keydown", onKey);
     mq.addEventListener("change", onResize);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      mq.removeEventListener("change", onResize);
-    };
+    return () => mq.removeEventListener("change", onResize);
   }, [drawerOpen]);
 
   return (
