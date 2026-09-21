@@ -63,6 +63,18 @@ export function BoxGlyph(props: GlyphProps) {
   );
 }
 
+/** A shield — the staff-access row. Distinct from UsersGlyph on purpose:
+    Customers and Users are both lists of people, and reusing the glyph
+    would make the two nav rows differ only by their label. */
+export function ShieldGlyph(props: GlyphProps) {
+  return (
+    <Svg {...props}>
+      <path d="M8 1.8 13.4 4v4c0 3.1-2.2 5.3-5.4 6.2C4.8 13.3 2.6 11.1 2.6 8V4L8 1.8Z" />
+      <path d="m5.9 7.9 1.5 1.6 2.7-3" />
+    </Svg>
+  );
+}
+
 /** Three faders — the settings row. */
 export function SlidersGlyph(props: GlyphProps) {
   return (

@@ -8,6 +8,7 @@ import {
   type ExistingCustomer,
   type ExistingProfile,
   type SignupInput,
+  isAlreadyRegisteredError,
 } from "@/lib/signup";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -47,11 +48,6 @@ type AdminClient = ReturnType<typeof createAdminClient>;
     Distinct from the unconfirmed-existing-user case below — that one
     doesn't error at all, it silently re-invites, which is the shape the
     Critical in fix round 1 exploited. */
-function isAlreadyRegisteredError(error: unknown): boolean {
-  const e = error as { code?: string; status?: number } | null | undefined;
-  return e?.code === "email_exists" || e?.status === 422;
-}
-
 /** Deletes a customer this request is compensating away (a failed write
     past it, or a customer that can never get an owner because its email
     belongs to someone else). Fix round 2's Minor: the delete's own result

@@ -106,7 +106,16 @@ export function UserCard({
           ref={menuRef}
           role="menu"
           aria-label={menuLabel}
-          onClick={() => setOpen(false)}
+          /* Deliberately no `onClick={() => setOpen(false)}` here. A click
+             on an item inside bubbles to this element, React re-renders
+             synchronously during the click, and the item is unmounted
+             before the browser performs the click's default action — so a
+             `<form>` item never submits. That is precisely what broke sign
+             out: the button appeared to work, the menu closed, and the
+             session stayed open. The menu already closes on Escape and on
+             an outside pointerdown, and every item in it navigates, which
+             unmounts the whole card anyway. An item that does NOT navigate
+             must close the menu itself, after its own work. */
           className="absolute bottom-[calc(100%+6px)] right-2 z-20 flex w-[176px] flex-col gap-1 rounded-[var(--radius-sm)] border border-line bg-surface-2 p-1.5 shadow-[var(--shadow-card)]"
         >
           {children}

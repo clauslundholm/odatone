@@ -3,7 +3,8 @@ import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { ThemeSegments } from "@/components/admin/ThemeSegments";
 import { UserCard } from "@/components/admin/UserCard";
 import { WorkspaceCard } from "@/components/admin/WorkspaceCard";
-import { BoxGlyph, GridGlyph, UsersGlyph } from "@/components/admin/icons";
+import { BoxGlyph, GridGlyph, ShieldGlyph, UsersGlyph } from "@/components/admin/icons";
+import { STAFF_ROLE_LABEL, isStaffRole } from "@/lib/staff-invite";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -18,15 +19,6 @@ import { createClient } from "@/lib/supabase/server";
  *
  * English only, like the rest of /admin.
  */
-
-/** The two staff halves of the `user_role` enum (0001_core.sql). A profile
-    reaching /admin at all has already been filtered to one of these by
-    proxy.ts's `mayEnter`, so anything else is a bug rather than a
-    customer — shown as the literal role rather than guessed at. */
-const ROLE_LABEL: Record<string, string> = {
-  staff_admin: "Admin",
-  staff_support: "Support",
-};
 
 export async function AdminSideNav({ activeHref }: { activeHref: string }) {
   const supabase = await createClient();
@@ -51,8 +43,11 @@ export async function AdminSideNav({ activeHref }: { activeHref: string }) {
     .eq("status", "pending");
   if (pendingError) console.error("[admin sidebar] failed to count pending customers", pendingError);
 
-  const role = typeof profile?.role === "string" ? profile.role : undefined;
-  const roleLabel = role ? (ROLE_LABEL[role] ?? role) : undefined;
+  /* A profile reaching /admin at all has already been filtered to a staff
+     role by proxy.ts's `mayEnter`, so anything else is a bug rather than a
+     customer — shown as the literal value rather than guessed at. */
+  const role = profile?.role;
+  const roleLabel = isStaffRole(role) ? STAFF_ROLE_LABEL[role] : (role as string | undefined);
 
   const nav: NavItem[] = [
     { href: "/admin", label: "Dashboard", icon: <GridGlyph /> },
@@ -64,6 +59,7 @@ export async function AdminSideNav({ activeHref }: { activeHref: string }) {
       badgeLabel: `${pendingCount} pending signups`,
     },
     { href: "/admin/products", label: "Products", icon: <BoxGlyph /> },
+    { href: "/admin/users", label: "Users", icon: <ShieldGlyph /> },
   ];
 
   return (
