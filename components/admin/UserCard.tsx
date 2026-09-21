@@ -80,13 +80,13 @@ export function UserCard({
     <div ref={rootRef} className="relative flex items-center gap-2.5 px-2 py-1.5">
       <span
         aria-hidden="true"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-3 text-[0.75rem] font-semibold text-ink"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-3 text-[0.6875rem] font-semibold text-ink"
       >
         {monogram}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[0.8125rem] font-medium leading-tight text-ink">{name}</span>
-        {email && <span className="truncate text-[0.6875rem] leading-tight text-ink-3">{email}</span>}
+        <span className="truncate text-[0.875rem] font-semibold leading-tight text-ink">{name}</span>
+        {email && <span className="truncate text-[0.75rem] leading-tight text-ink-3">{email}</span>}
       </span>
 
       <button
@@ -96,7 +96,7 @@ export function UserCard({
         aria-label={menuLabel}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-xs)] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-xs)] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
       >
         <EllipsisGlyph />
       </button>

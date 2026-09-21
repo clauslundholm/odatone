@@ -1,5 +1,6 @@
 import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
+import { BoxGlyph } from "@/components/admin/icons";
 import { TopBar } from "@/components/admin/TopBar";
 import { PlanCard, AddonCard } from "@/components/admin/ProductsForm";
 import type { PlanRow } from "@/lib/plans-row";
@@ -57,7 +58,7 @@ export default async function AdminProductsPage() {
 
   return (
     <AppShell nav={<AdminSideNav activeHref="/admin/products" />}>
-      <TopBar crumbs={["Admin", "Products"]} />
+      <TopBar crumbs={["Admin", "Products"]} icon={<BoxGlyph />} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <p className="rounded-[var(--radius-md)] bg-surface-2 px-4 py-3 text-[0.875rem] text-ink-2">
           These prices are live on odatone.com.

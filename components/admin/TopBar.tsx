@@ -1,13 +1,24 @@
 import type { ReactNode } from "react";
 
+import { ChevronRightGlyph } from "@/components/admin/icons";
+
 /**
- * The breadcrumb bar above the scrolling canvas, inside the panel.
+ * The breadcrumb bar across the top of the panel.
  *
- * Four slots, left to right: the crumb trail, a status pill belonging to
- * the thing the last crumb names, right-aligned context about it, and any
- * page actions. Everything but `crumbs` is optional — a list screen
- * usually has nothing to say about itself, while a detail screen wants all
- * four.
+ * It paints its own `bg-surface` because AppShell's panel is a canvas
+ * (`bg-bg`) that cards sit on — this bar is the one part of the panel that
+ * is a sheet rather than a surface for cards, and the line under it is
+ * where the canvas starts.
+ *
+ * Five slots, left to right: an optional section glyph, the crumb trail, a
+ * status pill belonging to the thing the last crumb names, right-aligned
+ * context about it, and any page actions. Everything but `crumbs` is
+ * optional — a list screen usually has nothing to say about itself, while
+ * a detail screen wants all of them.
+ *
+ * The last crumb is set larger and heavier than its parents: it is the
+ * title of the screen, and a trail rendered at one uniform size makes the
+ * reader work out which end they are at.
  *
  * The mobile hamburger and drawer are not here — they belong to AppShell,
  * which renders its own top strip above the panel and owns the drawer's
@@ -19,18 +30,22 @@ import type { ReactNode } from "react";
  */
 export function TopBar({
   crumbs,
+  icon,
   status,
   meta,
   actions,
   breadcrumbLabel = "Breadcrumb",
 }: {
   crumbs: string[];
+  /** A glyph for the section this screen belongs to, shown before the
+      trail — in practice the same one the matching SideNav row carries. */
+  icon?: ReactNode;
   /** A pill sitting immediately after the last crumb — in practice
       `Badge`. It qualifies the record you are looking at, so it travels
       with the crumb rather than with the page actions on the far right. */
   status?: ReactNode;
   /** Muted context pushed to the right: who, where, when. Hidden below
-      720px, where the crumb trail alone already fills the bar and this
+      900px, where the crumb trail alone already fills the bar and this
       would wrap into a second line of small grey text. */
   meta?: ReactNode;
   actions?: ReactNode;
@@ -40,23 +55,29 @@ export function TopBar({
   breadcrumbLabel?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+    <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-5 py-5">
       <nav
         aria-label={breadcrumbLabel}
-        className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[0.875rem]"
+        className="flex min-w-0 items-center gap-2 overflow-hidden"
       >
-        {crumbs.map((crumb, i) => (
-          <span key={crumb + i} className="flex min-w-0 items-center gap-1.5">
-            {i > 0 && <span className="shrink-0 text-ink-3">/</span>}
-            <span
-              className={
-                i === crumbs.length - 1 ? "truncate font-medium text-ink" : "truncate text-ink-2"
-              }
-            >
-              {crumb}
+        {icon && <span className="shrink-0 text-ink-3">{icon}</span>}
+        {crumbs.map((crumb, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <span key={crumb + i} className="flex min-w-0 items-center gap-2">
+              {i > 0 && <ChevronRightGlyph className="h-3.5 w-3.5 shrink-0 text-ink-3" />}
+              <span
+                className={
+                  last
+                    ? "truncate text-[1rem] font-semibold tracking-[-0.01em] text-ink"
+                    : "truncate text-[0.875rem] text-ink-2"
+                }
+              >
+                {crumb}
+              </span>
             </span>
-          </span>
-        ))}
+          );
+        })}
       </nav>
 
       {status && <div className="shrink-0">{status}</div>}
@@ -65,7 +86,7 @@ export function TopBar({
           stays pinned right on a bar that has neither. */}
       <div className="min-w-0 flex-1 text-right">
         {meta && (
-          <span className="truncate text-[0.8125rem] text-ink-3 max-[720px]:hidden">{meta}</span>
+          <span className="truncate text-[0.8125rem] text-ink-3 max-[900px]:hidden">{meta}</span>
         )}
       </div>
 

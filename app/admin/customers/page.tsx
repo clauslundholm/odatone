@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
+import { UsersGlyph } from "@/components/admin/icons";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { TableCard } from "@/components/admin/TableCard";
@@ -154,7 +155,7 @@ export default async function CustomersPage({
 
   return (
     <AppShell nav={<AdminSideNav activeHref="/admin/customers" />}>
-      <TopBar crumbs={["Admin", "Customers"]} />
+      <TopBar crumbs={["Admin", "Customers"]} icon={<UsersGlyph />} />
       <div className="flex flex-1 flex-col gap-4 overflow-auto p-5">
         <nav aria-label="Filter by status" className="flex flex-wrap items-center gap-2">
           <Link

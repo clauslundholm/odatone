@@ -15,9 +15,16 @@ const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1
 
 /**
  * The shell every admin and portal screen renders inside: a fixed 248px dark
- * frame next to a rounded light panel. Below 900px the frame collapses into
- * a slim dark top strip with a hamburger that opens the same nav as a
- * drawer, rather than trying to squeeze a 248px column onto a phone.
+ * frame next to a rounded panel, inset 8px on three sides and flush against
+ * the frame on the fourth. Below 900px the frame collapses into a slim dark
+ * top strip with a hamburger that opens the same nav as a drawer, rather
+ * than trying to squeeze a 248px column onto a phone.
+ *
+ * The panel is two surfaces, not one: TopBar paints itself `bg-surface`
+ * across the top, and everything below it is this `bg-bg` canvas. That is
+ * what makes a card a card — every card here is already
+ * `border-line bg-surface`, which on a white panel drew a hairline around
+ * white and read as nothing.
  *
  * The frame is `.on-dark` — the same island class the marketing site uses
  * for the player dock — so it reads as dark chrome in both the light and
@@ -107,11 +114,11 @@ export function AppShell({
 
   return (
     <div className="grid h-dvh grid-cols-[248px_minmax(0,1fr)] max-[900px]:grid-cols-1 max-[900px]:grid-rows-[auto_1fr]">
-      <nav className="on-dark flex min-h-0 flex-col overflow-auto p-3 pt-4 max-[900px]:hidden">
+      <nav className="on-dark app-frame flex min-h-0 flex-col overflow-auto p-3 pt-4 max-[900px]:hidden">
         {nav}
       </nav>
 
-      <header className="on-dark hidden items-center gap-3 px-3 py-3 max-[900px]:flex">
+      <header className="on-dark app-frame hidden items-center gap-3 px-3 py-3 max-[900px]:flex">
         <button
           ref={triggerRef}
           type="button"
@@ -125,7 +132,7 @@ export function AppShell({
         </button>
       </header>
 
-      <main className="m-2 ml-0 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--radius-md)] bg-surface max-[900px]:m-2 max-[900px]:mt-0">
+      <main className="m-2 ml-0 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--radius-md)] bg-bg max-[900px]:m-2 max-[900px]:mt-0">
         {children}
       </main>
 
@@ -148,7 +155,7 @@ export function AppShell({
             aria-modal="true"
             aria-label={menuDialogLabel}
             tabIndex={-1}
-            className="on-dark relative flex h-full w-[248px] flex-col overflow-auto p-3 pt-4 shadow-[var(--shadow-card)] outline-none"
+            className="on-dark app-frame relative flex h-full w-[248px] flex-col overflow-auto p-3 pt-4 shadow-[var(--shadow-card)] outline-none"
           >
             {nav}
           </div>

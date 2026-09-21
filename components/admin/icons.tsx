@@ -93,11 +93,14 @@ export function SunGlyph(props: GlyphProps) {
   );
 }
 
-export function ContrastGlyph(props: GlyphProps) {
+/** A pane with one half filled — the "follow the system" theme segment.
+    A half-filled disc reads as a contrast or brightness control; the split
+    pane is the convention for "whatever the OS is doing". */
+export function SystemThemeGlyph(props: GlyphProps) {
   return (
     <Svg {...props}>
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 2a6 6 0 0 1 0 12Z" fill="currentColor" stroke="none" />
+      <rect x="2.2" y="3" width="11.6" height="10" rx="2" />
+      <path d="M8 3v10H4.2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H8Z" fill="currentColor" stroke="none" />
     </Svg>
   );
 }
@@ -114,9 +117,20 @@ export function MoonGlyph(props: GlyphProps) {
 export function EllipsisGlyph(props: GlyphProps) {
   return (
     <Svg {...props}>
-      <circle cx="3.4" cy="8" r="1.1" fill="currentColor" stroke="none" />
-      <circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" />
-      <circle cx="12.6" cy="8" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="3.2" cy="8" r="1.45" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="8" r="1.45" fill="currentColor" stroke="none" />
+      <circle cx="12.8" cy="8" r="1.45" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+/** A right-pointing chevron — the breadcrumb separator. A slash sits on
+    the text baseline and reads as part of a path; the chevron reads as a
+    step between two places. */
+export function ChevronRightGlyph(props: GlyphProps) {
+  return (
+    <Svg {...props}>
+      <path d="m6.2 3.4 5 4.6-5 4.6" />
     </Svg>
   );
 }

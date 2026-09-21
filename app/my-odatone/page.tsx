@@ -243,7 +243,7 @@ export default async function PortalSummaryPage() {
         />
       }
     >
-      <TopBar crumbs={[t.crumb[locale]]} breadcrumbLabel={t.ariaBreadcrumb[locale]} />
+      <TopBar crumbs={[t.crumb[locale]]} icon={<HouseGlyph />} breadcrumbLabel={t.ariaBreadcrumb[locale]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         {profile.full_name && (
           <p className="shrink-0 text-[0.9375rem] text-ink-2">
