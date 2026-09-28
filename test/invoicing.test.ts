@@ -36,7 +36,13 @@ test("an annual term bills twelve months, not one", () => {
   });
   const q = quote(medium, "annual", 1);
   assert.equal(annual[0].unitOre, toOre(q.perLocation * 12));
-  assert.ok(annual[0].unitOre > monthly[0].unitOre * 11);
+  // The bug this guards is "forgot to multiply by twelve", which would make
+  // the annual unit equal to one annual-rate month. Do NOT assert a ratio
+  // against the monthly unit: ANNUAL_DISCOUNT_PCT is 45, so an annual line is
+  // ~6.6x a monthly one, not ~12x, and a ratio test silently encodes an
+  // assumption about how deep the discount is.
+  assert.notEqual(annual[0].unitOre, toOre(q.perLocation));
+  assert.ok(annual[0].unitOre > monthly[0].unitOre);
 });
 
 test("the description names the plan and the period", () => {
