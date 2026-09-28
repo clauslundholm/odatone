@@ -1161,13 +1161,16 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
 
   if (rpcError || !issued?.[0]) {
     console.error("[odatone] issue invoice: rpc failed", { customerId, error: rpcError });
-    /* The function raises a readable message for the cases staff actually
-       hit -- already invoiced for this period, no billable subscription -- so
-       surface which one rather than a generic failure. */
-    const message = String(rpcError?.message ?? "");
-    if (message.includes("already has an invoice")) return { ok: false, errors: { form: "duplicate-period" } };
-    if (message.includes("not billable")) return { ok: false, errors: { form: "no-subscription" } };
-    return { ok: false, errors: { form: "service" } };
+    /* Switch on SQLSTATE, never on the message text. issue_invoice tags each
+       refusal with its own code precisely so this does not have to
+       string-match English prose that a later edit would silently break. */
+    switch (rpcError?.code) {
+      case "P0104": return { ok: false, errors: { form: "duplicate-period" } };
+      case "P0102": return { ok: false, errors: { form: "no-subscription" } };
+      case "P0103": return { ok: false, errors: { form: "no-locations" } };
+      case "P0101": return { ok: false, errors: { form: "invalid" } };
+      default:      return { ok: false, errors: { form: "service" } };
+    }
   }
 
   const { invoice_id: invoiceId, invoice_number: number } = issued[0];
