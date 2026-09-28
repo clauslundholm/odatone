@@ -57,18 +57,19 @@ alter table invoices add constraint invoices_void_reason_ck
 create or replace function guard_invoice_immutable() returns trigger
 language plpgsql as $$
 begin
-  if new.number       is distinct from old.number
-  or new.customer_id  is distinct from old.customer_id
-  or new.issued_at    is distinct from old.issued_at
-  or new.due_at       is distinct from old.due_at
-  or new.period_start is distinct from old.period_start
-  or new.period_end   is distinct from old.period_end
-  or new.subtotal_ore is distinct from old.subtotal_ore
-  or new.vat_ore      is distinct from old.vat_ore
-  or new.total_ore    is distinct from old.total_ore
-  or new.source       is distinct from old.source
-  or new.issued_by    is distinct from old.issued_by
-  then
+  /* An allowlist over the whole row, not a list of frozen columns. A
+     denylist silently exempts every column added later -- the next slice
+     adds payment columns, and each one would arrive unguarded with no test
+     failing. Six keys may move; everything else on an issued invoice,
+     including columns that do not exist yet, may not. */
+  if exists (
+    select 1
+      from jsonb_each(to_jsonb(new)) n
+      join jsonb_each(to_jsonb(old)) o using (key)
+     where n.value is distinct from o.value
+       and n.key not in ('status', 'paid_at', 'payment_method',
+                         'payment_reference', 'void_reason', 'pdf_path')
+  ) then
     raise exception 'invoice % is issued and cannot be amended; void it and issue a new one', old.number
       using errcode = 'restrict_violation';
   end if;

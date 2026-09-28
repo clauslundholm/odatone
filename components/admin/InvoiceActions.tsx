@@ -24,6 +24,12 @@ const FORM_ERRORS: Record<string, string> = {
   "no-subscription": "This customer has no billable subscription.",
   "no-locations": "This customer has no locations to invoice.",
   "duplicate-period": "This customer already has an invoice for this period.",
+  /* The preview below prices from the `locationCount` this page rendered
+     with; the action re-reads the count at submit and refuses when the two
+     disagree. Reload rather than reprice: an issued invoice cannot be
+     amended, so the figure has to be seen before it is committed. */
+  "locations-changed":
+    "This customer's locations changed while this dialog was open. Reload the page so the preview matches what would be issued.",
   service: "Something went wrong issuing this invoice. Try again in a moment.",
 };
 
@@ -188,6 +194,10 @@ function IssueInvoiceForm({
   return (
     <form action={formAction} className="flex flex-col gap-5">
       <input type="hidden" name="customerId" value={customerId} />
+      {/* The count the preview below is priced from, submitted so issueInvoice
+          can compare it against the count it re-reads and refuse rather than
+          issue an immutable invoice for a figure nobody saw. */}
+      <input type="hidden" name="locationCount" value={locationCount} />
 
       {ISSUER_IS_PLACEHOLDER && (
         <p

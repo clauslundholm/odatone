@@ -38,6 +38,12 @@ type InvoiceRow = {
   due_at: string | null;
   total_ore: number;
   status: string;
+  /** Null for every invoice with no archived document: the "no-pdf" outcome
+      storeInvoicePdf (lib/invoice-pdf-store.ts) deliberately fails soft into,
+      and every row predating this slice (`source` of 'seed' or 'stripe').
+      Selected so this page can withhold the download link instead of sending
+      the customer to the PDF route's 409 JSON body. */
+  pdf_path: string | null;
 };
 
 /** Mirrors app/my-odatone/page.tsx's own local Panel — same bordered-card
@@ -152,7 +158,7 @@ export default async function PortalBillingPage() {
       (from, to) =>
         supabase
           .from("invoices")
-          .select("id, number, issued_at, period_start, period_end, due_at, total_ore, status", {
+          .select("id, number, issued_at, period_start, period_end, due_at, total_ore, status, pdf_path", {
             count: "exact",
           })
           .order("issued_at", { ascending: false })
@@ -268,14 +274,25 @@ export default async function PortalBillingPage() {
                       <td className="px-5 py-3">
                         <Badge tone={statusTone(status)}>{localizeStatus(INVOICE_STATUS_LABEL, status, locale)}</Badge>
                       </td>
+                      {/* The link only exists where the document does. An
+                          invoice whose PDF was never stored — the soft-failed
+                          "no-pdf" case, or any row predating this slice — has
+                          a null pdf_path, and offering a download for it sent
+                          the customer to the PDF route's raw
+                          `{"error":"pdf-not-ready"}` JSON, in English, off a
+                          bilingual page. A localised line says so instead. */}
                       <td className="px-5 py-3 text-right">
-                        <a
-                          href={`/api/invoices/${row.id}/pdf`}
-                          className="text-[0.8125rem] font-medium text-accent underline-offset-2 hover:underline focus-visible:rounded-[var(--radius-xs)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                          aria-label={`${t.downloadPdf[locale]} ${row.number}`}
-                        >
-                          {t.downloadPdf[locale]}
-                        </a>
+                        {row.pdf_path ? (
+                          <a
+                            href={`/api/invoices/${row.id}/pdf`}
+                            className="text-[0.8125rem] font-medium text-accent underline-offset-2 hover:underline focus-visible:rounded-[var(--radius-xs)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                            aria-label={`${t.downloadPdf[locale]} ${row.number}`}
+                          >
+                            {t.downloadPdf[locale]}
+                          </a>
+                        ) : (
+                          <span className="text-[0.8125rem] text-ink-2">{t.pdfNotReady[locale]}</span>
+                        )}
                       </td>
                     </tr>
                   );

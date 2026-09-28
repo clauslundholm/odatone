@@ -203,6 +203,19 @@ export const portal = {
        all — this is not the English-only text the bilingual rule exists
        to catch. */
     downloadPdf: { da: "Download PDF", en: "Download PDF" } as L10n,
+    /* Shown in the download link's place for an invoice with no stored
+       document. Two real cases, not a hypothetical one: the "no-pdf" outcome
+       the admin dialog explicitly warns staff about (storeInvoicePdf,
+       lib/invoice-pdf-store.ts, fails soft so a storage hiccup can never
+       unwind a numbered invoice), and every invoice predating this slice —
+       `source` of 'seed' or 'stripe', where `pdf_path` is null by
+       definition. Offering the link anyway landed the customer on the PDF
+       route's raw `{"error":"pdf-not-ready"}` JSON body, in English, from a
+       bilingual page. */
+    pdfNotReady: {
+      da: "Dokumentet er ikke klar endnu",
+      en: "The document is not ready yet",
+    } as L10n,
 
     noInvoicesTitle: { da: "Ingen fakturaer endnu", en: "No invoices yet" } as L10n,
     noInvoicesBody: {

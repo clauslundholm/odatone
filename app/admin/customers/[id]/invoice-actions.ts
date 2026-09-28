@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/forms";
-import { buildInvoiceLines, lineTotals } from "@/lib/invoicing";
+import { buildInvoiceLines } from "@/lib/invoicing";
 import { storeInvoicePdf } from "@/lib/invoice-pdf-store";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { latestSubscription } from "@/lib/admin/customers";
@@ -57,6 +57,21 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
     return { ok: false, errors: { dueDays: "invalid" } };
   }
 
+  /* The location count the dialog actually priced its preview from, captured
+     when the page rendered and submitted back here so it can be compared
+     against the count this action re-reads below. The spec's rule is "what is
+     shown is what is issued", and without this the two can differ: a
+     colleague adding a third location while the dialog sits open produces a
+     preview of 2 x unit and an immutable invoice of 3 x. issue_invoice only
+     checks `count > 0`, so nothing downstream would notice. Parsed the same
+     defensive way as dueDays above — "" is not null, and Number("") is 0. */
+  const previewedRaw = formData.get("locationCount");
+  const previewedLocations =
+    typeof previewedRaw === "string" && previewedRaw.trim() !== "" ? Number(previewedRaw) : NaN;
+  if (!Number.isInteger(previewedLocations) || previewedLocations < 1) {
+    return { ok: false, errors: { form: "invalid" } };
+  }
+
   const [{ data: customer }, { data: subs }, { data: locs }, { data: planRows }] = await Promise.all([
     supabase.from("customers")
       .select("id, name, cvr, address, postcode, city, country").eq("id", customerId).maybeSingle(),
@@ -71,6 +86,12 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
   if (!sub) return { ok: false, errors: { form: "no-subscription" } };
   const locations = locs?.length ?? 0;
   if (locations === 0) return { ok: false, errors: { form: "no-locations" } };
+  /* Refused rather than silently repriced. An invoice cannot be amended once
+     issued, so the staff member must reopen the dialog and see the real
+     figure — not discover it afterwards on a document they can only void. */
+  if (locations !== previewedLocations) {
+    return { ok: false, errors: { form: "locations-changed" } };
+  }
 
   const plan = resolvePlan(sub.plan_id, planMap((planRows ?? []) as PlanRow[]), "issue invoice");
 
@@ -109,7 +130,6 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
   }
 
   const { invoice_id: invoiceId, invoice_number: number } = issued[0];
-  const totals = lineTotals(lines);
 
   /* issue_invoice computed issued_at/due_at itself, inside its own
      transaction, from Postgres's now()/make_interval — not from this
@@ -120,15 +140,35 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
      make_interval(days => n) itself diverges from n * 86_400_000ms across
      a DST change. Reading the row back and formatting *those* values is
      the only way the PDF's Fakturadato/Betalingsfrist can be guaranteed to
-     agree with what the admin table renders for the same row. */
+     agree with what the admin table renders for the same row.
+
+     The three totals are read back for exactly the same reason, taken one
+     step further. The 25% VAT rate exists independently in three places:
+     VAT_PCT (lib/pricing.ts), the literal 0.25 inside issue_invoice
+     (0012_issue_invoice.sql), and the literal "Moms 25%" in
+     lib/invoice-pdf.tsx. Rendering the PDF from lineTotals(lines) would
+     archive a *recomputed* subtotal/VAT/total instead of the ones the
+     immutable ledger row actually carries — so the moment those three
+     definitions diverge, the archived legal document would state a different
+     VAT and total than the row both billing pages display, silently, with
+     nothing failing. One row, one truth: what the PDF says is what the
+     database stored. (lineTotals keeps its job — pricing the dialog's
+     preview, client-side, before any row exists.) */
   const { data: issuedRow, error: issuedRowError } = await admin
     .from("invoices")
-    .select("issued_at, due_at")
+    .select("issued_at, due_at, subtotal_ore, vat_ore, total_ore")
     .eq("id", invoiceId)
     .maybeSingle();
 
-  if (issuedRowError || !issuedRow?.issued_at || !issuedRow?.due_at) {
-    console.error("[odatone] issue invoice: could not read back issued_at/due_at for the pdf", {
+  if (
+    issuedRowError ||
+    !issuedRow?.issued_at ||
+    !issuedRow?.due_at ||
+    typeof issuedRow.subtotal_ore !== "number" ||
+    typeof issuedRow.vat_ore !== "number" ||
+    typeof issuedRow.total_ore !== "number"
+  ) {
+    console.error("[odatone] issue invoice: could not read the issued row back for the pdf", {
       invoiceId,
       error: issuedRowError,
     });
@@ -148,7 +188,10 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
       name: customer.name, cvr: customer.cvr, address: customer.address,
       postcode: customer.postcode, city: customer.city, country: customer.country,
     },
-    lines, ...totals,
+    lines,
+    subtotalOre: issuedRow.subtotal_ore,
+    vatOre: issuedRow.vat_ore,
+    totalOre: issuedRow.total_ore,
   });
 
   revalidatePath(`/admin/customers/${customerId}`);
