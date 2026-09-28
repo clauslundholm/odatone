@@ -177,6 +177,12 @@ begin
     using errcode = 'restrict_violation';
 end $$;
 
+/* This also makes an invoice undeletable: `invoices` cascades to its lines,
+   and the cascade fires this trigger. That is intended. lib/gdpr.ts already
+   anonymises a customer rather than deleting them, for exactly the reason
+   named there -- Danish bookkeeping law requires the records be kept -- and
+   neither `customers` nor `invoices` has a DELETE policy. A legal document
+   should be hard to destroy. */
 drop trigger if exists invoice_lines_immutable on invoice_lines;
 create trigger invoice_lines_immutable before update or delete on invoice_lines
   for each row execute function guard_invoice_lines_immutable();
@@ -216,10 +222,14 @@ insert into customers (id, name, billing_email) values
   ('cccc0000-0000-0000-0000-000000000001', 'Café A', 'a@example.test'),
   ('cccc0000-0000-0000-0000-000000000002', 'Café B', 'b@example.test');
 
+-- Numbered in 1999 deliberately. invoice_counters is keyed on the CURRENT
+-- year, so a fixture numbered 2026-0001 would collide with the first number
+-- issue_invoice hands out in this same file, and the unique constraint on
+-- invoices.number would fail as what looks like a numbering bug.
 insert into invoices (id, customer_id, number, subtotal_ore, vat_ore, total_ore, status, source)
 values ('1111aaaa-0000-0000-0000-000000000001',
         'cccc0000-0000-0000-0000-000000000001',
-        '2026-0001', 10000, 2500, 12500, 'open', 'seed');
+        '1999-0001', 10000, 2500, 12500, 'open', 'seed');
 
 insert into invoice_lines (invoice_id, position, description, quantity, unit_ore)
 values ('1111aaaa-0000-0000-0000-000000000001', 1, 'Medium Stage', 2, 5000);
@@ -234,18 +244,18 @@ select has_table('public', 'invoice_counters', 'invoice_counters exists');
 
 -- immutability: amounts frozen, payment state not
 select throws_ok(
-  $$ update invoices set subtotal_ore = 999 where number = '2026-0001' $$,
+  $$ update invoices set subtotal_ore = 999 where number = '1999-0001' $$,
   'restrict_violation', null,
   'an issued invoice cannot have its subtotal amended');
 
 select throws_ok(
-  $$ update invoices set number = '2026-9999' where number = '2026-0001' $$,
+  $$ update invoices set number = '2026-9999' where number = '1999-0001' $$,
   'restrict_violation', null,
   'an issued invoice cannot be renumbered');
 
 select lives_ok(
   $$ update invoices set status = 'paid', paid_at = now(), payment_method = 'bank_transfer'
-     where number = '2026-0001' $$,
+     where number = '1999-0001' $$,
   'payment state may still be recorded');
 
 select throws_ok(
@@ -260,13 +270,13 @@ select throws_ok(
 
 -- voiding requires a reason
 select throws_ok(
-  $$ update invoices set status = 'void' where number = '2026-0001' $$,
+  $$ update invoices set status = 'void' where number = '1999-0001' $$,
   '23514', null,
   'voiding without a reason violates invoices_void_reason_ck');
 
 select lives_ok(
   $$ update invoices set status = 'void', void_reason = 'issued in error'
-     where number = '2026-0001' $$,
+     where number = '1999-0001' $$,
   'voiding with a reason is allowed');
 
 -- RLS is on
