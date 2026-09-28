@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 
 import { ISSUER } from "./invoice-issuer";
 import { formatDkk } from "./money";
@@ -26,6 +26,18 @@ export type InvoicePdfInput = {
 
 /* Helvetica is built into react-pdf and covers æ, ø and å, so no font file
    needs shipping. Do not switch to a webfont without checking those three. */
+
+/* react-pdf will not break a token with no space or hyphen in it, so a
+   200-character SKU or URL in a description runs the full page width and is
+   drawn on top of the amounts column — silently, because renderToBuffer does
+   not fail on it. Chunking long tokens is what stops that. The callback is
+   global, so short words are returned untouched: ordinary wrapping must be
+   left exactly as it was. 36 characters is comfortably inside the ~50 that
+   fit the 52%-wide description column at 10pt Helvetica. */
+Font.registerHyphenationCallback((word) =>
+  word.length > 36 ? (word.match(/.{1,36}/g) ?? [word]) : [word],
+);
+
 const s = StyleSheet.create({
   page: { padding: 48, fontSize: 10, fontFamily: "Helvetica", color: "#18181d" },
   h1: { fontSize: 20, fontFamily: "Helvetica-Bold", marginBottom: 2 },
@@ -79,7 +91,7 @@ function InvoiceDocument({ inv }: { inv: InvoicePdfInput }) {
           </View>
         </View>
 
-        <View style={s.thead}>
+        <View style={s.thead} fixed>
           <Text style={s.cDesc}>Beskrivelse</Text>
           <Text style={s.cQty}>Antal</Text>
           <Text style={s.cUnit}>Stykpris</Text>
