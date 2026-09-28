@@ -157,11 +157,12 @@ export const portal = {
       en: "Locations you add will show up here, alongside their usage.",
     } as L10n,
 
-    /* Billing shipped in Task 10 — this must not go on claiming it's still
-       coming, right next to a sidebar link that now works. */
+    /* Billing shipped in Task 10, settings in Task 11 — this must not go on
+       claiming either is still coming, right next to two sidebar links
+       that now work. Only statistics remains unbuilt. */
     comingSoon: {
-      da: "Indstillinger og statistik er på vej.",
-      en: "Settings and statistics are coming.",
+      da: "Statistik er på vej.",
+      en: "Statistics is coming.",
     } as L10n,
   },
 
@@ -208,6 +209,80 @@ export const portal = {
       da: "Fakturaer, der udstedes til dig, vises her.",
       en: "Invoices issued to you will show up here.",
     } as L10n,
+  },
+
+  /** Task 11: the customer's own billing details — `updateBillingDetails`
+      (app/my-odatone/settings/actions.ts) writes six of the seven fields
+      this page shows. The seventh, the company name, is read-only here on
+      purpose: it is what already-issued invoices say, and the RLS policy
+      that actually enforces the write (`customers_owner_update`,
+      supabase/migrations/0003_tenancy.sql) restricts even the six writable
+      columns to the `owner` role — a `manager` sees every field disabled,
+      with `managerNotice` explaining why, but that is courtesy dressing
+      around the real control: the action refuses the write regardless of
+      what the form renders. */
+  settings: {
+    /* Doubles as the sidebar nav label and this page's own breadcrumb, the
+       same dual role `summary.crumb`/`billing.crumb` play above. */
+    crumb: { da: "Indstillinger", en: "Settings" } as L10n,
+
+    companyPanel: { da: "Virksomhed", en: "Company" } as L10n,
+    companyLabel: { da: "Firma", en: "Company" } as L10n,
+    companyNote: {
+      da: "Firmanavnet er, hvad allerede udstedte fakturaer viser. Kontakt Odatone for at få det ændret.",
+      en: "The company name is what already-issued invoices show. Contact Odatone to have it changed.",
+    } as L10n,
+
+    billingPanel: { da: "Faktureringsoplysninger", en: "Billing details" } as L10n,
+    /* Shown instead of a save button, and every field below rendered
+       disabled, for a `manager` — courtesy only. `updateBillingDetails`
+       refuses the write outright (see this block's own doc comment). */
+    managerNotice: {
+      da: "Kun en ejer kan ændre faktureringsoplysninger. Kontakt virksomhedens ejer for at få dem ændret.",
+      en: "Only an owner can change billing details. Contact your company's owner to have them changed.",
+    } as L10n,
+
+    billingEmailLabel: { da: "Faktura-e-mail", en: "Billing email" } as L10n,
+    cvrLabel: { da: "CVR-nummer", en: "CVR number" } as L10n,
+    cvrHint: { da: "8 cifre", en: "8 digits" } as L10n,
+    addressLabel: { da: "Adresse", en: "Address" } as L10n,
+    postcodeLabel: { da: "Postnummer", en: "Postcode" } as L10n,
+    cityLabel: { da: "By", en: "City" } as L10n,
+    phoneLabel: { da: "Telefon", en: "Phone" } as L10n,
+
+    submit: { da: "Gem ændringer", en: "Save changes" } as L10n,
+    submitPending: { da: "Gemmer…", en: "Saving…" } as L10n,
+    saved: { da: "Ændringerne er gemt.", en: "Changes saved." } as L10n,
+
+    /* Keyed by the field-error code updateBillingDetails returns (mirroring
+       app/admin/products/actions.ts's updatePlan/`PLAN_ERRORS` shape) — the
+       same `long`/`forbidden` codes apply to any of the six fields, so this
+       is one shared table rather than one per field. */
+    errors: {
+      email: {
+        da: "Indtast en gyldig e-mailadresse.",
+        en: "Enter a valid email address.",
+      } as L10n,
+      cvr: {
+        da: "CVR-nummeret skal være præcis 8 cifre, eller stå tomt.",
+        en: "The CVR number must be exactly 8 digits, or left blank.",
+      } as L10n,
+      long: {
+        da: "Det er for langt (maks. 200 tegn).",
+        en: "That's too long (200 characters max).",
+      } as L10n,
+      /* The one actually reachable when a manager submits the form anyway
+         (re-enabled fields, or a direct POST) — see this block's own doc
+         comment. */
+      forbidden: {
+        da: "Kun en ejer kan gemme dette. Kontakt virksomhedens ejer.",
+        en: "Only an owner can save this. Contact your company's owner.",
+      } as L10n,
+      save: {
+        da: "Der opstod en fejl. Prøv igen om lidt.",
+        en: "Something went wrong. Please try again in a moment.",
+      } as L10n,
+    } as Record<string, L10n>,
   },
 };
 

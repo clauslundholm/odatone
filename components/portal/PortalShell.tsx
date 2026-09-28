@@ -5,7 +5,7 @@ import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { ThemeSegments } from "@/components/admin/ThemeSegments";
 import { UserCard } from "@/components/admin/UserCard";
 import { WorkspaceCard } from "@/components/admin/WorkspaceCard";
-import { HouseGlyph, ReceiptGlyph } from "@/components/admin/icons";
+import { HouseGlyph, ReceiptGlyph, SlidersGlyph } from "@/components/admin/icons";
 import { LocaleSwitch } from "@/components/portal/LocaleSwitch";
 import { signOut } from "@/app/my-odatone/portal-actions";
 import type { Locale } from "@/lib/i18n";
@@ -37,11 +37,11 @@ import { createClient } from "@/lib/supabase/server";
  * lib/content/portal.ts) rather than passed as a bare role, since every
  * page that computes it needs `locale` for its own content anyway.
  *
- * The nav list itself — Summary, Billing — is built here, not passed in,
- * for the same reason AdminSideNav's own `NAV` array lives inside it
- * rather than in each admin page: the moment a second page exists, "which
- * rows does the sidebar have" is shell state, not per-page state, and a
- * third page (settings, statistics — summary's own "coming soon" line)
+ * The nav list itself — Summary, Billing, Settings — is built here, not
+ * passed in, for the same reason AdminSideNav's own `NAV` array lives
+ * inside it rather than in each admin page: the moment a second page
+ * exists, "which rows does the sidebar have" is shell state, not per-page
+ * state, and a fourth page (statistics — summary's own "coming soon" line)
  * only ever has to add one line here.
  */
 export async function PortalShell({
@@ -85,6 +85,11 @@ export async function PortalShell({
       href: "/my-odatone/billing",
       label: portal.billing.crumb[locale],
       icon: <ReceiptGlyph className="h-[17px] w-[17px]" />,
+    },
+    {
+      href: "/my-odatone/settings",
+      label: portal.settings.crumb[locale],
+      icon: <SlidersGlyph className="h-[17px] w-[17px]" />,
     },
   ];
 
