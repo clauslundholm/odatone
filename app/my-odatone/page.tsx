@@ -1,30 +1,30 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { AppShell } from "@/components/admin/AppShell";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Meter } from "@/components/admin/Meter";
-import { SideNav, type NavItem } from "@/components/admin/SideNav";
-import { ThemeSegments } from "@/components/admin/ThemeSegments";
-import { UserCard } from "@/components/admin/UserCard";
-import { WorkspaceCard } from "@/components/admin/WorkspaceCard";
 import { HouseGlyph } from "@/components/admin/icons";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
-import { LocaleSwitch } from "@/components/portal/LocaleSwitch";
+import { PortalShell } from "@/components/portal/PortalShell";
 import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { latestSubscription, locationFit } from "@/lib/admin/customers";
 import { HTML_LANG } from "@/lib/i18n";
-import { CUSTOMER_STATUS_LABEL, SUBSCRIPTION_STATUS_LABEL, localizeStatus, portal } from "@/lib/content/portal";
+import {
+  CUSTOMER_STATUS_LABEL,
+  SUBSCRIPTION_STATUS_LABEL,
+  localizeStatus,
+  portal,
+  portalRoleLabel,
+} from "@/lib/content/portal";
 import { formatDkk, toOre } from "@/lib/money";
 import { quote, type Billing, type Plan } from "@/lib/pricing";
 import type { PlanRow } from "@/lib/plans-row";
 import { venueType, type VenueTypeId } from "@/lib/rates";
 import { getPortalLocale } from "@/lib/portal-locale";
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "./portal-actions";
 
 type ProfileRow = { customer_id: string | null; full_name: string | null; role: string | null };
 
@@ -77,10 +77,20 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 /**
  * The customer portal's front door (Task 14): company, current plan and
  * what it includes, subscription status, and locations with the same
- * Meter /admin uses. Nothing on this page is editable — billing,
- * settings and statistics are a later slice (the honest line at the
- * foot says so directly), and this exists only so Task 13's invite has
- * somewhere real to land instead of a 404.
+ * Meter /admin uses. Nothing on this page is editable — settings and
+ * statistics are a later slice (the honest line at the foot says so
+ * directly; billing itself shipped in Task 10, app/my-odatone/billing) —
+ * and this exists only so Task 13's invite has somewhere real to land
+ * instead of a 404.
+ *
+ * The sidebar (`AppShell`/`SideNav`/the account card) is no longer built
+ * here — Task 10 pulled it into components/portal/PortalShell.tsx once a
+ * second page needed the identical chrome. This page still resolves its
+ * own `full_name` (for the greeting text below, not just the account
+ * card) and `role` (for the WorkspaceCard subtitle PortalShell renders),
+ * since both already had to be read here for the page's own content —
+ * see PortalShell's own doc comment for why those two are passed in
+ * rather than re-resolved a second time inside it.
  *
  * Every read here goes through the session-bound client
  * (lib/supabase/server.ts), never the service role — RLS
@@ -106,10 +116,6 @@ export default async function PortalSummaryPage() {
 
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
-  // Shown under the name on the sidebar's account card. It comes from the
-  // verified JWT rather than a `profiles` column because `profiles` has no
-  // email of its own — auth.users is the one record of it.
-  const email = typeof claims?.claims?.email === "string" ? claims.claims.email : undefined;
   // proxy.ts (lib/supabase/proxy.ts) already denies any request here with
   // no verified session, so this should be unreachable in practice —
   // guarded anyway rather than trusting that invariant a second time.
@@ -180,70 +186,11 @@ export default async function PortalSummaryPage() {
     );
 
   const t = portal.summary;
-  const nav: NavItem[] = [
-    { href: "/my-odatone", label: t.crumb[locale], icon: <HouseGlyph className="h-[17px] w-[17px]" /> },
-  ];
-
-  /* Only the two customer roles can reach this route (proxy.ts's mayEnter),
-     so an unrecognised value is a bug rather than a staff member — the card
-     drops the line instead of inventing a label for it. */
-  const roleLabel =
-    profile.role === "owner"
-      ? t.roleOwner[locale]
-      : profile.role === "manager"
-        ? t.roleManager[locale]
-        : undefined;
+  const roleLabel = portalRoleLabel(profile.role, locale);
 
   return (
-    <AppShell
-      menuLabel={t.ariaOpenMenu[locale]}
-      menuDialogLabel={t.ariaMenu[locale]}
-      nav={
-        <SideNav
-          items={nav}
-          activeHref="/my-odatone"
-          navLabel={t.ariaNav[locale]}
-          header={<WorkspaceCard name={detail.name} subtitle={roleLabel} />}
-          theme={
-            <div className="flex flex-col gap-0.5">
-              {/* Language sits beside theme rather than inside the account
-                  menu: it is the one control a visitor may need *before*
-                  they can read the menu that would otherwise hide it. */}
-              <div className="flex items-center justify-between gap-2 px-2 py-1">
-                <span className="text-[0.6875rem] text-ink-3">{t.languageGroup[locale]}</span>
-                <LocaleSwitch locale={locale} />
-              </div>
-              <ThemeSegments
-                labels={{
-                  group: t.themeGroup[locale],
-                  light: t.themeLight[locale],
-                  system: t.themeSystem[locale],
-                  dark: t.themeDark[locale],
-                }}
-              />
-            </div>
-          }
-          footer={
-            <UserCard
-              name={profile.full_name || email || t.crumb[locale]}
-              email={profile.full_name ? email : undefined}
-              menuLabel={t.ariaUserMenu[locale]}
-            >
-              <form>
-                <button
-                  formAction={signOut}
-                  role="menuitem"
-                  className="w-full rounded-[7px] px-2.5 py-2 text-left text-[0.875rem] font-medium leading-[1.3] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
-                >
-                  {t.signOut[locale]}
-                </button>
-              </form>
-            </UserCard>
-          }
-        />
-      }
-    >
-      <TopBar crumbs={[t.crumb[locale]]} icon={<HouseGlyph />} breadcrumbLabel={t.ariaBreadcrumb[locale]} />
+    <PortalShell locale={locale} activeHref="/my-odatone" customerName={detail.name} roleLabel={roleLabel}>
+      <TopBar crumbs={[t.crumb[locale]]} icon={<HouseGlyph />} breadcrumbLabel={portal.shell.ariaBreadcrumb[locale]} />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         {profile.full_name && (
           <p className="shrink-0 text-[0.9375rem] text-ink-2">
@@ -367,6 +314,6 @@ export default async function PortalSummaryPage() {
 
         <p className="shrink-0 text-[0.8125rem] text-ink-2">{t.comingSoon[locale]}</p>
       </div>
-    </AppShell>
+    </PortalShell>
   );
 }

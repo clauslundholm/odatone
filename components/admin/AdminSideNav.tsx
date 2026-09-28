@@ -3,7 +3,7 @@ import { SideNav, type NavItem } from "@/components/admin/SideNav";
 import { ThemeSegments } from "@/components/admin/ThemeSegments";
 import { UserCard } from "@/components/admin/UserCard";
 import { WorkspaceCard } from "@/components/admin/WorkspaceCard";
-import { BoxGlyph, GridGlyph, ShieldGlyph, UsersGlyph } from "@/components/admin/icons";
+import { BoxGlyph, GridGlyph, ReceiptGlyph, ShieldGlyph, UsersGlyph } from "@/components/admin/icons";
 import { STAFF_ROLE_LABEL, isStaffRole } from "@/lib/staff-invite";
 import { createClient } from "@/lib/supabase/server";
 
@@ -58,6 +58,7 @@ export async function AdminSideNav({ activeHref }: { activeHref: string }) {
       badge: pendingCount ?? undefined,
       badgeLabel: `${pendingCount} pending signups`,
     },
+    { href: "/admin/billing", label: "Billing", icon: <ReceiptGlyph className="h-[17px] w-[17px]" /> },
     { href: "/admin/products", label: "Products", icon: <BoxGlyph className="h-[17px] w-[17px]" /> },
     { href: "/admin/users", label: "Users", icon: <ShieldGlyph className="h-[17px] w-[17px]" /> },
   ];

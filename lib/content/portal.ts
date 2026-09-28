@@ -78,26 +78,36 @@ export const portal = {
     },
   },
 
-  summary: {
-    crumb: { da: "Oversigt", en: "Summary" } as L10n,
-    /* AppShell/SideNav/TopBar are shared with /admin (English only), which
-       is why each of these has an English default at the component level —
-       this page is their first consumer outside /admin, and without these
-       a customer's screen reader would announce their own portal's nav as
-       "Admin" in English on a lang="da-DK" page. */
+  /** The chrome every /my-odatone page shares, rendered once by
+      components/portal/PortalShell.tsx (Task 10 pulled it out of the
+      summary page, which used to be the only page and so built it
+      inline). Kept as its own block, separate from `summary`, now that a
+      second page (`billing`) mounts the same shell and needs these same
+      strings without importing a page that isn't itself. */
+  shell: {
+    /* AppShell/SideNav/TopBar/UserCard are shared with /admin (English
+       only), which is why each of these has an English default at the
+       component level — /my-odatone is their first consumer outside
+       /admin, and without these a customer's screen reader would
+       announce their own portal's nav as "Admin" in English on a
+       lang="da-DK" page. */
     ariaNav: { da: "Mit Odatone", en: "My Odatone" } as L10n,
     ariaOpenMenu: { da: "Åbn menu", en: "Open menu" } as L10n,
     ariaMenu: { da: "Menu", en: "Menu" } as L10n,
     ariaBreadcrumb: { da: "Brødkrumme", en: "Breadcrumb" } as L10n,
-    greeting: { da: "Velkommen,", en: "Welcome," } as L10n,
     signOut: { da: "Log ud", en: "Sign out" } as L10n,
+    /** PortalShell's own account-card fallback, for a profile with
+        neither a saved full name nor a claimed email — the same
+        defensive fallback components/admin/AdminSideNav.tsx hard-codes
+        as "Signed in", just localised. Should not be reachable in
+        practice: every portal login has an email. */
+    signedIn: { da: "Logget ind", en: "Signed in" } as L10n,
 
-    /* The sidebar chrome: the identity card under the wordmark, the
-       account overflow menu at the bottom, and the theme control between
-       them. The role names are the customer-facing halves of the
-       `user_role` enum (0001_core.sql) — a customer only ever sees
-       'owner' or 'manager', never the two staff roles. */
     ariaUserMenu: { da: "Kontomenu", en: "Account menu" } as L10n,
+    /* The customer-facing halves of the `user_role` enum (0001_core.sql)
+       — a customer only ever sees 'owner' or 'manager', never the two
+       staff roles. Shared by every page's WorkspaceCard subtitle, so it
+       lives here rather than under any one page. */
     roleOwner: { da: "Ejer", en: "Owner" } as L10n,
     roleManager: { da: "Administrator", en: "Manager" } as L10n,
     languageGroup: { da: "Sprog", en: "Language" } as L10n,
@@ -105,6 +115,14 @@ export const portal = {
     themeLight: { da: "Lyst", en: "Light" } as L10n,
     themeSystem: { da: "System", en: "System" } as L10n,
     themeDark: { da: "Mørkt", en: "Dark" } as L10n,
+  },
+
+  summary: {
+    /* Doubles as this page's sidebar nav label (PortalShell builds the
+       nav list from both pages' own crumb, rather than a third, separate
+       "nav label" string) and as its TopBar breadcrumb. */
+    crumb: { da: "Oversigt", en: "Summary" } as L10n,
+    greeting: { da: "Velkommen,", en: "Welcome," } as L10n,
 
     companyPanel: { da: "Virksomhed", en: "Company" } as L10n,
     companyLabel: { da: "Firma", en: "Company" } as L10n,
@@ -139,10 +157,145 @@ export const portal = {
       en: "Locations you add will show up here, alongside their usage.",
     } as L10n,
 
+    /* Billing shipped in Task 10, settings in Task 11 — this must not go on
+       claiming either is still coming, right next to two sidebar links
+       that now work. Only statistics remains unbuilt. */
     comingSoon: {
-      da: "Fakturering, indstillinger og statistik er på vej.",
-      en: "Billing, settings and statistics are coming.",
+      da: "Statistik er på vej.",
+      en: "Statistics is coming.",
     } as L10n,
+  },
+
+  /** Task 10: the customer's own invoices, and the subscription they
+      belong to. This page's second RLS-scoped reader — after `summary` —
+      of `subscriptions` and `plans`, so its money/date labels are kept
+      separate from `summary`'s own rather than shared, even where the
+      wording is close: a future edit to one panel's copy (say, summary's
+      plan panel) should not have to remember it also owns half of this
+      page's strings. */
+  billing: {
+    /* Doubles as the sidebar nav label and this page's own breadcrumb,
+       the same dual role `summary.crumb` plays above. */
+    crumb: { da: "Fakturering", en: "Billing" } as L10n,
+
+    subscriptionPanel: { da: "Abonnement", en: "Subscription" } as L10n,
+    planLabel: { da: "Plan", en: "Plan" } as L10n,
+    termLabel: { da: "Aftaleperiode", en: "Term" } as L10n,
+    termMonthly: { da: "Månedlig", en: "Monthly" } as L10n,
+    termAnnual: { da: "Årlig", en: "Annual" } as L10n,
+    /* Unlike summary.priceLabel (always the monthly-equivalent rate, for
+       comparing plans), this is what the subscription's *next invoice*
+       actually charges — lib/pricing.ts's quote().chargeExVat, which is
+       the yearly sum on an annual term, not a monthly figure divided
+       twelve ways. */
+    priceLabel: { da: "Pris pr. periode, ekskl. moms", en: "Price per period, ex. VAT" } as L10n,
+    renewalLabel: { da: "Fornyes", en: "Renews" } as L10n,
+    noSubscription: { da: "Intet abonnement endnu.", en: "No subscription yet." } as L10n,
+
+    invoicesPanel: { da: "Fakturaer", en: "Invoices" } as L10n,
+    numberHeader: { da: "Nummer", en: "Number" } as L10n,
+    periodHeader: { da: "Periode", en: "Period" } as L10n,
+    dueHeader: { da: "Forfald", en: "Due" } as L10n,
+    totalHeader: { da: "Total", en: "Total" } as L10n,
+    statusHeader: { da: "Status", en: "Status" } as L10n,
+    /* "Download" is an ordinary Danish loanword in this register (as
+       common as "e-mail" or "login"), and "PDF" has no Danish form at
+       all — this is not the English-only text the bilingual rule exists
+       to catch. */
+    downloadPdf: { da: "Download PDF", en: "Download PDF" } as L10n,
+    /* Shown in the download link's place for an invoice with no stored
+       document. Two real cases, not a hypothetical one: the "no-pdf" outcome
+       the admin dialog explicitly warns staff about (storeInvoicePdf,
+       lib/invoice-pdf-store.ts, fails soft so a storage hiccup can never
+       unwind a numbered invoice), and every invoice predating this slice —
+       `source` of 'seed' or 'stripe', where `pdf_path` is null by
+       definition. Offering the link anyway landed the customer on the PDF
+       route's raw `{"error":"pdf-not-ready"}` JSON body, in English, from a
+       bilingual page. */
+    pdfNotReady: {
+      da: "Dokumentet er ikke klar endnu",
+      en: "The document is not ready yet",
+    } as L10n,
+
+    noInvoicesTitle: { da: "Ingen fakturaer endnu", en: "No invoices yet" } as L10n,
+    noInvoicesBody: {
+      da: "Fakturaer, der udstedes til dig, vises her.",
+      en: "Invoices issued to you will show up here.",
+    } as L10n,
+  },
+
+  /** Task 11: the customer's own billing details — `updateBillingDetails`
+      (app/my-odatone/settings/actions.ts) writes six of the seven fields
+      this page shows. The seventh, the company name, is read-only here on
+      purpose: it is what already-issued invoices say, and the RLS policy
+      that actually enforces the write (`customers_owner_update`,
+      supabase/migrations/0003_tenancy.sql) restricts even the six writable
+      columns to the `owner` role — a `manager` sees every field disabled,
+      with `managerNotice` explaining why, but that is courtesy dressing
+      around the real control: the action refuses the write regardless of
+      what the form renders. */
+  settings: {
+    /* Doubles as the sidebar nav label and this page's own breadcrumb, the
+       same dual role `summary.crumb`/`billing.crumb` play above. */
+    crumb: { da: "Indstillinger", en: "Settings" } as L10n,
+
+    companyPanel: { da: "Virksomhed", en: "Company" } as L10n,
+    companyLabel: { da: "Firma", en: "Company" } as L10n,
+    companyNote: {
+      da: "Firmanavnet er, hvad allerede udstedte fakturaer viser. Kontakt Odatone for at få det ændret.",
+      en: "The company name is what already-issued invoices show. Contact Odatone to have it changed.",
+    } as L10n,
+
+    billingPanel: { da: "Faktureringsoplysninger", en: "Billing details" } as L10n,
+    /* Shown instead of a save button, and every field below rendered
+       disabled, for a `manager` — courtesy only. `updateBillingDetails`
+       refuses the write outright (see this block's own doc comment). */
+    managerNotice: {
+      da: "Kun en ejer kan ændre faktureringsoplysninger. Kontakt virksomhedens ejer for at få dem ændret.",
+      en: "Only an owner can change billing details. Contact your company's owner to have them changed.",
+    } as L10n,
+
+    billingEmailLabel: { da: "Faktura-e-mail", en: "Billing email" } as L10n,
+    cvrLabel: { da: "CVR-nummer", en: "CVR number" } as L10n,
+    cvrHint: { da: "8 cifre", en: "8 digits" } as L10n,
+    addressLabel: { da: "Adresse", en: "Address" } as L10n,
+    postcodeLabel: { da: "Postnummer", en: "Postcode" } as L10n,
+    cityLabel: { da: "By", en: "City" } as L10n,
+    phoneLabel: { da: "Telefon", en: "Phone" } as L10n,
+
+    submit: { da: "Gem ændringer", en: "Save changes" } as L10n,
+    submitPending: { da: "Gemmer…", en: "Saving…" } as L10n,
+    saved: { da: "Ændringerne er gemt.", en: "Changes saved." } as L10n,
+
+    /* Keyed by the field-error code updateBillingDetails returns (mirroring
+       app/admin/products/actions.ts's updatePlan/`PLAN_ERRORS` shape) — the
+       same `long`/`forbidden` codes apply to any of the six fields, so this
+       is one shared table rather than one per field. */
+    errors: {
+      email: {
+        da: "Indtast en gyldig e-mailadresse.",
+        en: "Enter a valid email address.",
+      } as L10n,
+      cvr: {
+        da: "CVR-nummeret skal være præcis 8 cifre, eller stå tomt.",
+        en: "The CVR number must be exactly 8 digits, or left blank.",
+      } as L10n,
+      long: {
+        da: "Det er for langt (maks. 200 tegn).",
+        en: "That's too long (200 characters max).",
+      } as L10n,
+      /* The one actually reachable when a manager submits the form anyway
+         (re-enabled fields, or a direct POST) — see this block's own doc
+         comment. */
+      forbidden: {
+        da: "Kun en ejer kan gemme dette. Kontakt virksomhedens ejer.",
+        en: "Only an owner can save this. Contact your company's owner.",
+      } as L10n,
+      save: {
+        da: "Der opstod en fejl. Prøv igen om lidt.",
+        en: "Something went wrong. Please try again in a moment.",
+      } as L10n,
+    } as Record<string, L10n>,
   },
 };
 
@@ -166,6 +319,34 @@ export const SUBSCRIPTION_STATUS_LABEL: Record<string, L10n> = {
   past_due: { da: "Forfalden", en: "Past due" },
   cancelled: { da: "Opsagt", en: "Cancelled" },
 };
+
+/* invoice_status (0002_commerce.sql) also has 'draft' — never reachable
+   here, since a row only exists once issue_invoice has numbered it (see
+   app/admin/billing/page.tsx's own comment on the same enum) — and
+   'overdue', which is likewise never *stored*: it is computed for display
+   from `due_at`, the same reasoning app/admin/billing/page.tsx's own
+   displayStatus applies, just re-expressed for the portal's one-customer
+   view rather than duplicated by reference across page boundaries. */
+export const INVOICE_STATUS_LABEL: Record<string, L10n> = {
+  open: { da: "Åben", en: "Open" },
+  overdue: { da: "Forfalden", en: "Overdue" },
+  paid: { da: "Betalt", en: "Paid" },
+  void: { da: "Annulleret", en: "Void" },
+};
+
+/** The WorkspaceCard subtitle for a customer profile's role — shared by
+    every /my-odatone page that resolves its own `profiles.role` (summary,
+    billing), so the mapping from the `user_role` enum's two customer-side
+    values to portal.shell's localised labels exists exactly once. An
+    unrecognised role is a bug, not a customer (proxy.ts's mayEnter already
+    filters to a customer role before either page runs) — shown as
+    `undefined` rather than guessed at, the same as each page did inline
+    before this was extracted. */
+export function portalRoleLabel(role: string | null | undefined, locale: "da" | "en"): string | undefined {
+  if (role === "owner") return portal.shell.roleOwner[locale];
+  if (role === "manager") return portal.shell.roleManager[locale];
+  return undefined;
+}
 
 export function localizeStatus(
   map: Record<string, L10n>,

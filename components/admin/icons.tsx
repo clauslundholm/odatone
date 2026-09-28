@@ -75,6 +75,20 @@ export function ShieldGlyph(props: GlyphProps) {
   );
 }
 
+/** A receipt — the billing row: a slip with a serrated bottom edge and two
+    lines of print. Distinct from BoxGlyph (a physical good) and ShieldGlyph
+    (access) on purpose, the same way ShieldGlyph is kept distinct from
+    UsersGlyph — Products and Billing are both roughly rectangular, and
+    reusing a glyph would make the two rows differ only by their label. */
+export function ReceiptGlyph(props: GlyphProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.4 1.8h9.2v12.4l-1.8-1.2-1.6 1.2-1.6-1.2-1.6 1.2-1.6-1.2-1.6 1.2V1.8Z" />
+      <path d="M5.6 5.2h4.8M5.6 8h4.8" />
+    </Svg>
+  );
+}
+
 /** Three faders — the settings row. */
 export function SlidersGlyph(props: GlyphProps) {
   return (
