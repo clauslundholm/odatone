@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(18);
 
 insert into customers (id, name, billing_email) values
   ('cccc0000-0000-0000-0000-000000000001', 'Café A', 'a@example.test'),
@@ -70,6 +70,54 @@ select is(
 select is(
   (select relrowsecurity from pg_class where relname = 'invoice_counters'),
   true, 'invoice_counters has row level security enabled');
+
+-- ---------------------------------------------------------------------
+-- issue_invoice
+-- ---------------------------------------------------------------------
+insert into plans (id, name, monthly_ore, max_m2, tagline, features, sort)
+  values ('t-medium', 'Test Medium', 19900, 300, '{"da":"x","en":"x"}', '[]', 99)
+  on conflict (id) do nothing;
+
+insert into subscriptions (customer_id, plan_id, billing, status)
+  values ('cccc0000-0000-0000-0000-000000000002', 't-medium', 'monthly', 'active');
+
+insert into locations (customer_id, name, venue_type, m2)
+  values ('cccc0000-0000-0000-0000-000000000002', 'L1', 'retail', 100);
+
+select lives_ok(
+  $$ select issue_invoice('cccc0000-0000-0000-0000-000000000002',
+       '2026-03-01', '2026-04-01', 14, null,
+       '[{"position":1,"description":"Test Medium","quantity":1,"unitOre":19900}]'::jsonb) $$,
+  'issue_invoice issues for a billable customer');
+
+select is(
+  (select count(*)::integer from invoices where customer_id = 'cccc0000-0000-0000-0000-000000000002'),
+  1, 'exactly one invoice was created');
+
+select is(
+  (select total_ore from invoices where customer_id = 'cccc0000-0000-0000-0000-000000000002'),
+  24875, 'total is subtotal plus 25% VAT');
+
+-- the same period twice is refused, not silently duplicated
+select throws_ok(
+  $$ select issue_invoice('cccc0000-0000-0000-0000-000000000002',
+       '2026-03-01', '2026-04-01', 14, null,
+       '[{"position":1,"description":"Test Medium","quantity":1,"unitOre":19900}]'::jsonb) $$,
+  null, null,
+  'issuing the same period twice is refused');
+
+-- numbering advances with no gap
+select lives_ok(
+  $$ select issue_invoice('cccc0000-0000-0000-0000-000000000002',
+       '2026-04-01', '2026-05-01', 14, null,
+       '[{"position":1,"description":"Test Medium","quantity":1,"unitOre":19900}]'::jsonb) $$,
+  'a second period issues');
+
+select is(
+  (select array_agg(right(number, 4) order by number)
+     from invoices where customer_id = 'cccc0000-0000-0000-0000-000000000002'),
+  array['0001','0002'],
+  'numbers are consecutive with no gap');
 
 select * from finish();
 rollback;
