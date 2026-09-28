@@ -38,11 +38,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .eq("id", id)
     .maybeSingle();
 
-  /* A malformed id fails the uuid cast and comes back as a query error
-     rather than an empty result; a mismatched-tenant id comes back as an
-     empty result under RLS. Both mean "nothing here for you" and get the
-     same 404 -- neither may say more. */
-  if (error || !invoice) {
+  if (error) {
+    /* A malformed id fails the uuid cast (PostgREST 22P02) and is genuinely
+       "no such invoice" -- same 404 a mismatched-tenant id gets under RLS,
+       neither may say more. Anything else here -- an unreachable database, a
+       PostgREST 5xx, a rejected token -- is a fault, not a miss: answering
+       404 for it would make an outage indistinguishable from a missing
+       invoice, and invisible in the logs, since nothing else here would
+       report it. A 500 leaks no more about whether the invoice exists than
+       the 404 already does. */
+    if (error.code === "22P02") {
+      return NextResponse.json({ error: "not-found" }, { status: 404 });
+    }
+    console.error("[odatone] invoice pdf: failed to read the invoice", { id, error });
+    return NextResponse.json({ error: "service" }, { status: 500 });
+  }
+  if (!invoice) {
     return NextResponse.json({ error: "not-found" }, { status: 404 });
   }
 
@@ -62,16 +73,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
      succeeded under RLS. This client bypasses every policy in
      0003_tenancy.sql, so nothing from here on is protected by them -- the
      check above is the only thing standing between a stranger and the
-     document. */
-  const admin = createAdminClient();
-  const { data: signed, error: signError } = await admin.storage
-    .from("invoices")
-    .createSignedUrl(invoice.pdf_path, SIGNED_URL_TTL_SECONDS);
+     document.
 
-  if (signError || !signed?.signedUrl) {
-    console.error("[odatone] invoice pdf: could not sign url", { invoiceId: id, error: signError });
+     Wrapped in a try/catch because createAdminClient throws outright when
+     the service-role key is unset (lib/supabase/admin.ts) -- the one place
+     on this boundary that would otherwise escape as an unhandled 500
+     instead of the shaped one every other failure on this path returns. */
+  try {
+    const admin = createAdminClient();
+    const { data: signed, error: signError } = await admin.storage
+      .from("invoices")
+      .createSignedUrl(invoice.pdf_path, SIGNED_URL_TTL_SECONDS);
+
+    if (signError || !signed?.signedUrl) {
+      console.error("[odatone] invoice pdf: could not sign url", { invoiceId: id, error: signError });
+      return NextResponse.json({ error: "service" }, { status: 500 });
+    }
+
+    /* This redirect's Location carries a 60-second credential. A 307 is not
+       cacheable by default and Next already sets private, no-store headers
+       on a dynamic response, but that credential's non-reuse should not
+       rest on framework and CDN defaults alone -- so it is set here,
+       explicitly, on the response itself. */
+    return NextResponse.redirect(signed.signedUrl, {
+      status: 307,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch (error) {
+    console.error("[odatone] invoice pdf: could not construct the admin client or sign", { invoiceId: id, error });
     return NextResponse.json({ error: "service" }, { status: 500 });
   }
-
-  return NextResponse.redirect(signed.signedUrl, 307);
 }
