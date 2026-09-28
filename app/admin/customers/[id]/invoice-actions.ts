@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/forms";
 import { buildInvoiceLines, lineTotals } from "@/lib/invoicing";
-import { ISSUER } from "@/lib/invoice-issuer";
 import { storeInvoicePdf } from "@/lib/invoice-pdf-store";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { latestSubscription } from "@/lib/admin/customers";
@@ -44,8 +43,16 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
   const customerId = String(formData.get("customerId") ?? "");
   const periodStart = String(formData.get("periodStart") ?? "");
   const periodEnd = String(formData.get("periodEnd") ?? "");
-  const dueDays = Number(formData.get("dueDays") ?? ISSUER.paymentTermsDays);
   if (!customerId || !periodStart || !periodEnd) return { ok: false, errors: { form: "invalid" } };
+
+  /* formData.get returns null only when the key is entirely absent — an
+     empty string (a cleared input, or a crafted POST) comes back as "",
+     which is neither null nor NaN, so the old `Number(raw ?? default)`
+     let Number("") === 0 sail straight through the range check below as a
+     silent "due today". A raw value that isn't a non-empty numeric string
+     is rejected outright here, before it ever reaches Number.isInteger. */
+  const dueDaysRaw = formData.get("dueDays");
+  const dueDays = typeof dueDaysRaw === "string" && dueDaysRaw.trim() !== "" ? Number(dueDaysRaw) : NaN;
   if (!Number.isInteger(dueDays) || dueDays < 0 || dueDays > 365) {
     return { ok: false, errors: { dueDays: "invalid" } };
   }
@@ -103,8 +110,35 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
 
   const { invoice_id: invoiceId, invoice_number: number } = issued[0];
   const totals = lineTotals(lines);
-  const issuedAt = new Date().toISOString().slice(0, 10);
-  const dueAt = new Date(Date.now() + dueDays * 86_400_000).toISOString().slice(0, 10);
+
+  /* issue_invoice computed issued_at/due_at itself, inside its own
+     transaction, from Postgres's now()/make_interval — not from this
+     process's clock. Re-deriving them here with `new Date()` and
+     `dueDays * 86_400_000` read a second clock for the same two dates: a
+     network round-trip near a UTC midnight can already put JS's "today" a
+     calendar day away from what Postgres already committed, and
+     make_interval(days => n) itself diverges from n * 86_400_000ms across
+     a DST change. Reading the row back and formatting *those* values is
+     the only way the PDF's Fakturadato/Betalingsfrist can be guaranteed to
+     agree with what the admin table renders for the same row. */
+  const { data: issuedRow, error: issuedRowError } = await admin
+    .from("invoices")
+    .select("issued_at, due_at")
+    .eq("id", invoiceId)
+    .maybeSingle();
+
+  if (issuedRowError || !issuedRow?.issued_at || !issuedRow?.due_at) {
+    console.error("[odatone] issue invoice: could not read back issued_at/due_at for the pdf", {
+      invoiceId,
+      error: issuedRowError,
+    });
+    revalidatePath(`/admin/customers/${customerId}`);
+    revalidatePath("/admin/billing");
+    return { ok: true, message: "no-pdf" };
+  }
+
+  const issuedAt = issuedRow.issued_at.slice(0, 10);
+  const dueAt = issuedRow.due_at.slice(0, 10);
 
   /* Deliberately not awaited inside a try that could roll anything back: the
      invoice exists and is numbered whatever happens here. */

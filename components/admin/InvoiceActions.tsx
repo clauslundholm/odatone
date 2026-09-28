@@ -38,16 +38,27 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** `startIso` (`YYYY-MM-DD`) plus `months`, as UTC calendar-month
+    arithmetic — the same approach `defaultPeriod` uses for "today", pulled
+    out so `defaultPeriod` and the dialog's own period-length check
+    (`periodMismatch`, below) can't compute "one term later" two different
+    ways. Returns null for an unparseable `startIso` rather than NaN
+    propagating into a silently wrong date. */
+function addMonthsIso(startIso: string, months: number): string | null {
+  const start = new Date(`${startIso}T00:00:00Z`);
+  if (Number.isNaN(start.getTime())) return null;
+  return isoDate(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, start.getUTCDate())));
+}
+
 /** Today, plus one billing term. `monthly` gets a month, `annual` gets
     twelve — the same "months" issue_invoice's caller (buildInvoiceLines,
     lib/invoicing.ts) already multiplies an annual rate by. Uses UTC month
     arithmetic so a customer's local timezone can never roll the result
     onto the wrong day. */
 export function defaultPeriod(billing: Billing, today: Date = new Date()): { start: string; end: string } {
-  const months = billing === "annual" ? 12 : 1;
   const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, start.getUTCDate()));
-  return { start: isoDate(start), end: isoDate(end) };
+  const startIso = isoDate(start);
+  return { start: startIso, end: addMonthsIso(startIso, billing === "annual" ? 12 : 1) ?? startIso };
 }
 
 /**
@@ -64,9 +75,14 @@ export function defaultPeriod(billing: Billing, today: Date = new Date()): { sta
  * Follows components/admin/ProductsBoxes.tsx's shape: a trigger button
  * with its own ref (so focus returns to it on close, per Modal's own
  * contract), a Modal, and a form inside driven by useActionState that
- * closes the dialog once the action actually reports `ok: true` — never
- * optimistically, and never on the "no-pdf" fallback message alone, which
- * *is* a success (see invoice-actions.ts's own return).
+ * closes the dialog once the action reports the ordinary `ok: true` —
+ * never optimistically. `ok: true, message: "no-pdf"` is also a genuine
+ * success (the invoice exists and is numbered; see invoice-actions.ts's
+ * own comment on why a storage failure must never unwind it) but is
+ * deliberately *not* treated the same: it is the one outcome where staff
+ * are left holding something that needs a follow-up (regenerating the
+ * PDF), so the form below stays open with an explicit warning and Close
+ * button instead of vanishing like every other successful submit.
  */
 export function IssueInvoiceDialog({
   customerId,
@@ -124,8 +140,16 @@ function IssueInvoiceForm({
   const [periodEnd, setPeriodEnd] = useState(defaults.end);
   const [dueDays, setDueDays] = useState<number>(ISSUER.paymentTermsDays);
 
+  // storeInvoicePdf fails soft (invoice-actions.ts's own comment: a numbered
+  // invoice must never be rolled back for a storage hiccup), so `ok: true`
+  // covers two different outcomes. Only the happy one closes the dialog —
+  // "no-pdf" means real money now exists on the ledger with no archived
+  // document behind it, which is exactly the state a silent close would
+  // hide from the one person who could still do anything about it.
+  const issuedWithoutPdf = state.ok && state.message === "no-pdf";
+
   useEffect(() => {
-    if (state.ok) onIssued();
+    if (state.ok && state.message !== "no-pdf") onIssued();
   }, [state, onIssued]);
 
   // The exact function the action calls server-side (lib/invoicing.ts is
@@ -140,6 +164,23 @@ function IssueInvoiceForm({
       return null;
     }
   }, [plan, billing, locationCount, periodStart, periodEnd]);
+
+  // The amount is priced from plan/term/locations alone (lib/invoicing.ts's
+  // buildInvoiceLines) — period length never enters it, so a staff member
+  // free-typing a period could set a monthly customer's period to three
+  // months, get a line still reading "monthly", and incidentally slip past
+  // invoices_customer_period_uq's per-period lock for a second, overlapping
+  // invoice. Not blocked — a part-period invoice for a customer joining
+  // mid-month is legitimate — just surfaced, with a three-day tolerance for
+  // the ordinary case of nudging a date by a day or two.
+  const periodMismatch = useMemo(() => {
+    const expectedEnd = addMonthsIso(periodStart, billing === "annual" ? 12 : 1);
+    if (!expectedEnd) return false;
+    const actual = Date.parse(`${periodEnd}T00:00:00Z`);
+    const expected = Date.parse(`${expectedEnd}T00:00:00Z`);
+    if (Number.isNaN(actual) || Number.isNaN(expected)) return false;
+    return Math.abs(actual - expected) / 86_400_000 > 3;
+  }, [periodStart, periodEnd, billing]);
 
   const formError = !state.ok ? state.errors.form : undefined;
   const dueDaysError = !state.ok ? state.errors.dueDays : undefined;
@@ -171,6 +212,7 @@ function IssueInvoiceForm({
           type="date"
           value={periodStart}
           onChange={(e) => setPeriodStart(e.target.value)}
+          disabled={issuedWithoutPdf}
           required
         />
         <Field
@@ -179,9 +221,17 @@ function IssueInvoiceForm({
           type="date"
           value={periodEnd}
           onChange={(e) => setPeriodEnd(e.target.value)}
+          disabled={issuedWithoutPdf}
           required
         />
       </div>
+
+      {!issuedWithoutPdf && preview && periodMismatch && (
+        <p role="status" className="text-[0.8125rem] text-warn">
+          This period is not one {billing === "annual" ? "annual" : "monthly"} term. The amount does not change with
+          the period length.
+        </p>
+      )}
 
       <Field
         label="Due in"
@@ -193,6 +243,7 @@ function IssueInvoiceForm({
         value={dueDays}
         onChange={(e) => setDueDays(Number(e.target.value))}
         error={dueDaysError ? (DUE_DAYS_ERRORS[dueDaysError] ?? dueDaysError) : undefined}
+        disabled={issuedWithoutPdf}
         required
       />
 
@@ -248,9 +299,24 @@ function IssueInvoiceForm({
         </p>
       )}
 
-      <button type="submit" disabled={pending || !preview} className={buttonClass("primary", "sm", "self-start")}>
-        {pending ? "Issuing…" : "Issue invoice"}
-      </button>
+      {issuedWithoutPdf ? (
+        <>
+          <p
+            role="alert"
+            className="rounded-[var(--radius-sm)] border border-warn/30 px-4 py-3 text-[0.8125rem] text-ink"
+            style={{ backgroundColor: "color-mix(in srgb, var(--c-warn) 10%, transparent)" }}
+          >
+            Invoice issued, but its PDF could not be stored. The invoice is valid; the document can be regenerated.
+          </p>
+          <button type="button" onClick={onIssued} className={buttonClass("outline", "sm", "self-start")}>
+            Close
+          </button>
+        </>
+      ) : (
+        <button type="submit" disabled={pending || !preview} className={buttonClass("primary", "sm", "self-start")}>
+          {pending ? "Issuing…" : "Issue invoice"}
+        </button>
+      )}
     </form>
   );
 }
