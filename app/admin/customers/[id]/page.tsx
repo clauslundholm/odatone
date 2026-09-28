@@ -7,6 +7,7 @@ import { UsersGlyph } from "@/components/admin/icons";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { GdprPanel } from "@/components/admin/GdprPanel";
+import { IssueInvoiceDialog } from "@/components/admin/InvoiceActions";
 import { Meter } from "@/components/admin/Meter";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
@@ -359,6 +360,21 @@ export default async function CustomerDetailPage({
         </div>
 
         <div className="flex shrink-0 flex-col gap-3">
+          {/* Task 6: staff issue Odatone's own invoices from here. Only
+              shown once there is a billable subscription and a resolved
+              plan to price it with — issueInvoice (invoice-actions.ts)
+              refuses with "no-subscription" otherwise, and there is
+              nothing this dialog's live preview could price without one. */}
+          {subscription && plan && (
+            <div className="flex justify-end">
+              <IssueInvoiceDialog
+                customerId={detail.id}
+                plan={plan}
+                billing={subscription.billing as Billing}
+                locationCount={locations.length}
+              />
+            </div>
+          )}
           {allInvoicesSeeded && (
             /* text-ink-2 measured at ~3:1 against this card's background —
                below WCAG AA's 4.5:1 for normal-size text, on the one
