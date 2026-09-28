@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(24);
 
 insert into customers (id, name, billing_email) values
   ('cccc0000-0000-0000-0000-000000000001', 'Café A', 'a@example.test'),
@@ -98,13 +98,68 @@ select is(
   (select total_ore from invoices where customer_id = 'cccc0000-0000-0000-0000-000000000002'),
   24875, 'total is subtotal plus 25% VAT');
 
--- the same period twice is refused, not silently duplicated
+-- the header comment on issue_invoice says it exists to prevent a numbered
+-- header with no lines -- assert the lines actually landed, not just the
+-- header's totals.
+select is(
+  (select count(*)::integer from invoice_lines l
+     join invoices i on i.id = l.invoice_id
+    where i.customer_id = 'cccc0000-0000-0000-0000-000000000002'
+      and i.period_start = '2026-03-01'),
+  1, 'the first invoice has exactly one line');
+
+select is(
+  (select (l.quantity = 1 and l.unit_ore = 19900 and l.amount_ore = 19900)
+     from invoice_lines l
+     join invoices i on i.id = l.invoice_id
+    where i.customer_id = 'cccc0000-0000-0000-0000-000000000002'
+      and i.period_start = '2026-03-01'),
+  true, 'the line carries the quantity, unit price and amount it was issued with');
+
+select is(
+  (select sum(l.amount_ore)::integer from invoice_lines l
+     join invoices i on i.id = l.invoice_id
+    where i.customer_id = 'cccc0000-0000-0000-0000-000000000002'
+      and i.period_start = '2026-03-01'),
+  (select subtotal_ore from invoices
+    where customer_id = 'cccc0000-0000-0000-0000-000000000002'
+      and period_start = '2026-03-01'),
+  'the line amounts sum to the invoice subtotal');
+
+select is(
+  (select left(number, 5) from invoices
+    where customer_id = 'cccc0000-0000-0000-0000-000000000002'
+      and period_start = '2026-03-01'),
+  extract(year from now())::text || '-',
+  'the issued number is prefixed with the current year');
+
+-- the same period twice is refused, not silently duplicated -- and refused
+-- with the specific "already invoiced" code, not just any error
 select throws_ok(
   $$ select issue_invoice('cccc0000-0000-0000-0000-000000000002',
        '2026-03-01', '2026-04-01', 14, null,
        '[{"position":1,"description":"Test Medium","quantity":1,"unitOre":19900}]'::jsonb) $$,
-  null, null,
+  'P0104', null,
   'issuing the same period twice is refused');
+
+-- a null period defeats the "period end after period start" comparison
+-- (NULL <= x is NULL, not false) and would otherwise mint an invoice with
+-- no idempotency key at all
+select throws_ok(
+  $$ select issue_invoice('cccc0000-0000-0000-0000-000000000002',
+       null, '2026-06-01', 14, null,
+       '[{"position":1,"description":"Test Medium","quantity":1,"unitOre":19900}]'::jsonb) $$,
+  'P0101', null,
+  'a null period is refused');
+
+-- a negative due_days would back-date the due date to before the invoice
+-- was even issued
+select throws_ok(
+  $$ select issue_invoice('cccc0000-0000-0000-0000-000000000002',
+       '2026-07-01', '2026-08-01', -1, null,
+       '[{"position":1,"description":"Test Medium","quantity":1,"unitOre":19900}]'::jsonb) $$,
+  'P0101', null,
+  'a negative due_days is refused');
 
 -- numbering advances with no gap
 select lives_ok(
