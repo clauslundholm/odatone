@@ -66,11 +66,12 @@ test("totals come from the lines, and always add up", () => {
   assert.equal(t.vatOre, Math.round(t.subtotalOre * 0.25));
 });
 
-test("the line total never drifts far from quote()", () => {
-  // quote() rounds to two decimal kroner at each step, so
-  // toOre(perLocation) * n can differ from toOre(monthlyExVat) by a few øre.
-  // The lines are authoritative -- an invoice must add up in the reader's
-  // hand -- but the divergence must stay bounded and tiny.
+test("the line total matches quote() exactly", () => {
+  // Exactly zero by construction rather than by luck: quote() rounds
+  // perLocation to two decimal kroner — a whole number of øre — and
+  // multiplying whole øre by an integer quantity cannot reintroduce a
+  // fraction. A loose bound here would silently pass a regression that
+  // rounded per line and drifted with the location count.
   for (const plan of PLANS) {
     for (const billing of ["monthly", "annual"] as const) {
       for (let n = 1; n <= 40; n++) {
@@ -80,7 +81,7 @@ test("the line total never drifts far from quote()", () => {
         });
         const q = quote(plan, billing, n);
         const drift = Math.abs(lineTotals(lines).subtotalOre - toOre(q.chargeExVat));
-        assert.ok(drift <= n, `${plan.id}/${billing}/${n}: drift ${drift} øre exceeds ${n}`);
+        assert.equal(drift, 0, `${plan.id}/${billing}/${n}: drift ${drift} øre`);
       }
     }
   }
@@ -92,6 +93,17 @@ test("refuses a customer with no locations", () => {
   assert.throws(
     () => buildInvoiceLines({
       plan: medium, billing: "monthly", locations: 0,
+      periodStart: "2026-03-01", periodEnd: "2026-04-01",
+    }),
+    /at least one location/i,
+  );
+});
+
+test("refuses a fractional location count", () => {
+  // quantity * unitOre must stay a whole number of øre.
+  assert.throws(
+    () => buildInvoiceLines({
+      plan: medium, billing: "monthly", locations: 2.5,
       periodStart: "2026-03-01", periodEnd: "2026-04-01",
     }),
     /at least one location/i,

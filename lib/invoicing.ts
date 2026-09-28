@@ -43,11 +43,13 @@ const TERM_LABEL: Record<Billing, string> = {
  * available in this file.
  */
 export function buildInvoiceLines(input: BuildLinesInput): InvoiceLineDraft[] {
-  if (input.locations < 1) {
+  if (!Number.isInteger(input.locations) || input.locations < 1) {
     /* quote() clamps to a minimum of one location, so passing zero through
        would bill a phantom location rather than fail. A customer with no
        locations has nothing to invoice; that is a caller error, not a
-       zero-amount invoice. */
+       zero-amount invoice. Non-integer locations would make quantity * unitOre
+       non-integral øre, violating the money-is-always-an-integer-number-of-øre
+       constraint. */
     throw new Error("cannot invoice a customer with at least one location missing");
   }
 
