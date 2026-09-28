@@ -35,7 +35,11 @@ export async function storeInvoicePdf(
     }
     return path;
   } catch (error) {
-    console.error("[odatone] invoice pdf: render failed", { invoiceId, error });
+    /* Covers rendering, client construction, and anything the storage or
+       PostgREST client throws rather than returns. Deliberately broad: the
+       invoice already exists with a consumed number, so nothing here may
+       escape as an exception. */
+    console.error("[odatone] invoice pdf: could not render or store", { invoiceId, error });
     return null;
   }
 }
