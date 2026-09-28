@@ -3,9 +3,9 @@
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buttonClass } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
+import { Field, TextField } from "@/components/ui/Field";
 import { Modal } from "@/components/admin/Modal";
-import { issueInvoice } from "@/app/admin/customers/[id]/invoice-actions";
+import { issueInvoice, markInvoicePaid, voidInvoice } from "@/app/admin/customers/[id]/invoice-actions";
 import type { ActionResult } from "@/lib/forms";
 import { ISSUER, ISSUER_IS_PLACEHOLDER } from "@/lib/invoice-issuer";
 import { buildInvoiceLines, lineTotals, type InvoiceLineDraft } from "@/lib/invoicing";
@@ -317,6 +317,174 @@ function IssueInvoiceForm({
           {pending ? "Issuing…" : "Issue invoice"}
         </button>
       )}
+    </form>
+  );
+}
+
+/** Every code markInvoicePaid (../[id]/invoice-actions.ts) can return in
+    `errors.form`. "void" reads oddly as a Record key but matches the
+    literal error string the action returns for that refusal. */
+const MARK_PAID_ERRORS: Record<string, string> = {
+  forbidden: "Only staff can mark invoices paid.",
+  invalid: "That invoice could not be found.",
+  "already-paid": "This invoice is already marked paid.",
+  void: "A voided invoice cannot be marked paid.",
+  conflict: "This invoice changed elsewhere. Reload the page and try again.",
+  service: "Something went wrong marking this invoice paid. Try again in a moment.",
+};
+
+const PAYMENT_METHOD_ERRORS: Record<string, string> = {
+  invalid: "Choose how this invoice was paid.",
+};
+
+/**
+ * The "Mark paid" button on one invoice row, and the dialog it opens.
+ *
+ * Same shape as `IssueInvoiceDialog` above: a trigger button with its own
+ * ref, a `Modal`, and a form driven by `useActionState` that closes on the
+ * ordinary `ok: true` — there is no partial-success outcome here the way
+ * `issueInvoice`'s "no-pdf" is, so every `ok: true` closes the dialog.
+ */
+export function MarkPaidDialog({ invoiceId, number }: { invoiceId: string; number: string }) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className={buttonClass("outline", "sm")}>
+        Mark paid
+      </button>
+      <Modal open={open} onClose={close} title={`Mark ${number} paid`} trigger={triggerRef}>
+        <MarkPaidForm invoiceId={invoiceId} onPaid={close} />
+      </Modal>
+    </>
+  );
+}
+
+function MarkPaidForm({ invoiceId, onPaid }: { invoiceId: string; onPaid: () => void }) {
+  const [state, formAction, pending] = useActionState(markInvoicePaid, INITIAL_STATE);
+
+  useEffect(() => {
+    if (state.ok) onPaid();
+  }, [state, onPaid]);
+
+  const formError = !state.ok ? state.errors.form : undefined;
+  const paymentMethodError = !state.ok ? state.errors.paymentMethod : undefined;
+
+  return (
+    <form action={formAction} className="flex flex-col gap-5">
+      <input type="hidden" name="invoiceId" value={invoiceId} />
+
+      <label className="flex flex-col gap-2">
+        <span className="u-label text-ink-2">Payment method</span>
+        <select
+          name="paymentMethod"
+          defaultValue="bank_transfer"
+          aria-invalid={paymentMethodError ? true : undefined}
+          className={`w-full rounded-[var(--radius-md)] border bg-surface px-4 py-3 text-[0.9375rem] text-ink outline-none transition-[border-color,box-shadow] duration-200 focus:border-accent focus:shadow-[0_0_0_3px_var(--c-accent-soft)] ${paymentMethodError ? "border-warn" : "border-line"}`}
+        >
+          <option value="bank_transfer">Bank transfer</option>
+          <option value="card">Card</option>
+          <option value="other">Other</option>
+        </select>
+        {paymentMethodError && (
+          <span className="text-[0.8125rem] text-warn">
+            {PAYMENT_METHOD_ERRORS[paymentMethodError] ?? paymentMethodError}
+          </span>
+        )}
+      </label>
+
+      <Field label="Payment reference" name="paymentReference" hint="optional" type="text" />
+
+      {formError && (
+        <p role="alert" className="text-[0.8125rem] text-bad">
+          {MARK_PAID_ERRORS[formError] ?? "Something went wrong marking this invoice paid."}
+        </p>
+      )}
+
+      <button type="submit" disabled={pending} className={buttonClass("primary", "sm", "self-start")}>
+        {pending ? "Saving…" : "Mark paid"}
+      </button>
+    </form>
+  );
+}
+
+/** Every code voidInvoice (../[id]/invoice-actions.ts) can return in
+    `errors.form`. */
+const VOID_ERRORS: Record<string, string> = {
+  forbidden: "Only staff can void invoices.",
+  invalid: "That invoice could not be found.",
+  "already-void": "This invoice is already void.",
+  paid: "A paid invoice cannot be voided directly — that needs a credit note.",
+  conflict: "This invoice changed elsewhere. Reload the page and try again.",
+  service: "Something went wrong voiding this invoice. Try again in a moment.",
+};
+
+const VOID_REASON_ERRORS: Record<string, string> = {
+  required: "Enter a reason for voiding this invoice.",
+};
+
+/**
+ * The "Void" button on one invoice row, and the dialog it opens.
+ *
+ * Same shape as `MarkPaidDialog` above. `voidInvoice` rejects a blank or
+ * whitespace-only reason itself, before the database's own
+ * `invoices_void_reason_ck` (0010_invoice_lines.sql) has to — so the reason
+ * field is `required` here for the ordinary case, but the server action is
+ * still what actually enforces it against a crafted or JS-disabled submit.
+ */
+export function VoidInvoiceDialog({ invoiceId, number }: { invoiceId: string; number: string }) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className={buttonClass("danger", "sm")}>
+        Void
+      </button>
+      <Modal open={open} onClose={close} title={`Void ${number}`} trigger={triggerRef}>
+        <VoidInvoiceForm invoiceId={invoiceId} onVoided={close} />
+      </Modal>
+    </>
+  );
+}
+
+function VoidInvoiceForm({ invoiceId, onVoided }: { invoiceId: string; onVoided: () => void }) {
+  const [state, formAction, pending] = useActionState(voidInvoice, INITIAL_STATE);
+
+  useEffect(() => {
+    if (state.ok) onVoided();
+  }, [state, onVoided]);
+
+  const formError = !state.ok ? state.errors.form : undefined;
+  const voidReasonError = !state.ok ? state.errors.voidReason : undefined;
+
+  return (
+    <form action={formAction} className="flex flex-col gap-5">
+      <input type="hidden" name="invoiceId" value={invoiceId} />
+
+      <p className="text-[0.8125rem] text-ink-2">
+        Voiding cannot be undone. The invoice stays on record, marked void, and its number is never reused.
+      </p>
+
+      <TextField
+        label="Reason"
+        name="voidReason"
+        error={voidReasonError ? (VOID_REASON_ERRORS[voidReasonError] ?? voidReasonError) : undefined}
+        required
+      />
+
+      {formError && (
+        <p role="alert" className="text-[0.8125rem] text-bad">
+          {VOID_ERRORS[formError] ?? "Something went wrong voiding this invoice."}
+        </p>
+      )}
+
+      <button type="submit" disabled={pending} className={buttonClass("danger", "sm", "self-start")}>
+        {pending ? "Voiding…" : "Void invoice"}
+      </button>
     </form>
   );
 }

@@ -155,3 +155,146 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
   revalidatePath("/admin/billing");
   return path ? { ok: true } : { ok: true, message: "no-pdf" };
 }
+
+const PAYMENT_METHODS = ["bank_transfer", "card", "other"] as const;
+type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * Marks one invoice paid, and voids one — the two ordinary status
+ * transitions staff make after an invoice has been issued.
+ *
+ * Unlike `issueInvoice` above, neither of these goes near the service-role
+ * client. Minting a number needed `issue_invoice`'s SECURITY DEFINER
+ * because `invoice_counters` has no RLS policy any session role can satisfy;
+ * these two are plain updates to `invoices` itself, and `invoices_staff_write`
+ * (0003_tenancy.sql) already permits any staff role to make them. Reaching
+ * for the admin client here would bypass a policy that works, for no reason
+ * — so both write through the session client, and RLS does the authorising.
+ *
+ * That has a consequence to handle rather than a shortcut to take: when RLS
+ * refuses an update, Postgres does not raise — it matches zero rows. Same
+ * shape as `updatePlan` (app/admin/products/actions.ts) refusing a
+ * `plans_admin_write` violation: `.select("id")` on the update is not for
+ * reading data back, it is how a *refused* write is told apart from a
+ * *successful* one, since an empty `data` array is otherwise indistinguishable
+ * from a real success.
+ *
+ * A second, unrelated race is handled the same way: the invoice's current
+ * status is read first (through the session client, same as the RLS/role
+ * check) purely to produce a specific, readable refusal — "already paid",
+ * "void, needs a credit note" — for staff. That read is not itself the
+ * guard: two staff clicking at once could both pass it before either writes.
+ * The actual guard is `.eq("status", invoice.status)` on the update itself,
+ * so only the request that still matches the status this action just read
+ * can succeed; a concurrent change in between makes the update match zero
+ * rows and lose cleanly, reported the same way an RLS refusal is.
+ */
+export async function markInvoicePaid(_prev: unknown, formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const callerId = typeof claims?.claims?.sub === "string" ? claims.claims.sub : undefined;
+  if (!callerId) return { ok: false, errors: { form: "forbidden" } };
+
+  const { data: caller } = await supabase
+    .from("profiles").select("role").eq("id", callerId).maybeSingle();
+  if (caller?.role !== "staff_admin" && caller?.role !== "staff_support") {
+    return { ok: false, errors: { form: "forbidden" } };
+  }
+
+  const invoiceId = String(formData.get("invoiceId") ?? "");
+  if (!invoiceId) return { ok: false, errors: { form: "invalid" } };
+
+  const paymentMethodRaw = String(formData.get("paymentMethod") ?? "");
+  if (!PAYMENT_METHODS.includes(paymentMethodRaw as PaymentMethod)) {
+    return { ok: false, errors: { paymentMethod: "invalid" } };
+  }
+  const paymentMethod = paymentMethodRaw as PaymentMethod;
+  const paymentReference = String(formData.get("paymentReference") ?? "").trim();
+
+  const { data: invoice, error: readError } = await supabase
+    .from("invoices")
+    .select("id, customer_id, status")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (readError || !invoice) return { ok: false, errors: { form: "invalid" } };
+  if (invoice.status === "paid") return { ok: false, errors: { form: "already-paid" } };
+  if (invoice.status === "void") return { ok: false, errors: { form: "void" } };
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .update({
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      payment_method: paymentMethod,
+      payment_reference: paymentReference === "" ? null : paymentReference,
+    })
+    .eq("id", invoiceId)
+    .eq("status", invoice.status)
+    .select("id");
+
+  if (error) {
+    console.error("[odatone] mark invoice paid: update failed", { invoiceId, error });
+    return { ok: false, errors: { form: "service" } };
+  }
+  if (!data || data.length === 0) return { ok: false, errors: { form: "conflict" } };
+
+  revalidatePath(`/admin/customers/${invoice.customer_id}`);
+  revalidatePath("/admin/billing");
+  return { ok: true };
+}
+
+/** See `markInvoicePaid`'s doc comment just above for the shared shape:
+    session client, RLS-refusal detected via `.select("id")` coming back
+    empty, and a read-then-conditional-write against the invoice's own
+    current status to close the gap between reading it and writing it. */
+export async function voidInvoice(_prev: unknown, formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const callerId = typeof claims?.claims?.sub === "string" ? claims.claims.sub : undefined;
+  if (!callerId) return { ok: false, errors: { form: "forbidden" } };
+
+  const { data: caller } = await supabase
+    .from("profiles").select("role").eq("id", callerId).maybeSingle();
+  if (caller?.role !== "staff_admin" && caller?.role !== "staff_support") {
+    return { ok: false, errors: { form: "forbidden" } };
+  }
+
+  const invoiceId = String(formData.get("invoiceId") ?? "");
+  if (!invoiceId) return { ok: false, errors: { form: "invalid" } };
+
+  /* Refused here, before invoices_void_reason_ck (0010_invoice_lines.sql)
+     ever has to: that constraint only requires void_reason is not null, so
+     "   " would sail through it and leave a voided invoice with a reason
+     no human ever wrote. */
+  const voidReason = String(formData.get("voidReason") ?? "").trim();
+  if (!voidReason) return { ok: false, errors: { voidReason: "required" } };
+
+  const { data: invoice, error: readError } = await supabase
+    .from("invoices")
+    .select("id, customer_id, status")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (readError || !invoice) return { ok: false, errors: { form: "invalid" } };
+  if (invoice.status === "void") return { ok: false, errors: { form: "already-void" } };
+  /* Reversing a paid invoice needs a credit note — explicitly out of scope
+     for this slice, so voiding a paid invoice is refused rather than quietly
+     wiping out a payment that was actually received. */
+  if (invoice.status === "paid") return { ok: false, errors: { form: "paid" } };
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .update({ status: "void", void_reason: voidReason })
+    .eq("id", invoiceId)
+    .eq("status", invoice.status)
+    .select("id");
+
+  if (error) {
+    console.error("[odatone] void invoice: update failed", { invoiceId, error });
+    return { ok: false, errors: { form: "service" } };
+  }
+  if (!data || data.length === 0) return { ok: false, errors: { form: "conflict" } };
+
+  revalidatePath(`/admin/customers/${invoice.customer_id}`);
+  revalidatePath("/admin/billing");
+  return { ok: true };
+}

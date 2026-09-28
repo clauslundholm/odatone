@@ -7,7 +7,7 @@ import { UsersGlyph } from "@/components/admin/icons";
 import { Badge, statusTone } from "@/components/admin/Badge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { GdprPanel } from "@/components/admin/GdprPanel";
-import { IssueInvoiceDialog } from "@/components/admin/InvoiceActions";
+import { IssueInvoiceDialog, MarkPaidDialog, VoidInvoiceDialog } from "@/components/admin/InvoiceActions";
 import { Meter } from "@/components/admin/Meter";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
@@ -402,30 +402,51 @@ export default async function CustomerDetailPage({
                   <th className="px-5 py-3 text-right font-medium">Total</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Source</th>
+                  <th className="px-5 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-line last:border-0">
-                    <td className="px-5 py-3 font-mono text-ink">{inv.number}</td>
-                    <td className="px-5 py-3 text-ink-2">{formatDate(inv.issued_at)}</td>
-                    <td className="u-tabular px-5 py-3 text-right text-ink-2">
-                      {formatDkk(inv.subtotal_ore, "en")}
-                    </td>
-                    <td className="u-tabular px-5 py-3 text-right text-ink-2">{formatDkk(inv.vat_ore, "en")}</td>
-                    <td className="u-tabular px-5 py-3 text-right text-ink">{formatDkk(inv.total_ore, "en")}</td>
-                    <td className="px-5 py-3">
-                      <Badge tone={statusTone(inv.status)}>{inv.status}</Badge>
-                    </td>
-                    <td className="px-5 py-3">
-                      {/* Per-row, not just the blanket banner above: once a
-                          customer has a mix of seed and real Stripe rows,
-                          this is the only thing on the page that still
-                          says which is which. */}
-                      {inv.source === "seed" ? <Badge tone="neutral">seed</Badge> : <span className="text-ink-2">—</span>}
-                    </td>
-                  </tr>
-                ))}
+                {invoices.map((inv) => {
+                  // Task 7: an invoice can be marked paid or voided only
+                  // while it is still open — issued invoices never carry a
+                  // literal 'overdue' or 'draft' status in this schema (see
+                  // 0003_tenancy.sql's comment on invoice_status), so "open"
+                  // is the only pre-payment state a real row is ever in.
+                  // Once paid or void, both actions are refused server-side
+                  // anyway (markInvoicePaid/voidInvoice, invoice-actions.ts);
+                  // hiding them here just keeps staff from opening a dialog
+                  // that can only end in a refusal.
+                  const canAct = inv.status === "open";
+                  return (
+                    <tr key={inv.id} className="border-b border-line last:border-0">
+                      <td className="px-5 py-3 font-mono text-ink">{inv.number}</td>
+                      <td className="px-5 py-3 text-ink-2">{formatDate(inv.issued_at)}</td>
+                      <td className="u-tabular px-5 py-3 text-right text-ink-2">
+                        {formatDkk(inv.subtotal_ore, "en")}
+                      </td>
+                      <td className="u-tabular px-5 py-3 text-right text-ink-2">{formatDkk(inv.vat_ore, "en")}</td>
+                      <td className="u-tabular px-5 py-3 text-right text-ink">{formatDkk(inv.total_ore, "en")}</td>
+                      <td className="px-5 py-3">
+                        <Badge tone={statusTone(inv.status)}>{inv.status}</Badge>
+                      </td>
+                      <td className="px-5 py-3">
+                        {/* Per-row, not just the blanket banner above: once a
+                            customer has a mix of seed and real Stripe rows,
+                            this is the only thing on the page that still
+                            says which is which. */}
+                        {inv.source === "seed" ? <Badge tone="neutral">seed</Badge> : <span className="text-ink-2">—</span>}
+                      </td>
+                      <td className="px-5 py-3">
+                        {canAct && (
+                          <div className="flex gap-2">
+                            <MarkPaidDialog invoiceId={inv.id} number={inv.number} />
+                            <VoidInvoiceDialog invoiceId={inv.id} number={inv.number} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </TableCard>
           )}
