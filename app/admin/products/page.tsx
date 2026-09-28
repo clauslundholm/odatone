@@ -2,7 +2,7 @@ import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { BoxGlyph } from "@/components/admin/icons";
 import { TopBar } from "@/components/admin/TopBar";
-import { PlanCard, AddonCard } from "@/components/admin/ProductsForm";
+import { AddonBox, PlanBox } from "@/components/admin/ProductsBoxes";
 import type { PlanRow } from "@/lib/plans-row";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,6 +21,9 @@ type AddonRow = {
  * because a deactivated plan is still something staff need to be able to
  * re-price or reactivate here.
  *
+ * Each plan and add-on is a box that opens its edit form in a dialog
+ * (components/admin/ProductsBoxes.tsx).
+ *
  * Saving is `updatePlan`/`updateAddon` (./actions.ts). Neither checks the
  * signed-in role: `plans_admin_write`/`addons_admin_write`
  * (supabase/migrations/0003_tenancy.sql) restrict the write to
@@ -31,7 +34,7 @@ type AddonRow = {
  * from the UPDATE's affected set by `plans_admin_write`'s `using` clause —
  * Postgres does not raise an error for that, it simply matches zero rows —
  * so the action tells a refusal apart from success with `.select("id")`
- * and an empty result, and the card shows "Only staff_admin can save
+ * and an empty result, and the form shows "Only staff_admin can save
  * this," not a UI-level guess at who's allowed.
  */
 export default async function AdminProductsPage() {
@@ -64,18 +67,18 @@ export default async function AdminProductsPage() {
           These prices are live on odatone.com.
         </p>
 
-        <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {plans.map((plan) => (
-            <PlanCard key={plan.id} plan={plan} />
+            <PlanBox key={plan.id} plan={plan} />
           ))}
         </div>
 
         {addons.length > 0 && (
           <>
             <h2 className="mt-2 text-[0.9375rem] font-medium text-ink">Add-ons</h2>
-            <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {addons.map((addon) => (
-                <AddonCard key={addon.id} addon={addon} />
+                <AddonBox key={addon.id} addon={addon} />
               ))}
             </div>
           </>
