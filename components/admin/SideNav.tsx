@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import Wordmark from "@/components/ui/Wordmark";
+import { activeNavHref } from "@/lib/nav-active";
 
 export type NavItem = {
   href: string;
@@ -49,6 +50,15 @@ export function SideNav({
       admin label so every existing call site is unchanged. */
   navLabel?: string;
 }) {
+  /* Resolved against the whole list, not per row: the winner is the most
+     specific match, which is a fact about the candidates rather than about
+     any one of them. See lib/nav-active.ts for what the per-row rule got
+     wrong. */
+  const highlighted = activeNavHref(
+    items.map((item) => item.href),
+    activeHref,
+  );
+
   return (
     <div className="flex h-full flex-col gap-1">
       {/* .brand: padding 2px 8px 16px */}
@@ -60,9 +70,7 @@ export function SideNav({
 
       <nav aria-label={navLabel} className="mt-2.5 flex flex-1 flex-col gap-0.5">
         {items.map((item) => {
-          const active =
-            activeHref === item.href ||
-            (activeHref?.startsWith(item.href + "/") ?? false);
+          const active = item.href === highlighted;
           return (
             <Link
               key={item.href}
