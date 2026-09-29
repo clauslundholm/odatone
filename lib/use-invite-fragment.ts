@@ -13,8 +13,8 @@ export type SetPasswordError = "short" | "generic";
 export const MIN_PASSWORD_LEN = 8;
 
 /**
- * The invite/recovery half of a login page, shared by /admin/login and
- * /my-odatone/login.
+ * The invite/recovery half of a login page, shared by /admin and
+ * /my-odatone — each portal's root IS its sign-in form when signed out.
  *
  * Both pages show two completely different forms depending on how the
  * visitor arrived, and deciding which can only happen in the browser:

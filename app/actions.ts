@@ -446,7 +446,7 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
   const inviteStartedAt = Date.now();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
     built.value.customer.email,
-    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/my-odatone/login` },
+    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/my-odatone` },
   );
 
   if (inviteError || !invited?.user) {

@@ -26,5 +26,5 @@ export async function setPortalLocale(locale: Locale) {
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect("/my-odatone/login");
+  redirect("/my-odatone");
 }

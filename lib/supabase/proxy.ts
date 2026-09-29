@@ -61,7 +61,16 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const portal = portalFor(path);
 
-  if (!portal || isPublicPath(path)) return response;
+  if (!portal) return response;
+
+  /* Deliberately NOT `if (isPublicPath(path)) return response` here, which
+     is what this line used to be. The portal root is public now — it renders
+     the sign-in form when signed out — so short-circuiting on it would wave
+     a signed-in CUSTOMER straight into /admin, where the page would find a
+     valid session and start rendering the staff console. Public means "may
+     be reached WITHOUT a session", not "skip the audience check". The
+     session is read first, and `isPublicPath` only decides what happens when
+     there is none. */
 
   const env = resolveSupabaseEnv();
   if (!env) {
@@ -96,6 +105,10 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
 
   if (!data?.claims?.sub) {
+    /* No session. The portal root and the legacy /login URLs render the
+       sign-in form themselves, so they are served as-is; anything deeper
+       redirects to the root carrying where the visitor was headed. */
+    if (isPublicPath(path)) return response;
     const url = request.nextUrl.clone();
     url.pathname = LOGIN_PATH[portal];
     url.searchParams.set("next", path);

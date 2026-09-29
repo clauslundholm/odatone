@@ -72,7 +72,7 @@ export async function inviteStaff(_prev: unknown, formData: FormData): Promise<A
   const inviteStartedAt = Date.now();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
     built.value.email,
-    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/admin/login` },
+    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/admin` },
   );
 
   if (inviteError || !invited?.user) {

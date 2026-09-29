@@ -42,10 +42,28 @@ test("portalFor does not match a path that merely starts with the same character
   assert.equal(portalFor("/"), null);
 });
 
-test("login routes are public", () => {
+test("each portal's root is public, because it IS the login when signed out", () => {
+  assert.equal(isPublicPath("/admin"), true);
+  assert.equal(isPublicPath("/my-odatone"), true);
+  assert.deepEqual(LOGIN_PATH, { admin: "/admin", portal: "/my-odatone" });
+});
+
+test("the old /login URLs stay public so in-flight invite links still work", () => {
+  // An invite already in someone's inbox points at /admin/login. Those
+  // routes redirect to the root now, but the redirect must be reachable
+  // without a session or the link dead-ends.
   assert.equal(isPublicPath("/admin/login"), true);
   assert.equal(isPublicPath("/my-odatone/login"), true);
-  assert.equal(isPublicPath("/admin/login/reset"), true);
+});
+
+test("nothing BELOW a portal root is public", () => {
+  // This is the whole risk of moving login to the root: a rule of "the root
+  // and everything under it" would unauthenticate the entire backend.
+  assert.equal(isPublicPath("/admin/billing"), false);
+  assert.equal(isPublicPath("/admin/customers/abc-123"), false);
+  assert.equal(isPublicPath("/admin/users"), false);
+  assert.equal(isPublicPath("/my-odatone/billing"), false);
+  assert.equal(isPublicPath("/my-odatone/settings"), false);
 });
 
 test("a route that merely starts with the login path is still gated (regression: the old code used path.startsWith(loginPath))", () => {
@@ -65,13 +83,24 @@ test("a route that merely starts with the login path is still gated (regression:
 });
 
 test("ordinary admin and portal routes are not public", () => {
-  assert.equal(isPublicPath("/admin"), false);
   assert.equal(isPublicPath("/admin/settings"), false);
-  assert.equal(isPublicPath("/my-odatone"), false);
+  assert.equal(isPublicPath("/my-odatone/stats"), false);
+});
+
+test("a look-alike route outside both portals is not public", () => {
+  assert.equal(isPublicPath("/administrators"), false);
+  assert.equal(isPublicPath("/my-odatone-blog"), false);
+  assert.equal(isPublicPath("/da/priser"), false);
+});
+
+test("a trailing slash on a portal root is still the root", () => {
+  assert.equal(isPublicPath("/admin/"), true);
+  assert.equal(isPublicPath("/my-odatone/"), true);
 });
 
 test("path matching is case-insensitive", () => {
   assert.equal(portalFor("/Admin/Settings"), "admin");
+  assert.equal(isPublicPath("/ADMIN"), true);
   assert.equal(isPublicPath("/ADMIN/LOGIN"), true);
   assert.equal(isPublicPath("/Admin/Login-Secrets"), false);
 });

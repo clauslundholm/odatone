@@ -43,7 +43,7 @@ export const portal = {
 
     /* Shown instead of the sign-in form when the visitor arrived via an
        invite or password-reset link (Task 13's inviteUserByEmail,
-       redirectTo: /my-odatone/login) rather than typing a URL directly. */
+       redirectTo: /my-odatone) rather than typing a URL directly. */
     setPassword: {
       heading: { da: "Vælg en adgangskode", en: "Choose a password" } as L10n,
       body: {

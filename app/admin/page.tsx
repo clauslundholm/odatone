@@ -1,3 +1,4 @@
+import { AdminLoginCard } from "@/components/admin/AdminLoginCard";
 import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { GridGlyph } from "@/components/admin/icons";
@@ -72,6 +73,14 @@ function formatDate(iso: string): string {
  */
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
+
+  /* /admin IS the sign-in form when signed out, and the dashboard when
+     signed in. proxy.ts serves this route without a session on purpose
+     (isPublicPath), so the check belongs here — and when a session DOES
+     exist, proxy.ts has already refused anyone who is not staff, so
+     everything below may assume a staff session. */
+  const { data: claims } = await supabase.auth.getClaims();
+  if (typeof claims?.claims?.sub !== "string") return <AdminLoginCard />;
 
   const [
     { count: customerCount, error: customerCountError },

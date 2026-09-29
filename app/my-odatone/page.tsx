@@ -7,7 +7,10 @@ import { Meter } from "@/components/admin/Meter";
 import { HouseGlyph } from "@/components/admin/icons";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
+import { LocaleSwitch } from "@/components/portal/LocaleSwitch";
 import { PortalShell } from "@/components/portal/PortalShell";
+import Wordmark from "@/components/ui/Wordmark";
+import LoginForm from "./login/LoginForm";
 import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
 import { latestSubscription, locationFit } from "@/lib/admin/customers";
@@ -115,7 +118,35 @@ export default async function PortalSummaryPage() {
   const supabase = await createClient();
 
   const { data: claims } = await supabase.auth.getClaims();
-  const userId = claims?.claims?.sub;
+
+  /* /my-odatone IS the sign-in form when signed out, and the summary when
+     signed in. proxy.ts serves this route without a session on purpose;
+     with one, it has already refused anyone who is not a customer. */
+  if (typeof claims?.claims?.sub !== "string") {
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center p-6"
+        style={{
+          backgroundImage: "radial-gradient(var(--c-line-strong) 1px, transparent 0)",
+          backgroundSize: "16px 16px",
+        }}
+      >
+        <div className="flex w-full max-w-sm flex-col gap-4">
+          <LocaleSwitch locale={locale} className="justify-center" />
+          <div className="rounded-[var(--radius-md)] border border-line bg-surface p-8 shadow-[var(--shadow-card)]">
+            <div className="mb-6 flex justify-center">
+              <Wordmark height={22} />
+            </div>
+            {/* LoginForm owns its own heading: which of its four modes it is
+                in depends on the URL fragment, which only the browser sees. */}
+            <LoginForm locale={locale} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const userId = claims.claims.sub;
   // proxy.ts (lib/supabase/proxy.ts) already denies any request here with
   // no verified session, so this should be unreachable in practice —
   // guarded anyway rather than trusting that invariant a second time.

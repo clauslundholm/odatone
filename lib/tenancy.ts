@@ -48,19 +48,44 @@ export const portalFor = (path: string): PortalName | null => {
     lib/supabase/proxy.ts builds its redirect from the same values
     isPublicPath checks against — two independent copies could drift, and a
     proxy that redirects to a path the gate itself does not consider public
-    is an infinite redirect loop. */
+    is an infinite redirect loop.
+
+    Each portal's login IS its root: /admin signed out is the sign-in form,
+    /admin signed in is the dashboard. There is no /login segment. */
 export const LOGIN_PATH: Record<PortalName, string> = {
+  admin: ADMIN,
+  portal: PORTAL,
+};
+
+/** The pre-root-login URLs, kept reachable because invite and recovery
+    links already in people's inboxes point at them. They redirect to the
+    root, and a redirect the gate would block is a dead link. */
+const LEGACY_LOGIN_PATH: Record<PortalName, string> = {
   admin: `${ADMIN}/login`,
   portal: `${PORTAL}/login`,
 };
 
-/** True only for a portal's login route itself, or something nested under
-    it (e.g. a password-reset step) — never for a sibling route that merely
-    starts with the same characters, such as /admin/login-secrets or
-    /admin/loginsecret. Those are gated like any other admin route. */
+/** Which paths a visitor with no session may reach.
+ *
+ *  Exactly two per portal: the root, which renders the sign-in form when
+ *  signed out, and the old `/login` URL, which redirects to it.
+ *
+ *  The root is matched EXACTLY, never as a prefix. `hasSegment` — the rule
+ *  the old login path used — would return true for everything beneath it,
+ *  so reusing it here would make `/admin/billing`, `/admin/users` and every
+ *  other screen public the moment login moved to the root. That is the one
+ *  way this change could go catastrophically wrong, and it is why
+ *  `test/tenancy.test.ts` asserts each child route is still gated.
+ *
+ *  The legacy `/login` paths keep `hasSegment`, so a nested step such as
+ *  `/admin/login/reset` stays reachable — while `/admin/login-secrets` and
+ *  `/admin/loginsecret` do not, which is the regression that rule exists to
+ *  prevent. */
 export const isPublicPath = (path: string): boolean => {
   const portal = portalFor(path);
-  return portal !== null && hasSegment(path, LOGIN_PATH[portal]);
+  if (portal === null) return false;
+  const p = path.toLowerCase().replace(/\/+$/, "");
+  return p === LOGIN_PATH[portal].toLowerCase() || hasSegment(path, LEGACY_LOGIN_PATH[portal]);
 };
 
 /** Whether `role` may enter the portal that owns `path`. A path outside
