@@ -130,16 +130,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const asset = AUDIO[track.id];
     if (asset === undefined) return; // catalogue entry without a bundled file
     player.replace(asset);
-    try {
-      player.setActiveForLockScreen(true, {
-        title: track.title.da,
-        artist: track.artist,
-        albumTitle: "Odatone",
-      });
-    } catch {
-      /* lock-screen controls need a dev build; Expo Go just plays */
+    /* Not entitled (and not merely waiting for an answer): do not arm the
+       lock screen, whose play button reaches the native player directly. */
+    if (entitledRef.current || checkingRef.current) {
+      try {
+        player.setActiveForLockScreen(true, {
+          title: track.title.da,
+          artist: track.artist,
+          albumTitle: "Odatone",
+        });
+      } catch {
+        /* lock-screen controls need a dev build; Expo Go just plays */
+      }
     }
-    if (wantsPlay.current) player.play();
+    if (wantsPlay.current && entitledRef.current) player.play();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track?.id]);
 
@@ -147,11 +151,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const sub = player.addListener("playbackStatusUpdate", (status) => {
       setPlaying((was) => (was === status.playing ? was : status.playing));
+      /* Any resume that did not come through guard() — lock screen,
+         Control Center, a headphone button, an interruption ending —
+         is stopped here. Like the effect below, leave it alone while an
+         account read is in flight. */
+      if (status.playing && !entitledRef.current && !checkingRef.current) {
+        wantsPlay.current = false;
+        player.pause();
+        return;
+      }
       if (!status.didJustFinish) return;
 
       const q = queueRef.current;
       const i = indexRef.current;
-      if (repeatRef.current === "one") {
+      if (repeatRef.current === "one" && entitledRef.current) {
         player.seekTo(0).then(() => player.play()).catch(() => {});
         return;
       }
@@ -177,6 +190,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (entitled || checking) return;
     wantsPlay.current = false;
     player.pause();
+    try {
+      player.setActiveForLockScreen(false);
+    } catch {
+      /* lock-screen controls need a dev build */
+    }
   }, [entitled, checking, player]);
 
   /* ---- signed out: the next person at this phone starts from nothing,
