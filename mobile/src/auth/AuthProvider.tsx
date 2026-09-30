@@ -16,6 +16,8 @@ import { fetchAccount } from "./account";
 import {
   RECHECK_INTERVAL_MS,
   accountEntitled,
+  accountKnown,
+  canStillRead,
   effectiveAccountState,
   effectiveUserId,
   isChecking,
@@ -57,10 +59,14 @@ type AuthValue = {
   account: Account | null;
   /** May this person press play right now. */
   entitled: boolean;
-  /** True while there is an identity but no answer yet. A play gate must
-      wait while this is true rather than read `entitled: false` as
-      "subscription not active". */
+  /** True while there is an identity, no yes to go on, and the server's
+      answer may still be on its way. A play gate must wait while this is
+      true rather than read `entitled: false` as "subscription not
+      active". */
   checking: boolean;
+  /** True only when the server's answer for this user has been read.
+      `entitled: false` without it means "could not check", not "no". */
+  known: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   verifyCode: (email: string, code: string, password: string, kind: CodeKind) => Promise<AuthResult>;
@@ -257,7 +263,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* Waits for the new user's account, so a screen that closes on success
      has an entitlement to show. The id comes from the call's own result:
      React state has not caught up yet. A failed read is not a failed
-     sign-in; `checking` and the cache cover it. */
+     sign-in; the cache covers it, or `known` stays false and the gate
+     says it could not check. */
   const settleAccount = useCallback(
     async (fresh: Session) => {
       currentUser.current = fresh.user.id;
@@ -368,7 +375,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const shown = effectiveAccountState(state, userId);
   const entitled = resolveEntitled(shown, cache, userId, now);
-  const checking = isChecking(shown, cache, userId, settledFor);
+  const checking = isChecking(shown, cache, userId, settledFor, canStillRead(sessionState, settled), now);
+  const known = accountKnown(shown);
   const email =
     typeof session === "object" ? (session.user.email ?? null) : cache && cache.userId === userId ? (cache.email ?? null) : null;
   const account = shown.kind === "loaded" ? shown.account : null;
@@ -381,6 +389,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       account,
       entitled,
       checking,
+      known,
       signIn,
       signOut,
       verifyCode,
@@ -388,7 +397,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       requestReset,
       refresh,
     }),
-    [ready, userId, email, account, entitled, checking, signIn, signOut, verifyCode, resendCode, requestReset, refresh],
+    [ready, userId, email, account, entitled, checking, known, signIn, signOut, verifyCode, resendCode, requestReset, refresh],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

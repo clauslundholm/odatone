@@ -148,22 +148,54 @@ export function effectiveAccountState(state: AccountState, userId: string | null
   return state.kind === "signed-out" ? { kind: "unavailable" } : state;
 }
 
-/** True while there is an identity but nothing to answer "may they play"
-    with yet: no account read, no cache entry for this user, and no read
-    has come back (`settledFor`). A play gate must wait, not refuse. */
+/** Whether the account can still be asked for. It needs a session to ask
+    as, so: there is one, or the stored one has not been read yet
+    (`settled` is false until getSession() has returned). Once that read
+    has come back empty-handed — the auth server did not answer — nothing
+    is on its way, and waiting for it would leave a play button that does
+    nothing. */
+export function canStillRead(session: SessionState, settled: boolean): boolean {
+  if (session === "absent") return false;
+  return session !== "unknown" || !settled;
+}
+
+/** True while there is an identity, the app cannot yet say yes, and the
+    server's answer may still be on its way: no read for this user has
+    come back in this run (`settledFor`), and one still can (`canRead`,
+    see canStillRead). A play gate must wait, not refuse.
+
+    The cache only ever counts as a yes. A stale entry (the customer was
+    away for more than the offline window) or a cached no (they have
+    renewed since) is what the server said last time, not what it says
+    now, and telling a paying customer their subscription is not active
+    on the strength of it would be wrong. A valid cached yes is an
+    answer: they play at once and nothing is waited for. */
 export function isChecking(
   state: AccountState,
   cache: CachedEntitlement | null,
   userId: string | null,
   settledFor: string | null,
+  canRead: boolean,
+  now: number,
 ): boolean {
   if (userId === null || state.kind !== "unavailable") return false;
-  return cache?.userId !== userId && settledFor !== userId;
+  if (settledFor === userId || !canRead) return false;
+  return !resolveEntitled(state, cache, userId, now);
 }
 
-export type Gate = "login" | "ended";
+/** True only when the server's answer for this user has been read. A
+    "no" without it is "could not find out", which is not a fact about
+    the account. */
+export function accountKnown(state: AccountState): boolean {
+  return state.kind === "loaded";
+}
 
-/** What to tell someone who pressed play and may not. */
-export function gateFor(signedIn: boolean): Gate {
-  return signedIn ? "ended" : "login";
+export type Gate = "login" | "ended" | "unknown";
+
+/** What to tell someone who pressed play and may not: log in; or the
+    subscription is not live (`ended`, only when the server said so); or
+    the app could not check (`unknown`). */
+export function gateFor(signedIn: boolean, known: boolean): Gate {
+  if (!signedIn) return "login";
+  return known ? "ended" : "unknown";
 }

@@ -100,7 +100,7 @@ export default function AccountTab() {
 function AccountCard() {
   const { t } = useI18n();
   const router = useRouter();
-  const { ready, signedIn, email, account, entitled, checking, signOut } = useAuth();
+  const { ready, signedIn, email, account, entitled, checking, known, signOut } = useAuth();
   const [leaving, setLeaving] = useState(false);
 
   /* Nothing until the stored session has been read: showing "Log in" for
@@ -140,12 +140,18 @@ function AccountCard() {
       <Txt variant="section" numberOfLines={1}>{account?.profile.full_name || email}</Txt>
       {account?.profile.full_name ? <Txt variant="body" tone="ink2" numberOfLines={1}>{email}</Txt> : null}
 
-      {/* No account yet: warn only when the read finished and nothing
-          cached says they may play. While checking, or offline on a valid
-          cached entitlement, show just who is signed in. */}
+      {/* No account to show. Warn only when the server has answered and
+          the answer is "no profile" (`known`); a read that failed is said
+          as that, not as a fact about the account. While checking, or
+          offline on a valid cached entitlement, show just who is signed
+          in. */}
       {account === null ? (
         !checking && !entitled ? (
-          <Txt variant="body" tone="warn" style={{ marginTop: 6 }}>{t("account.noAccess")}</Txt>
+          known ? (
+            <Txt variant="body" tone="warn" style={{ marginTop: 6 }}>{t("account.noAccess")}</Txt>
+          ) : (
+            <Txt variant="body" tone="ink2" style={{ marginTop: 6 }}>{t("account.unknown")}</Txt>
+          )
         ) : null
       ) : staff ? null : (
         <View style={{ marginTop: 10, gap: 2 }}>

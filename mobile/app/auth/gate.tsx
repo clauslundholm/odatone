@@ -13,9 +13,11 @@ import { useTheme } from "../../src/theme/theme";
 import { SPACE } from "../../src/theme/tokens";
 
 /** What pressing play shows someone who may not play: a way in for a
-    visitor, or the state of things for a customer whose subscription is
-    not live. A route rather than a view over the app, so it also shows
-    above the Now Playing modal. */
+    visitor; the state of things for a customer whose subscription is
+    not live (`ended`); or, when the account could not be read, that the
+    app could not check (`unknown`) — never a claim about a subscription
+    nobody has looked at. A route rather than a view over the app, so it
+    also shows above the Now Playing modal. */
 export default function GateScreen() {
   const { c } = useTheme();
   const { t } = useI18n();
@@ -25,11 +27,14 @@ export default function GateScreen() {
   const { kind } = useLocalSearchParams<{ kind?: string }>();
   const [checking, setChecking] = useState(false);
 
-  const ended = kind === "ended";
+  const unknown = kind === "unknown";
+  const signedIn = unknown || kind === "ended";
+  const copy = unknown ? "gate.unknown" : kind === "ended" ? "gate.ended" : "gate.login";
 
-  /* "Not active" is also what a customer sees when their phone was
-     offline for longer than the offline allowance. Asking again is the
-     fix for that, so it is a button and not advice. */
+  /* Asking again is the fix for a read that failed, and for a
+     subscription renewed a minute ago, so it is a button and not
+     advice. The sheet closes either way: the next press on play gets
+     whichever answer is then true. */
   const retry = async () => {
     setChecking(true);
     await refresh();
@@ -49,10 +54,10 @@ export default function GateScreen() {
         gap: SPACE.md,
       }}
     >
-      <Txt variant="title">{t(ended ? "gate.ended.title" : "gate.login.title")}</Txt>
-      <Txt variant="body" tone="ink2">{t(ended ? "gate.ended.body" : "gate.login.body")}</Txt>
+      <Txt variant="title">{t(`${copy}.title`)}</Txt>
+      <Txt variant="body" tone="ink2">{t(`${copy}.body`)}</Txt>
 
-      {ended ? (
+      {signedIn ? (
         <View style={{ gap: 10 }}>
           <Button label={t("gate.ended.retry")} onPress={retry} busy={checking} />
           <Button

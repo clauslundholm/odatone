@@ -79,15 +79,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   /* Refs, not state in the callbacks' dependency lists: every play
      control would otherwise be rebuilt each time the account refreshes. */
-  const { ready, entitled, signedIn, checking } = useAuth();
+  const { ready, entitled, signedIn, checking, known } = useAuth();
   const readyRef = useRef(ready);
   const entitledRef = useRef(entitled);
   const signedInRef = useRef(signedIn);
   const checkingRef = useRef(checking);
+  const knownRef = useRef(known);
   readyRef.current = ready;
   entitledRef.current = entitled;
   signedInRef.current = signedIn;
   checkingRef.current = checking;
+  knownRef.current = known;
   const lastGate = useRef(0);
 
   /** May playback start? If not, says why — once, however many times
@@ -98,12 +100,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
        and their account has not been read yet. Telling a customer who is
        logged in to log in, or that their subscription is not active,
        because they tapped in that first moment, would be wrong; doing
-       nothing for that moment is not. */
+       nothing for that moment is not. `checking` ends when the read
+       comes back or when none can (no session and no auth server), so
+       the moment does not last: after it, a press gets a sheet. */
     if (!readyRef.current || checkingRef.current) return false;
     const now = Date.now();
     if (now - lastGate.current > 1000) {
       lastGate.current = now;
-      router.push({ pathname: "/auth/gate", params: { kind: gateFor(signedInRef.current) } });
+      router.push({ pathname: "/auth/gate", params: { kind: gateFor(signedInRef.current, knownRef.current) } });
     }
     return false;
   }, []);
@@ -184,8 +188,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   /* ---- entitlement lost while playing: a subscription cancelled in
          /admin, found out when the app came back to the foreground.
-         While `checking` there is no answer yet (and never a cached yes,
-         see isChecking), so nothing is paused on that alone. ---- */
+         While `checking` there is no answer yet — the server has not
+         been heard from in this run and nothing cached says yes (see
+         isChecking) — so nothing is paused on that alone. ---- */
   useEffect(() => {
     if (entitled || checking) return;
     wantsPlay.current = false;

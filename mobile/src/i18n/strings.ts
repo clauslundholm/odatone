@@ -265,6 +265,15 @@ export const STRINGS = {
     en: "This account has no active subscription. Manage it on My Odatone, or contact us.",
   },
   "gate.ended.retry": { da: "Tjek igen", en: "Check again" },
+  "gate.unknown.title": { da: "Vi kunne ikke tjekke dit abonnement", en: "We couldn't check your subscription" },
+  "gate.unknown.body": {
+    da: "Tjek din internetforbindelse, og prøv igen.",
+    en: "Check your internet connection and try again.",
+  },
+  "account.unknown": {
+    da: "Vi kunne ikke hente din konto lige nu. Træk ned for at prøve igen.",
+    en: "We couldn't load your account just now. Pull down to try again.",
+  },
   "common.min": { da: "min", en: "min" },
   "common.bpm": { da: "BPM", en: "BPM" },
   "common.instrumental": { da: "Instrumental", en: "Instrumental" },

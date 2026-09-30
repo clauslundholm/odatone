@@ -79,8 +79,11 @@ answer is read.
 
 - None of the screens, the play gate sheet or the lock-screen behaviour
   has been checked on a device or simulator yet.
-- If the very first account read after a fresh login fails, the play gate
-  says the subscription isn't active, and "Check again" puts it right.
+- If the account cannot be read and nothing stored says the customer may
+  play (the first read after a fresh login fails, or the phone has been
+  offline past the 7 days), the play gate says it couldn't check the
+  subscription, and "Check again" asks once more. It only says the
+  subscription isn't active when the server has said so.
 - The session handling in `AuthProvider` has no automated tests beyond
   its pure functions.
 - EAN and purchase-order numbers are collected but not stored; the

@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   OFFLINE_WINDOW_MS,
   accountEntitled,
+  accountKnown,
+  canStillRead,
   gateFor,
   latestSubscription,
   effectiveAccountState,
@@ -110,9 +112,21 @@ test("parseCache accepts only the exact shape it wrote", () => {
   assert.equal(parseCache('{"entitled":true,"at":5}'), null);
 });
 
-test("the gate asks a signed-out person to log in and tells a signed-in one it has ended", () => {
-  assert.equal(gateFor(false), "login");
-  assert.equal(gateFor(true), "ended");
+test("the gate asks a signed-out person to log in, whatever else is known", () => {
+  assert.equal(gateFor(false, false), "login");
+  assert.equal(gateFor(false, true), "login");
+});
+
+test("the gate says 'ended' only when the server has answered, and 'unknown' when it has not", () => {
+  assert.equal(gateFor(true, true), "ended");
+  assert.equal(gateFor(true, false), "unknown");
+});
+
+test("accountKnown is true only for an answer the server gave", () => {
+  assert.equal(accountKnown({ kind: "loaded", account: account("owner", "cancelled") }), true);
+  assert.equal(accountKnown({ kind: "loaded", account: null }), true);
+  assert.equal(accountKnown({ kind: "unavailable" }), false);
+  assert.equal(accountKnown({ kind: "signed-out" }), false);
 });
 
 test("parseCache takes an optional email and rejects a non-string one", () => {
@@ -152,13 +166,57 @@ test("effectiveAccountState never shows an identity as signed-out", () => {
   assert.deepEqual(effectiveAccountState({ kind: "loaded", account: null }, null), { kind: "signed-out" });
 });
 
-test("isChecking is true only for an identity with no answer of any kind", () => {
-  const un = { kind: "unavailable" } as const;
-  const cache = { userId: "u1", entitled: true, at: 1 };
-  assert.equal(isChecking(un, null, "u1", null), true);
-  assert.equal(isChecking(un, cache, "u1", null), false);
-  assert.equal(isChecking(un, { ...cache, userId: "other" }, "u1", null), true);
-  assert.equal(isChecking(un, null, "u1", "u1"), false);
-  assert.equal(isChecking({ kind: "loaded", account: null }, null, "u1", null), false);
-  assert.equal(isChecking(un, null, null, null), false);
+test("canStillRead: a session can be asked as; without one, only until getSession has settled", () => {
+  assert.equal(canStillRead({ userId: "u1" }, false), true);
+  assert.equal(canStillRead({ userId: "u1" }, true), true);
+  assert.equal(canStillRead("unknown", false), true);
+  assert.equal(canStillRead("unknown", true), false);
+  assert.equal(canStillRead("absent", false), false);
+  assert.equal(canStillRead("absent", true), false);
+});
+
+const un = { kind: "unavailable" } as const;
+
+test("isChecking: an identity with no cache and a read on its way is being checked", () => {
+  assert.equal(isChecking(un, null, "u1", null, true, NOW), true);
+  assert.equal(isChecking(un, cached(true, 0, "someone-else"), "u1", null, true, NOW), true);
+});
+
+test("isChecking: a stale cached yes or a cached no is not an answer while a read can still happen", () => {
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, true, NOW), true);
+  assert.equal(isChecking(un, cached(false, 0), "u1", null, true, NOW), true);
+  assert.equal(isChecking(un, cached(true, -24 * 60 * 60 * 1000), "u1", null, true, NOW), true);
+});
+
+test("isChecking: a valid cached yes is an answer, so nothing is waited for", () => {
+  assert.equal(isChecking(un, cached(true, 0), "u1", null, true, NOW), false);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS), "u1", null, true, NOW), false);
+});
+
+test("isChecking: once a read for this user has come back, or none can, the gate must answer", () => {
+  assert.equal(isChecking(un, null, "u1", "u1", true, NOW), false);
+  assert.equal(isChecking(un, cached(false, 0), "u1", "u1", true, NOW), false);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", "u1", true, NOW), false);
+  /* Offline with no session: nothing will ever come back. */
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, false, NOW), false);
+  assert.equal(isChecking(un, cached(false, 0), "u1", null, false, NOW), false);
+  assert.equal(isChecking(un, null, "u1", null, false, NOW), false);
+});
+
+test("isChecking: a read that came back for someone else does not count for this user", () => {
+  assert.equal(isChecking(un, null, "u1", "u0", true, NOW), true);
+});
+
+test("isChecking is false with a loaded account and with no identity", () => {
+  assert.equal(isChecking({ kind: "loaded", account: null }, null, "u1", null, true, NOW), false);
+  assert.equal(isChecking({ kind: "signed-out" }, null, null, null, true, NOW), false);
+  assert.equal(isChecking(un, null, null, null, true, NOW), false);
+});
+
+test("never both entitled and checking, and never neither while a first read is on its way", () => {
+  for (const cache of [null, cached(true, 0), cached(true, OFFLINE_WINDOW_MS + 1), cached(false, 0)]) {
+    const entitled = resolveEntitled(un, cache, "u1", NOW);
+    const checking = isChecking(un, cache, "u1", null, true, NOW);
+    assert.equal(entitled !== checking, true, JSON.stringify(cache));
+  }
 });
