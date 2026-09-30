@@ -80,3 +80,37 @@ export function parseFeatures(da: string, en: string): { da: string; en: string 
   }
   return out;
 }
+
+/* A product id is a primary key, not a label. `subscriptions.plan_id` and
+   `subscription_addons.addon_id` reference it (0002_commerce.sql), every
+   audit_log row naming a price change carries it (0004_audit_triggers.sql),
+   and it rides in the `?p=` query parameter the signup flow reads to
+   preselect a plan (components/signup/SignupFlow.tsx). So it has to survive
+   a URL, a log line and a foreign key unchanged, which rules out spaces,
+   uppercase, and anything needing an escape.
+
+   Deliberately narrower than Postgres would allow — `text primary key`
+   accepts "Arena Stage!!" — because the id can never be changed afterwards:
+   renaming a primary key that live subscriptions reference is a migration,
+   not an edit, so the form offers it only when creating. A name typed into
+   the wrong field is recoverable; an id is not.
+
+   The shape is a slug: starts with a letter, then letters, digits and single
+   internal hyphens. A trailing hyphen, a double hyphen and a leading digit
+   are all rejected rather than normalised — silently turning "Arena Stage"
+   into "arena-stage" would leave the operator with an id they never typed
+   and no way to correct it. */
+const PRODUCT_ID_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+
+/** Postgres has no length limit here to hit; 32 characters is enough for
+    every plan name Odatone has (`main`, the longest, is 4) and short enough
+    to stay readable in the monospace id shown on each products box. */
+const MAX_PRODUCT_ID_LEN = 32;
+
+/** Returns the id, or null if `raw` isn't a usable slug. Not trimmed into
+    shape — see PRODUCT_ID_RE's comment on why an id is never normalised. */
+export function parseProductId(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_PRODUCT_ID_LEN) return null;
+  return PRODUCT_ID_RE.test(trimmed) ? trimmed : null;
+}
