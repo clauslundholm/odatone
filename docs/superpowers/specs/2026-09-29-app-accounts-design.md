@@ -1,14 +1,17 @@
 # App accounts: signup, login, logout, gated playback
 
-Date: 2026-09-29
+Date: 2026-09-29, revised 2026-09-30
 Status: approved design, awaiting spec review
+
+Revision 2026-09-30: the app moved into this repository as `mobile/`, and
+signup follows the website's simpler flow (no venue step).
 
 ## Goal
 
 People can create an Odatone account from inside the app, log in, reset a
 forgotten password and log out. Being logged in with a live subscription is
-what unlocks playback. The app uses the same Supabase backend as the website
-(`../odatone`), so an account made in either place works in both.
+what unlocks playback. The app (`mobile/`) uses the same Supabase backend as
+the website, so an account made in either place works in both.
 
 ## Decisions
 
@@ -16,21 +19,34 @@ what unlocks playback. The app uses the same Supabase backend as the website
 |---|---|
 | What logging in does | Unlocks playback. Logged-out people can browse everything; pressing play asks them to log in or sign up. |
 | Who can play | Signed in, with a latest subscription whose status is `pending`, `trialing`, `active` or `past_due`. Staff roles (`staff_admin`, `staff_support`) can always play. `cancelled` or no subscription cannot. |
-| Signup scope | The website's full 4-step order, rebuilt natively: venue, plan, account details, payment. |
+| Signup scope | The website's order, rebuilt natively in 3 steps: plan, account details, payment. There is no venue step: the `simpler-signup` work removes venue type, floor area and opening hours from signup. |
 | Payment | Invoice only: optional EAN and PO, plus accepting the terms. No card fields in the app. |
 | First login | The invite email carries a 6-digit code. The customer types it in the app, chooses a password and is signed in. The web invite link keeps working. |
 | Forgot password | Also by emailed code, entered in the app. |
 | Backend | Approach A: a new API route on the website that reuses the existing signup action. |
 
-## Backend changes (`../odatone`)
+## Dependency: `simpler-signup`
+
+The website's `simpler-signup` branch has uncommitted work that removes
+`venueType` and `m2` from `buildSignup` and makes a signup location just a
+name. On `main` those two fields are still required.
+
+- The app sends no venue fields, so app signup only validates once that
+  work is committed and deployed.
+- The accounts branch is created from `mobile-monorepo`. It is rebased onto
+  (or merged with) `simpler-signup` once that work lands.
+- Nothing in this work edits `lib/signup.ts` or `SignupFlow.tsx`.
+- Login, logout, password reset and gating do not depend on it.
+
+## Backend changes (website, repository root)
 
 ### `POST /api/app/signup`
 
 A new route handler, `app/api/app/signup/route.ts`.
 
 - It accepts JSON with these fields: `name, company, email, cvr, phone,
-  address, postcode, city, planId, billing, locations, venueType, m2,
-  paymentMethod, ean, po, locale`.
+  address, postcode, city, planId, billing, locations, paymentMethod, ean,
+  po, locale`.
 - It sets `paymentMethod` to `"invoice"` whatever the client sent.
 - It converts the body to `FormData` with the same field names
   `SignupFlow.tsx` sends, then calls `submitSignup` from `app/actions.ts`
@@ -70,27 +86,36 @@ Nothing else on the website changes. Row-level security in
 Not in scope: rate limiting on the new route (the web form has none; GoTrue
 limits invite emails to about 2 per hour), captcha, and card payment.
 
-## App changes (`odatone-app`)
+## App changes (`mobile/`)
 
 ### Configuration
 
-- `.env`, with `.env.example` committed:
+- `mobile/.env`, with `mobile/.env.example` committed:
   - `EXPO_PUBLIC_SUPABASE_URL`
   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
   - `EXPO_PUBLIC_API_URL`, which is `https://odatone.studio74.io`
-- `.env` is added to `.gitignore`.
+- The root `.gitignore` already ignores `.env*` everywhere except
+  `.env.example`.
 - New dependency: `@supabase/supabase-js`. AsyncStorage is already installed.
 
 ### Shared pricing logic
 
-`tools/import-pricing.mjs` copies the website's `lib/pricing.ts` and
-`lib/rates.ts` into `src/shared/`. It rewrites their imports (the `L10n`
-type) and adds a GENERATED header, the same pattern as
-`tools/import-tracks.mjs`. The npm script is `import-pricing`.
+The app imports the website's `lib/pricing.ts` directly; nothing is copied.
+
+- `mobile/metro.config.js` adds the repository root to `watchFolders`, so
+  Metro can read `../lib/pricing.ts`. `nodeModulesPaths` stays pinned to
+  `mobile/node_modules`, so the app never resolves the website's packages.
+- `mobile/tsconfig.json` gets a path alias `@web/*` → `../lib/*`. The app
+  imports only `@web/pricing`.
+- `lib/pricing.ts` imports nothing but types (`L10n`, `VenueTypeId`), so
+  it bundles for React Native as it is. If that ever changes, the import
+  fails at build time, not at run time.
+- The savings calculator (`lib/rates.ts`) is not needed, because there is
+  no venue step.
 
 Plan prices are fetched from the Supabase `plans` table. If the fetch fails,
-the copied `PLANS` defaults are used. Before implementing, check how the web
-merges `plans` rows (`lib/plans-server.ts`) and mirror that merge.
+the compiled `PLANS` defaults are used. Before implementing, read how the
+web merges `plans` rows (`lib/plans-server.ts`) and mirror that merge.
 
 ### Auth module: `src/auth/`
 
@@ -158,10 +183,14 @@ tabs.
 
 - **`login`**: email, password, "Forgot password?", "Create account".
   Errors are shown generically ("Wrong email or password").
-- **`signup`**: 4 steps in one screen with a progress indicator, "Back" and
+- **`signup`**: 3 steps in one screen with a progress indicator, "Back" and
   "Next", and a step counter.
-  - The steps are Venue, Plan, Account and Payment. Their fields and
-    validation match `SignupFlow.tsx`.
+  - **Plan**: plan, monthly or annual billing, number of locations (1–99),
+    and the live price from `quote()`, including the volume and annual
+    discounts.
+  - **Account**: name, company, CVR, email, phone, address, postcode, city.
+  - **Payment**: invoice, with optional EAN and PO, and the terms checkbox.
+  - Fields and validation match the website's form for the same steps.
   - Client-side checks mirror `buildSignup`, including the length caps,
     required fields and email format.
   - Server field errors are mapped back to the step that owns the field.
@@ -197,12 +226,12 @@ it exists, reuse the website's wording from `lib/content/signup.ts` and
 - **Website:** `test/app-signup.test.ts` covers the JSON-to-`FormData`
   mapping: every field, the forced `paymentMethod`, and missing and extra
   keys. It runs in the existing test runner.
-- **App:** unit tests with `node --test` (TypeScript via the same approach
-  the website's tests use) for:
+- **App:** unit tests with `node --test`, run from `mobile/` the same way
+  the website's tests run, for:
   - `entitlement.ts`: every status × role, and the offline window
     boundaries.
-  - The copied pricing: `quote()` and `recommendPlan()` must give the same
-    results as the website's for a fixed set of inputs.
+  - The signup form's client-side validation: required fields, length
+    caps, email format, the location count range.
 - **Build:** `npm run typecheck`, and an iOS bundle build on Metro.
 - **Manual end to end,** after the website is deployed and the templates
   are updated: sign up → receive the code → verify → play → background and
@@ -223,5 +252,5 @@ biometric unlock, and push notifications.
 - **Hosted templates:** the invite and recovery templates must be updated in
   the Supabase dashboard. Until they are, the code never arrives, and the
   verify screen can't complete.
-- **Website deploy:** the endpoint has to be deployed before app signup
-  works. Login works without it.
+- **Website deploy:** the endpoint and the `simpler-signup` work both have
+  to be deployed before app signup works. Login works without them.
