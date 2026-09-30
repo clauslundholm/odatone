@@ -242,6 +242,7 @@ export const STRINGS = {
     da: "Vi kunne ikke få forbindelse til Odatone. Intet er gået tabt — prøv igen.",
     en: "Couldn't reach Odatone. Nothing is lost — try again.",
   },
+  "signup.fixAbove": { da: "Ret de markerede felter ovenfor.", en: "Fix the marked fields above." },
   "signup.exists.code": { da: "Jeg har en kode", en: "I have a code" },
   "signup.exists.reset": { da: "Nulstil adgangskode", en: "Reset password" },
   "signup.noInvite.title": { da: "Kontoen er oprettet", en: "Your account is set up" },

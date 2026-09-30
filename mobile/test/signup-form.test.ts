@@ -8,9 +8,12 @@ import {
   toPayload,
   validateAccount,
   validatePlan,
+  parseCvr,
+  needsFixAbove,
   visibleErrors,
   type SignupDraft,
 } from "../src/auth/signup-form.ts";
+import { parseCvr as serverParseCvr } from "../../lib/signup.ts";
 
 const VALID: SignupDraft = {
   ...EMPTY_DRAFT,
@@ -127,10 +130,6 @@ test("a known field error survives next to an unknown one, and an existing form 
   assert.deepEqual(visibleErrors({ name: "required" }), { name: "required" });
 });
 
-test("an EAN or PO error from an older server is not a field this screen has", () => {
-  assert.deepEqual(visibleErrors({ ean: "ean", po: "long" }), { form: "server" });
-});
-
 test("every error resolves to a message the app has, never a raw code", () => {
   assert.equal(errorKey("name", "required"), "required");
   assert.equal(errorKey("email", "exists"), "exists");
@@ -139,5 +138,24 @@ test("every error resolves to a message the app has, never a raw code", () => {
   assert.equal(errorKey("form", "server"), "server");
   assert.equal(errorKey("form", "invalid"), "server");
   assert.equal(errorKey("name", "something-new"), "server");
-  assert.equal(errorKey("ean", "ean"), "server");
+});
+
+test("the app's CVR rule gives the website's answer for every input used here", () => {
+  const inputs = [
+    "", "   ", "12345678", "DK12345678", "dk12345678", "12 34 56 78", "12.34.56.78", "12-34-56-78",
+    " DK 12 34 56 78 ", "DK 12 34 56 78", "1234567", "123456789", "1234567a", "abcdefgh", "12345678DK", "DKDK12345678",
+  ];
+  for (const input of inputs) assert.equal(parseCvr(input), serverParseCvr(input), JSON.stringify(input));
+});
+
+test("the fix-above notice shows for a field error, not for ones with their own message", () => {
+  assert.equal(needsFixAbove({}), false);
+  assert.equal(needsFixAbove({ form: "server" }), false);
+  assert.equal(needsFixAbove({ terms: "terms" }), false);
+  assert.equal(needsFixAbove({ email: "exists" }), false);
+  assert.equal(needsFixAbove({ form: "server", terms: "terms", email: "exists" }), false);
+  assert.equal(needsFixAbove({ cvr: "required" }), true);
+  assert.equal(needsFixAbove({ email: "email" }), true);
+  assert.equal(needsFixAbove({ email: "exists", city: "required" }), true);
+  assert.equal(needsFixAbove({ terms: "terms", name: "long" }), true);
 });

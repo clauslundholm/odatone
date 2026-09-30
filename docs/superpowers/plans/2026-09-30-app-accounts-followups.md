@@ -36,6 +36,7 @@ The end-to-end run in the plan's Task 9 Step 5 has not been done. It needs the w
 
 - A customer whose `customers.status` is `suspended` can still play; entitlement looks at the subscription's status only.
 - Acceptance of the terms is not recorded on the server (the website's form has the same gap).
+- A customer who signs up in the app is never asked for payment anywhere (the app collects none, and the website's card form is a prototype), so how a trial becomes a paid subscription is undecided.
 - The emails print the code below the link; the design spec said above.
 - The home screen's "Hit play — 7 days free" predates this work; signup says 14 days.
 - EAS builds need the three `EXPO_PUBLIC_*` values set in EAS, because `mobile/.env` is git-ignored.

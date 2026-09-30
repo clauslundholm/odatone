@@ -11,6 +11,7 @@ import {
   MAX_LOCATIONS,
   MIN_LOCATIONS,
   errorKey,
+  needsFixAbove,
   stepForErrors,
   toPayload,
   validateAccount,
@@ -221,25 +222,6 @@ export default function SignupScreen() {
           <Txt variant="section">{t("signup.account.heading")}</Txt>
           <Txt variant="body" tone="ink2">{t("signup.account.body")}</Txt>
 
-          {errors.email === "exists" ? (
-            <View style={{ gap: 10 }}>
-              <Notice text={t("signup.error.exists")} />
-              {/* The order may already be placed and its code already in
-                  the customer's inbox: the request timed out after the
-                  server committed, or the app was closed on the code
-                  screen. This is the way back to that screen. */}
-              <Button
-                variant="secondary"
-                label={t("signup.exists.code")}
-                onPress={() =>
-                  router.replace({ pathname: "/auth/verify", params: { email: normalizeEmail(draft.email), kind: "invite" } })
-                }
-              />
-              <Button variant="secondary" label={t("account.logIn")} onPress={() => router.replace("/auth/login")} />
-              <Button variant="link" label={t("signup.exists.reset")} onPress={() => router.replace("/auth/forgot")} />
-            </View>
-          ) : null}
-
           <Field
             label={t("signup.field.name")}
             value={draft.name}
@@ -341,6 +323,25 @@ export default function SignupScreen() {
             }
           />
 
+          {errors.email === "exists" ? (
+            <View style={{ gap: 10 }}>
+              <Notice text={t("signup.error.exists")} />
+              {/* The order may already be placed and its code already in
+                  the customer's inbox: the request timed out after the
+                  server committed, or the app was closed on the code
+                  screen. This is the way back to that screen. */}
+              <Button
+                variant="secondary"
+                label={t("signup.exists.code")}
+                onPress={() =>
+                  router.replace({ pathname: "/auth/verify", params: { email: normalizeEmail(draft.email), kind: "invite" } })
+                }
+              />
+              <Button variant="secondary" label={t("account.logIn")} onPress={() => router.replace("/auth/login")} />
+              <Button variant="link" label={t("signup.exists.reset")} onPress={() => router.replace("/auth/forgot")} />
+            </View>
+          ) : null}
+          {needsFixAbove(errors) ? <Notice text={t("signup.fixAbove")} /> : null}
           {unreachable ? <Notice text={t("signup.unreachable")} /> : null}
           {errors.form ? <Notice text={t(`signup.error.${errorKey("form", errors.form)}`)} /> : null}
         </>

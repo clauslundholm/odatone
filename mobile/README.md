@@ -46,8 +46,9 @@ can browse. The rule is `src/auth/entitlement.ts`, and
 Signing up places the same order as the website's form, through
 `POST /api/app/signup` on the website, in two steps: the plan, then the
 account (name, company, CVR, email, address, and the terms). The CVR is
-required, as on the website, and is checked with the same rule (`DK`,
-spaces, dots and dashes are allowed; eight digits are sent). The app
+required, as on the website, and is checked with the same rule (eight
+digits; a "DK" prefix, spaces, dots and dashes are tolerated if pasted, as
+the field is a number pad). What is sent is the bare eight digits. The app
 collects no payment details at all: the first 14 days are free, and card
 entry belongs on the website, so the app stays clear of App Store and
 card-security rules. Login, the emailed 6-digit codes

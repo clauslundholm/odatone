@@ -47,8 +47,9 @@ const MAX_TEXT = 200;
 const MAX_EMAIL = 254;
 const MAX_OPTIONAL = 300;
 
-/* lib/signup.ts's parseCvr, copied: the app cannot import that file's
-   module graph under `node --test`, and the rule is small. A Danish CVR is
+/* lib/signup.ts's parseCvr, copied so the app bundle does not pull in the
+   website's signup module for one small rule; test/signup-form.test.ts
+   pins the copy to the original. A Danish CVR is
    eight digits, written with a "DK" prefix, spaces, dots or dashes by
    different people; what is sent is always the bare eight. Null for blank
    too — the caller tells "required" from "cvr" by whether anything was
@@ -98,10 +99,21 @@ export function validateAccount(d: SignupDraft): FieldErrors {
   put("address", required(d.address, MAX_OPTIONAL));
   put("postcode", required(d.postcode, MAX_OPTIONAL));
   put("city", required(d.city, MAX_OPTIONAL));
-  /* The last thing the customer does before pressing the button, and the
-     app collects no payment details, so there is no step of its own for it. */
+  /* The terms sit just above the submit button, and the app collects no
+     payment details, so there is no step of its own for them. */
   if (!d.terms) e.terms = "terms";
   return e;
+}
+
+/** Whether the account step should say "fix the fields above" beside the
+    submit button. The button is far below the fields, so an error on one
+    of them is otherwise off-screen when the customer presses it. Not
+    when the only news is a message that is already shown down there:
+    the whole-order `form` error, the terms, or an email that exists. */
+export function needsFixAbove(errors: FieldErrors): boolean {
+  return Object.entries(errors).some(
+    ([field, code]) => field !== "form" && field !== "terms" && !(field === "email" && code === "exists"),
+  );
 }
 
 /** The body of POST /api/app/signup. `terms` is not sent: it is a
@@ -133,8 +145,7 @@ const KNOWN_FIELDS = new Set(STEP_FIELDS.flat());
 
 /** The server can name a field this screen does not have — `venueType`
     and `m2` from a website that has not yet deployed its simpler signup,
-    `ean` or `po` from one older still, or whatever a later version
-    adds. An error nobody can see is a form that silently does nothing,
+    or whatever a later version adds. An error nobody can see is a form that silently does nothing,
     so those collapse into one generic message. */
 export function visibleErrors(errors: FieldErrors): FieldErrors {
   const shown: FieldErrors = {};
