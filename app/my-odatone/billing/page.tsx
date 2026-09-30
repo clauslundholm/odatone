@@ -186,7 +186,7 @@ export default async function PortalBillingPage() {
   const planById = planMap((planRows ?? []) as PlanRow[]);
   const subscription = latestSubscription((subscriptionRows ?? []) as SubscriptionRow[]);
   const plan: Plan | null = subscription
-    ? resolvePlan(subscription.plan_id, planById, "my-odatone billing")
+    ? (resolvePlan(subscription.plan_id, planById, "my-odatone billing") ?? null)
     : null;
 
   const formatDate = (iso: string | null) => {

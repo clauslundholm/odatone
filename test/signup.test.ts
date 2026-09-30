@@ -7,6 +7,16 @@ import path from "node:path";
 import { buildSignup, decideSignupDedupe, inviteCreatedNewUser } from "../lib/signup.ts";
 import { EMAIL_RE } from "../lib/forms.ts";
 
+/* The plan ids buildSignup accepts now come from the caller, because they
+   come from the `plans` table — see buildSignup's own doc comment. These are
+   the three that ship compiled in, which is what every case below except the
+   two that name their own set is about. */
+const SHIPPED_PLAN_IDS: ReadonlySet<string> = new Set(["small", "medium", "main"]);
+
+/** buildSignup with SHIPPED_PLAN_IDS, so the cases that are not about which
+    plans exist do not have to repeat the set. */
+const build = (fd: FormData) => buildSignup(fd, SHIPPED_PLAN_IDS);
+
 const form = (fields: Record<string, string>) => {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
@@ -19,7 +29,7 @@ const VALID = {
 };
 
 test("accepts a complete signup", () => {
-  const r = buildSignup(form(VALID));
+  const r = build(form(VALID));
   assert.equal(r.ok, true);
   if (r.ok) {
     assert.equal(r.value.customer.name, "Café Nord");
@@ -28,24 +38,24 @@ test("accepts a complete signup", () => {
 });
 
 test("rejects a bad email", () => {
-  const r = buildSignup(form({ ...VALID, email: "not-an-email" }));
+  const r = build(form({ ...VALID, email: "not-an-email" }));
   assert.equal(r.ok, false);
   if (!r.ok) assert.equal(r.errors.email, "email");
 });
 
 test("rejects an unknown plan rather than trusting the form", () => {
-  const r = buildSignup(form({ ...VALID, plan: "enterprise" }));
+  const r = build(form({ ...VALID, plan: "enterprise" }));
   assert.equal(r.ok, false);
 });
 
 test("creates one location per location claimed", () => {
-  const r = buildSignup(form({ ...VALID, locations: "3" }));
+  const r = build(form({ ...VALID, locations: "3" }));
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.value.locations.length, 3);
 });
 
 test("never trusts a price from the form", () => {
-  const r = buildSignup(form({ ...VALID, monthly: "1" }));
+  const r = build(form({ ...VALID, monthly: "1" }));
   assert.equal(r.ok, true);
   if (r.ok) assert.equal("monthly" in r.value.customer, false);
 });
@@ -56,13 +66,13 @@ test("never trusts a price from the form", () => {
 
 test("accepts the real UI's field name (planId), not just the brief's fixture (plan)", () => {
   const { plan: _plan, ...withoutPlan } = VALID;
-  const r = buildSignup(form({ ...withoutPlan, planId: "medium" }));
+  const r = build(form({ ...withoutPlan, planId: "medium" }));
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.value.planId, "medium");
 });
 
 test("keeps the contact person's name separate from the company name", () => {
-  const r = buildSignup(form(VALID));
+  const r = build(form(VALID));
   assert.equal(r.ok, true);
   if (r.ok) {
     assert.equal(r.value.customer.name, "Café Nord"); // the company
@@ -75,7 +85,7 @@ test("no longer asks for venue type, area or opening hours", () => {
   // locations they have and picks a plan, nothing more. A form that still
   // sends them must not be able to write them either — they are ignored,
   // not trusted.
-  const r = buildSignup(form({ ...VALID, venueType: "spaceship", m2: "-5", hoursBand: "nonsense" }));
+  const r = build(form({ ...VALID, venueType: "spaceship", m2: "-5", hoursBand: "nonsense" }));
   assert.equal(r.ok, true);
   if (r.ok) {
     const loc = r.value.locations[0] as Record<string, unknown>;
@@ -86,7 +96,7 @@ test("no longer asks for venue type, area or opening hours", () => {
 });
 
 test("a location carries only its name now", () => {
-  const r = buildSignup(form({ ...VALID, locations: "2" }));
+  const r = build(form({ ...VALID, locations: "2" }));
   assert.equal(r.ok, true);
   if (r.ok) {
     assert.equal(r.value.locations.length, 2);
@@ -95,21 +105,21 @@ test("a location carries only its name now", () => {
 });
 
 test("clamps a zero or blank location count up to one rather than rejecting it", () => {
-  const zero = buildSignup(form({ ...VALID, locations: "0" }));
+  const zero = build(form({ ...VALID, locations: "0" }));
   assert.equal(zero.ok, true);
   if (zero.ok) assert.equal(zero.value.locations.length, 1);
 
-  const blank = buildSignup(form({ ...VALID, locations: "" }));
+  const blank = build(form({ ...VALID, locations: "" }));
   assert.equal(blank.ok, true);
   if (blank.ok) assert.equal(blank.value.locations.length, 1);
 });
 
 test("accepts exactly the location cap and rejects one more", () => {
-  const atCap = buildSignup(form({ ...VALID, locations: "500" }));
+  const atCap = build(form({ ...VALID, locations: "500" }));
   assert.equal(atCap.ok, true);
   if (atCap.ok) assert.equal(atCap.value.locations.length, 500);
 
-  const overCap = buildSignup(form({ ...VALID, locations: "501" }));
+  const overCap = build(form({ ...VALID, locations: "501" }));
   assert.equal(overCap.ok, false);
   if (!overCap.ok) assert.equal(overCap.errors.locations, "required");
 });
@@ -118,27 +128,27 @@ test("rejects a location count that isn't a plain digit string, rather than sile
   // Regression: a bare Number() parses "0x1F4" as 500 (hex) and "3.7" as 4
   // (rounded) instead of rejecting either as malformed.
   for (const bad of ["0x1F4", "3.7", "-5", "1e3", "3abc"]) {
-    const r = buildSignup(form({ ...VALID, locations: bad }));
+    const r = build(form({ ...VALID, locations: bad }));
     assert.equal(r.ok, false, `expected "${bad}" to be rejected`);
     if (!r.ok) assert.equal(r.errors.locations, "required");
   }
 });
 
 test("rejects a company name past the length cap rather than writing it (or truncating it silently)", () => {
-  const r = buildSignup(form({ ...VALID, company: "A".repeat(201) }));
+  const r = build(form({ ...VALID, company: "A".repeat(201) }));
   assert.equal(r.ok, false);
   if (!r.ok) assert.equal(r.errors.company, "long");
 });
 
 test("rejects a name past the length cap", () => {
-  const r = buildSignup(form({ ...VALID, name: "A".repeat(201) }));
+  const r = build(form({ ...VALID, name: "A".repeat(201) }));
   assert.equal(r.ok, false);
   if (!r.ok) assert.equal(r.errors.name, "long");
 });
 
 test("rejects an email past the length cap", () => {
   const longLocal = "a".repeat(250);
-  const r = buildSignup(form({ ...VALID, email: `${longLocal}@nord.test` }));
+  const r = build(form({ ...VALID, email: `${longLocal}@nord.test` }));
   assert.equal(r.ok, false);
   if (!r.ok) assert.equal(r.errors.email, "long");
 });
@@ -149,20 +159,20 @@ test("rejects an overlong optional field rather than truncating it", () => {
   // company/name/email — a cut-off address or CVR number is not a safe
   // fallback for a real one.
   for (const field of ["cvr", "address", "postcode", "city", "phone"] as const) {
-    const r = buildSignup(form({ ...VALID, [field]: "X".repeat(301) }));
+    const r = build(form({ ...VALID, [field]: "X".repeat(301) }));
     assert.equal(r.ok, false, `expected an overlong "${field}" to be rejected`);
     if (!r.ok) assert.equal(r.errors[field], "long");
   }
 });
 
 test("accepts an optional field exactly at the length cap", () => {
-  const r = buildSignup(form({ ...VALID, address: "X".repeat(300) }));
+  const r = build(form({ ...VALID, address: "X".repeat(300) }));
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.value.customer.address?.length, 300);
 });
 
 test("persists the optional business fields when given, null when blank", () => {
-  const withFields = buildSignup(
+  const withFields = build(
     form({ ...VALID, cvr: "12345678", address: "Hovedgaden 1", postcode: "8000", city: "Aarhus", phone: "12345678" }),
   );
   assert.equal(withFields.ok, true);
@@ -179,7 +189,7 @@ test("persists the optional business fields when given, null when blank", () => 
     );
   }
 
-  const withoutFields = buildSignup(form(VALID));
+  const withoutFields = build(form(VALID));
   assert.equal(withoutFields.ok, true);
   if (withoutFields.ok) {
     assert.equal(withoutFields.value.customer.cvr, null);
@@ -346,4 +356,35 @@ test("submitSignup's customer lookup filters on billing_email_lower, never the r
     /\.(eq|ilike|like)\(\s*"billing_email"\s*,/,
     "the lookup must never filter on the raw, case-sensitive billing_email column directly — .ilike() against it is the exact shape fix round 4 found exploitable via PostgREST's \"*\" -> \"%\" rewrite",
   );
+});
+
+/* The pair that made buildSignup take its plan ids as a parameter. A plan
+   created in /admin/products has no compiled counterpart, and the old check
+   against the compiled PLANS array rejected it — on a form that had just
+   offered it, with the error `plan: "required"` and no field to attach it to.
+   The set is now whatever the page rendered from, so "offered" and "accepted"
+   are the same set by construction. */
+test("accepts a plan id that exists only in the database", () => {
+  const r = buildSignup(form({ ...VALID, plan: "arena" }), new Set(["small", "arena"]));
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.value.planId, "arena");
+});
+
+test("rejects a plan id outside the set it is given, including a deactivated one", () => {
+  /* "medium" ships compiled in, so the old check let it through
+     unconditionally. Deactivating it in /admin/products takes it out of
+     activePlans() — and therefore out of this set — and a POST naming it,
+     replayed or from a page rendered before the change, is refused. */
+  const deactivated = buildSignup(form({ ...VALID, plan: "medium" }), new Set(["small", "main"]));
+  assert.equal(deactivated.ok, false);
+  if (!deactivated.ok) assert.equal(deactivated.errors.plan, "required");
+
+  const nonexistent = buildSignup(form({ ...VALID, plan: "arena" }), SHIPPED_PLAN_IDS);
+  assert.equal(nonexistent.ok, false);
+  if (!nonexistent.ok) assert.equal(nonexistent.errors.plan, "required");
+
+  /* An empty set — what a caller would pass if it had no plans at all —
+     accepts nothing, rather than falling open. */
+  const noPlans = buildSignup(form(VALID), new Set());
+  assert.equal(noPlans.ok, false);
 });

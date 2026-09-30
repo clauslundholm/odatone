@@ -17,7 +17,18 @@ import type { VenueTypeId } from "./rates";
 export const ANNUAL_DISCOUNT_PCT = 45;
 export const VAT_PCT = 25;
 
-export type PlanId = "small" | "medium" | "main";
+/* Plan ids are database rows, not a closed set. This was
+   `"small" | "medium" | "main"` — the three ids compiled into PLANS below —
+   but /admin/products can now create and delete plans, so the real set is
+   whatever the `plans` table holds at read time. The union was already
+   fiction: six places had to launder a database id through `as PlanId` to
+   get past the compiler (lib/plans-row.ts, lib/admin/plans.ts,
+   lib/signup.ts). Those casts are gone with it.
+
+   The alias stays because it still says something a bare `string` does not:
+   this string is a plan id, not a name or a price. It no longer claims to
+   know which ids exist — nothing at compile time can. */
+export type PlanId = string;
 
 export type Plan = {
   id: PlanId;
@@ -86,8 +97,20 @@ export const PLANS: Plan[] = [
   },
 ];
 
-export function plan(id: PlanId): Plan {
-  return PLANS.find((p) => p.id === id) ?? PLANS[0];
+/** The compiled-in plan of this id, or `undefined` if there is no such plan.
+
+    It used to return `PLANS[0]` — Small Venue, 149 kr. — for any id it did
+    not recognise, which was survivable only while those three ids were the
+    only ids that could exist: every real id found its own entry and the
+    fallback was unreachable. Now that /admin/products can create "Arena
+    Stage" at 499 kr., an id this array has never heard of is the ordinary
+    case, and returning the cheapest plan would price that subscription at
+    149 kr. with nothing to show it had happened — on the dashboard's MRR,
+    in the customer's own portal, and on an invoice that cannot be amended
+    once issued. Returning `undefined` makes each caller state what it wants
+    to happen instead. */
+export function plan(id: PlanId): Plan | undefined {
+  return PLANS.find((p) => p.id === id);
 }
 
 /** The plan a venue of this size needs.
@@ -157,13 +180,22 @@ export type Quote = {
   annualSavingYear: number;
 };
 
-/** Accepts either a plan id (looked up against the compiled PLANS, exactly as
-    before) or an already-resolved Plan object (so a caller holding a
-    database-backed Plan — see lib/plans-server.ts — doesn't have to round-trip
-    through the compiled id lookup just to price it). Everything past this line
-    is unchanged: same rounding, same discounts, same shape. */
-export function quote(planOrId: PlanId | Plan, billing: Billing, locations: number): Quote {
-  const p = typeof planOrId === "string" ? plan(planOrId) : planOrId;
+/** Prices a resolved Plan object.
+
+    This used to accept a bare `PlanId` as well, and that overload is gone.
+    Its id branch looked the id up against the compiled `PLANS` constant and
+    never consulted the database, so `quote(id, ...)` and `quote(plan, ...)`
+    read identically at the call site while one of them ignored every price
+    a staff member had edited. lib/admin/plans.ts records that trap being
+    walked into twice — the public pricing page and the dashboard's MRR,
+    once each — and now that a plan id may name a row the compiled array has
+    never heard of, the same call would not merely serve a stale price but
+    invent one. Removing the overload makes the compiler refuse it: a caller
+    holding only an id has to resolve it first (lib/admin/plans.ts's
+    `resolvePlan`, or lib/plans-server.ts's `activePlans`) and decide for
+    itself what an unresolvable id means. Everything past this line is
+    unchanged: same rounding, same discounts, same shape. */
+export function quote(p: Plan, billing: Billing, locations: number): Quote {
   const n = Math.max(1, Math.round(locations));
   const vol = volumeTier(n);
   const annualPct = billing === "annual" ? ANNUAL_DISCOUNT_PCT : 0;

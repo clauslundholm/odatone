@@ -1,5 +1,5 @@
 import { EMAIL_RE, type FieldErrors } from "./forms.ts";
-import { PLANS, type Billing, type PlanId } from "./pricing.ts";
+import type { Billing, PlanId } from "./pricing.ts";
 
 /* Pure form-parsing/validation for the public signup flow, kept apart from
    app/actions.ts (which imports "use server" and, once it persists, the
@@ -72,7 +72,6 @@ export type BuildSignupResult =
   | { ok: true; value: SignupInput }
   | { ok: false; errors: FieldErrors };
 
-const PLAN_IDS = new Set<string>(PLANS.map((p) => p.id));
 const BILLING_TERMS = new Set<string>(["monthly", "annual"]);
 
 /* `locations.m2` and the location count both land in Postgres `integer`
@@ -139,8 +138,21 @@ function boundedOptional(raw: string, max: number): { value: string | null } | {
 /** Builds a validated signup from raw form input. Pure and synchronous —
     no plan price is ever read here, because none is ever trusted from the
     form in the first place: only a `PlanId` is validated, never a monthly
-    figure. */
-export function buildSignup(formData: FormData): BuildSignupResult {
+    figure.
+ *
+ *  `validPlanIds` is the set the chosen plan must belong to, and it is a
+ *  parameter rather than a constant because the answer now lives in the
+ *  database. This used to check the compiled `PLANS` array, which meant a
+ *  plan created in /admin/products was offered to the visitor by the very
+ *  same page that would then reject their choice as `plan: "required"` — a
+ *  form error with no field to point at and nothing the visitor could do
+ *  about it. The caller passes what it actually rendered the plan cards
+ *  from (lib/plans-server.ts's `activePlans()`, whose own compiled fallback
+ *  keeps signup working when the database is unreachable), so the set that
+ *  was offered and the set that is accepted cannot drift apart. Passing it
+ *  in also keeps this function pure and unit-testable, which a read inside
+ *  it would not. */
+export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string>): BuildSignupResult {
   const get = (k: string) => String(formData.get(k) ?? "").trim();
   const errors: FieldErrors = {};
 
@@ -168,7 +180,7 @@ export function buildSignup(formData: FormData): BuildSignupResult {
   else if (email.length > MAX_EMAIL_LEN) errors.email = "long";
   else if (!EMAIL_RE.test(email)) errors.email = "email";
 
-  if (!PLAN_IDS.has(planRaw)) errors.plan = "required";
+  if (!validPlanIds.has(planRaw)) errors.plan = "required";
   if (billingRaw && !BILLING_TERMS.has(billingRaw)) errors.billing = "required";
 
   const parsedLocations = parseLocationCount(get("locations"));
@@ -206,7 +218,7 @@ export function buildSignup(formData: FormData): BuildSignupResult {
         city: "value" in cityField ? cityField.value : null,
         phone: "value" in phoneField ? phoneField.value : null,
       },
-      planId: planRaw as PlanId,
+      planId: planRaw,
       billing,
       locations,
     },

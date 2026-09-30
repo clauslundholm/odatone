@@ -10,6 +10,7 @@ import {
   type SignupInput,
   isAlreadyRegisteredError,
 } from "@/lib/signup";
+import { activePlans } from "@/lib/plans-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -324,7 +325,20 @@ async function createCustomerWithOrder(admin: AdminClient, value: SignupInput): 
 }
 
 export async function submitSignup(formData: FormData): Promise<ActionResult> {
-  const built = buildSignup(formData);
+  /* The same source the signup page rendered its plan cards from
+     (app/[locale]/page.tsx also calls activePlans()), so the set of plans
+     offered and the set accepted here are the same set. buildSignup used to
+     check the compiled PLANS constant instead, which meant a plan created in
+     /admin/products appeared on the form and was then rejected on submit as
+     `plan: "required"` — an error with no field to attach to and nothing the
+     visitor could do. It also cuts the other way: a plan deactivated between
+     render and submit is refused here even though the visitor's page still
+     showed it, which is the correct answer for a replayed or stale POST.
+
+     activePlans() is cached and falls back to the compiled PLANS when the
+     database is unreachable, so an outage degrades signup to the three
+     shipped plans rather than rejecting every visitor. */
+  const built = buildSignup(formData, new Set((await activePlans()).map((p) => p.id)));
   if (!built.ok) return { ok: false, errors: built.errors };
 
   /* The service role is required here and only here: an anonymous visitor
