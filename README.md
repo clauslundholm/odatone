@@ -274,7 +274,12 @@ still the original prototype: validates and logs, nothing persisted.
 
 The mobile app places the same order through `POST /api/app/signup`
 (`app/api/app/signup/route.ts`), which turns the app's JSON into the
-`FormData` `submitSignup` takes and calls it unchanged. The app cannot
+`FormData` `submitSignup` takes and calls it unchanged. Only the fields
+`buildSignup` reads are passed on (`APP_SIGNUP_FIELDS` in
+`lib/app-signup.ts`; a test fails if the two lists differ), so payment
+details a client sends, such as a card number, `ean` or `po`, are dropped:
+the app collects none. The CVR is required and the plan is checked against
+the database's active plans, exactly as for the website's form. The app cannot
 follow the invite link, so the invite and recovery emails also print a
 6-digit code; see `docs/supabase-email-templates.md`.
 

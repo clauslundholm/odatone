@@ -1,8 +1,10 @@
 # App accounts — follow-ups
 
+2026-09-30: brought up to date with `main` (signup rebuilt as one page, CVR required, Faktura/EAN dropped, plans validated against the database); the app's signup was aligned — two steps, CVR required, no payment details collected in the app.
+
 Known small issues left open when the accounts work (plan: `2026-09-30-app-accounts.md`) was merged into `mobile-monorepo`. Each was found in review, judged not to block the merge, and recorded here so it is not lost. None lets a non-customer play or stops a paying customer's music.
 
-The end-to-end run in the plan's Task 9 Step 5 has not been done. It needs the website deployed (with the `simpler-signup` work), the hosted Supabase email templates updated (`docs/supabase-email-templates.md`) and a test mailbox.
+The end-to-end run in the plan's Task 9 Step 5 has not been done. It needs the website deployed (with the rebuilt one-page signup), the hosted Supabase email templates updated (`docs/supabase-email-templates.md`) and a test mailbox.
 
 ## Open items
 
@@ -34,9 +36,8 @@ The end-to-end run in the plan's Task 9 Step 5 has not been done. It needs the w
 
 - A customer whose `customers.status` is `suspended` can still play; entitlement looks at the subscription's status only.
 - Acceptance of the terms is not recorded on the server (the website's form has the same gap).
-- EAN and purchase-order numbers are collected but not stored (same as the website).
 - The emails print the code below the link; the design spec said above.
 - The home screen's "Hit play — 7 days free" predates this work; signup says 14 days.
 - EAS builds need the three `EXPO_PUBLIC_*` values set in EAS, because `mobile/.env` is git-ignored.
 - Supabase's built-in SMTP allows about 2 emails per hour for the whole project.
-- When rebasing onto `simpler-signup`, re-diff the fields `SignupFlow.tsx` sends, the fields `buildSignup` reads and `FIELDS` in `lib/app-signup.ts`.
+- The fields the app may send are pinned to the fields `buildSignup` reads by a test in `test/app-signup.test.ts`; if the website starts requiring a new field, that test fails and the app's form needs it too.

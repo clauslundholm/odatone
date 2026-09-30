@@ -44,7 +44,13 @@ can browse. The rule is `src/auth/entitlement.ts`, and
 `src/auth/AuthProvider.tsx` holds the session.
 
 Signing up places the same order as the website's form, through
-`POST /api/app/signup` on the website. Login, the emailed 6-digit codes
+`POST /api/app/signup` on the website, in two steps: the plan, then the
+account (name, company, CVR, email, address, and the terms). The CVR is
+required, as on the website, and is checked with the same rule (`DK`,
+spaces, dots and dashes are allowed; eight digits are sent). The app
+collects no payment details at all: the first 14 days are free, and card
+entry belongs on the website, so the app stays clear of App Store and
+card-security rules. Login, the emailed 6-digit codes
 and reading the customer's own subscription go straight to Supabase with
 the public anon key; row-level security decides what is visible.
 
@@ -94,8 +100,9 @@ answer is read.
   only says the subscription isn't active when the server has said so.
 - The session handling in `AuthProvider` has no automated tests beyond
   its pure functions.
-- EAN and purchase-order numbers are collected but not stored; the
-  website's form has the same gap.
+- The app collects no payment details: no card and no invoice (EAN or
+  purchase-order) fields. Whatever payment the website takes, it takes
+  there.
 - There is no in-app purchase. Ordering a subscription in the app without
   one may not pass App Store review.
 
