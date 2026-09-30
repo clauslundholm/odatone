@@ -208,7 +208,7 @@ export default async function PortalSummaryPage() {
   const planById = planMap((planRows ?? []) as PlanRow[]);
   const subscription = latestSubscription((subscriptionRows ?? []) as SubscriptionRow[]);
   const plan: Plan | null = subscription
-    ? resolvePlan(subscription.plan_id, planById, "my-odatone summary")
+    ? (resolvePlan(subscription.plan_id, planById, "my-odatone summary") ?? null)
     : null;
 
   const formatDate = (iso: string) =>

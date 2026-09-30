@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { customerRows, latestSubscription, locationFit, type RawCustomer } from "../lib/admin/customers.ts";
-import { plan, quote } from "../lib/pricing.ts";
+import { quote } from "../lib/pricing.ts";
+import { compiled } from "./helpers.ts";
 import { toOre } from "../lib/money.ts";
 
 test("a location inside the plan's bound fits", () => {
@@ -37,10 +38,10 @@ const BASE: RawCustomer = {
 };
 
 test("a customer with an active subscription prices from the resolved plan, not a re-lookup by id", () => {
-  const small = plan("small");
+  const small = compiled("small");
   const edited = { ...small, monthly: small.monthly * 10 };
   const rows = customerRows([
-    { ...BASE, subscription: { plan: edited, billing: "monthly", status: "active" } },
+    { ...BASE, subscription: { planId: edited.id, plan: edited, billing: "monthly", status: "active" } },
   ]);
   assert.equal(rows[0].planName, edited.name);
   assert.equal(rows[0].mrrOre, toOre(quote(edited, "monthly", 1).monthlyExVat));
@@ -54,7 +55,7 @@ test("a customer with no subscription contributes no MRR and no plan name", () =
 
 test("a cancelled subscription contributes nothing, matching mrrOre's EARNING rule", () => {
   const rows = customerRows([
-    { ...BASE, subscription: { plan: plan("small"), billing: "monthly", status: "cancelled" } },
+    { ...BASE, subscription: { planId: "small", plan: compiled("small"), billing: "monthly", status: "cancelled" } },
   ]);
   assert.equal(rows[0].mrrOre, 0);
 });
@@ -86,4 +87,31 @@ test("latestSubscription picks the most recently created among several earning r
 
 test("latestSubscription returns null for no subscriptions", () => {
   assert.equal(latestSubscription([]), null);
+});
+
+/* A subscription whose plan resolved to nothing (lib/admin/plans.ts's
+   resolvePlan — a plan id in neither the `plans` table nor the compiled
+   fallback, which /admin/products creating plans made possible). This must
+   not read as "no subscription": the customer has one and is presumably
+   being charged for it, so the row names the plan by its bare id and says
+   the zero is for want of a price. */
+test("a subscription whose plan cannot be resolved names the id and is flagged unpriced", () => {
+  const rows = customerRows([
+    { ...BASE, subscription: { planId: "arena", plan: null, billing: "monthly", status: "active" } },
+  ]);
+  assert.equal(rows[0].planName, "arena");
+  assert.equal(rows[0].planUnpriced, true);
+  assert.equal(rows[0].mrrOre, 0);
+});
+
+test("a resolvable plan is not flagged unpriced, and no subscription is neither", () => {
+  const priced = customerRows([
+    { ...BASE, subscription: { planId: "small", plan: compiled("small"), billing: "monthly", status: "active" } },
+  ]);
+  assert.equal(priced[0].planUnpriced, false);
+  assert.ok(priced[0].mrrOre > 0);
+
+  const none = customerRows([{ ...BASE, subscription: null }]);
+  assert.equal(none[0].planUnpriced, false);
+  assert.equal(none[0].planName, null);
 });

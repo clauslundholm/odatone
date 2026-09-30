@@ -210,7 +210,7 @@ export default async function CustomerDetailPage({
   const planById = planMap((planRows ?? []) as PlanRow[]);
   const subscription = latestSubscription((subscriptionRows ?? []) as SubscriptionRow[]);
   const plan: Plan | null = subscription
-    ? resolvePlan(subscription.plan_id, planById, "admin customer detail")
+    ? (resolvePlan(subscription.plan_id, planById, "admin customer detail") ?? null)
     : null;
 
   // The blanket notice below is only shown when *every* invoice is seeded

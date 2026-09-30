@@ -9,7 +9,7 @@ import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
 import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
-import { mrrOre, type SubscriptionForMrr } from "@/lib/admin/stats";
+import { isEarning, mrrOre, type SubscriptionForMrr } from "@/lib/admin/stats";
 import { formatDkk } from "@/lib/money";
 import type { Billing } from "@/lib/pricing";
 import type { PlanRow } from "@/lib/plans-row";
@@ -144,14 +144,35 @@ export default async function AdminDashboardPage() {
     locationCounts.set(row.customer_id, (locationCounts.get(row.customer_id) ?? 0) + 1);
   }
 
-  const subscriptionsForMrr: SubscriptionForMrr[] = subscriptionsResult.rows.map((row) => ({
-    plan: resolvePlan(row.plan_id, planById, "admin dashboard"),
-    billing: row.billing as Billing,
-    locations: locationCounts.get(row.customer_id) ?? 0,
-    status: row.status as SubscriptionForMrr["status"],
-  }));
+  /* A subscription whose plan resolves to nothing is left out of MRR rather
+     than priced at a guess — see resolvePlan (lib/admin/plans.ts). Only the
+     *earning* ones are counted as missing, because mrrOre already contributes
+     zero for a cancelled or pending subscription, so counting those would
+     report a shortfall that does not exist. The count is shown on the KPI:
+     an MRR that silently omits paying customers is worse than one that says
+     it is incomplete. */
+  const subscriptionsForMrr: SubscriptionForMrr[] = [];
+  let unpricedEarning = 0;
+  for (const row of subscriptionsResult.rows) {
+    const status = row.status as SubscriptionForMrr["status"];
+    const plan = resolvePlan(row.plan_id, planById, "admin dashboard");
+    if (!plan) {
+      if (isEarning(status)) unpricedEarning += 1;
+      continue;
+    }
+    subscriptionsForMrr.push({
+      plan,
+      billing: row.billing as Billing,
+      locations: locationCounts.get(row.customer_id) ?? 0,
+      status,
+    });
+  }
 
   const mrr = mrrOre(subscriptionsForMrr);
+  const mrrHint =
+    unpricedEarning > 0
+      ? `Incomplete — ${unpricedEarning} subscription${unpricedEarning === 1 ? "" : "s"} on an unknown plan`
+      : "Active, trialing & past-due · ex. VAT · per month";
   const recentCustomers = (recentCustomerRows ?? []) as CustomerRow[];
 
   return (
@@ -168,7 +189,7 @@ export default async function AdminDashboardPage() {
           <Kpi
             label="MRR"
             value={formatDkk(mrr, "en")}
-            hint="Active, trialing & past-due · ex. VAT · per month"
+            hint={mrrHint}
           />
           <Kpi
             label="Pending signups"
