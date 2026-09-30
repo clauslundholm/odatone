@@ -106,6 +106,13 @@ export function latestSubscription<T extends { created_at: string; status: strin
     `maxM2 === null` is the unbounded (Main Stage) plan, which nothing can
     outgrow. This is the test the detail page's per-location Meter and
     "over" Badge are both driven by. */
-export function locationFit(m2: number, maxM2: number | null): "within" | "over" {
-  return maxM2 === null || m2 <= maxM2 ? "within" : "over";
+export function locationFit(m2: number | null, maxM2: number | null): "within" | "over" | "unknown" {
+  /* "unknown" is not a hedge, it is the third real state. Signup stopped
+     asking for a floor area, so a location written after 0014 has none, and
+     an unstated area is not the same as an area that fits — reporting
+     "within" for it would put a reassuring meter next to a figure nobody
+     ever gave. */
+  if (m2 === null) return "unknown";
+  if (maxM2 === null) return "within";
+  return m2 > maxM2 ? "over" : "within";
 }

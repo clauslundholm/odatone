@@ -4,15 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { quote, recommendPlan, type Billing, type Plan, type PlanId } from "@/lib/pricing";
-import {
-  HOURS_BANDS,
-  VENUE_TYPES,
-  calculate,
-  venueType,
-  type HoursBand,
-  type VenueTypeId,
-} from "@/lib/rates";
+import { quote, type Billing, type Plan, type PlanId } from "@/lib/pricing";
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
 import { submitSignup } from "@/app/actions";
 import { EMAIL_RE, digits, type FieldErrors } from "@/lib/forms";
@@ -20,7 +12,7 @@ import { signup as tDefaults } from "@/lib/content/signup";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { pricing as pricingCopyDefaults } from "@/lib/content/pricing";
 import { href, type Locale } from "@/lib/i18n";
-import { kr, m2 as fmtM2, num } from "@/lib/format";
+import { kr, num } from "@/lib/format";
 import { Button, LinkButton, Arrow } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { CheckIcon } from "@/components/player/Icons";
@@ -111,36 +103,19 @@ export default function SignupFlow({
     const b = search.get("billing");
     if (b === "annual" || b === "monthly") setBilling(b);
     const s = Number(search.get("step"));
-    if (Number.isFinite(s) && s >= 1 && s <= 4) setStep(s - 1);
+    if (Number.isFinite(s) && s >= 1 && s <= 3) setStep(s - 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const suggested = useMemo(
-    () => recommendPlan(profile.m2, profile.type, plans),
-    [profile.m2, profile.type, plans],
-  );
-  const activePlan: Plan = useMemo(
-    () => (planId && plans.find((p) => p.id === planId)) || suggested,
-    [planId, plans, suggested],
-  );
-  const activePlanId: PlanId = activePlan.id;
-
-  const q = useMemo(
-    () => quote(activePlan, billing, profile.locations),
-    [activePlan, billing, profile.locations],
-  );
-
-  const result = useMemo(
-    () =>
-      calculate({
-        type: profile.type,
-        m2: profile.m2,
-        hours: profile.hours,
-        locations: profile.locations,
-        includeStreaming: profile.includeStreaming,
-        odatonePerLocationMonth: q.perLocation,
-      }),
-    [profile, q.perLocation],
+  /* No recommendation any more. The flow used to pick a plan for the
+     visitor from the floor area they had just typed in; it no longer asks
+     for one, and guessing from the location count would be worse than not
+     guessing — a one-room café and a 900 m² hotel are both "1 location".
+     `activePlan` is null until they choose, and the Plan step will not let
+     them past without choosing. */
+  const activePlan: Plan | null = useMemo(
+    () => (planId && plans.find((p) => p.id === planId)) || null,
+    [planId, plans],
   );
 
   const setProfilePatch = (patch: Partial<VenueProfile>) => {
@@ -188,14 +163,20 @@ export default function SignupFlow({
   };
 
   const advance = () => {
-    if (step === 2) {
+    if (step === 0 && !planId) {
+      /* Nothing is pre-selected now, so "next" with no plan chosen would
+         silently carry a null through to the summary and the submit. */
+      setErrors({ plan: t.errors.planInvalid[l] });
+      return;
+    }
+    if (step === 1) {
       const e = validateAccount();
       if (Object.keys(e).length) {
         setErrors(e);
         return;
       }
     }
-    goto(Math.min(3, step + 1));
+    goto(Math.min(2, step + 1));
   };
 
   const finish = async () => {
@@ -220,11 +201,17 @@ export default function SignupFlow({
     fd.set("address", account.address);
     fd.set("postcode", account.zip);
     fd.set("city", account.city);
-    fd.set("planId", activePlanId);
+    if (!planId) {
+      /* Unreachable in the UI — advance() blocks leaving the Plan step
+         without one — but finish() must not post a signup with no plan on
+         the strength of that. */
+      setErrors({ plan: t.errors.planInvalid[l] });
+      setBusy(false);
+      return;
+    }
+    fd.set("planId", planId);
     fd.set("billing", billing);
     fd.set("locations", String(profile.locations));
-    fd.set("venueType", profile.type);
-    fd.set("m2", String(profile.m2));
     fd.set("paymentMethod", payment.method);
     try {
       const res = await submitSignup(fd);
@@ -293,24 +280,21 @@ export default function SignupFlow({
 
         <div className="p-8 sm:p-11">
           {step === 0 && (
-            <StepVenue locale={l} profile={profile} onChange={setProfilePatch} saving={result.savingYear} />
-          )}
-          {step === 1 && (
             <StepPlan
               locale={l}
               plans={plans}
-              activePlanId={activePlanId}
-              suggestedId={suggested.id}
+              activePlanId={planId}
               billing={billing}
-              m2={profile.m2}
+              locations={profile.locations}
               onPlan={setPlanId}
               onBilling={setBilling}
+              onLocations={(n: number) => setProfilePatch({ locations: n })}
             />
           )}
-          {step === 2 && (
+          {step === 1 && (
             <StepAccount locale={l} account={account} errors={errors} onChange={setAccount} />
           )}
-          {step === 3 && (
+          {step === 2 && (
             <StepPayment locale={l} payment={payment} errors={errors} onChange={setPayment} />
           )}
 
@@ -320,7 +304,7 @@ export default function SignupFlow({
                 {ui.back[l]}
               </Button>
             )}
-            {step < 3 ? (
+            {step < 2 ? (
               <Button variant="primary" size="lg" onClick={advance}>
                 {ui.next[l]}
                 <Arrow />
@@ -338,13 +322,9 @@ export default function SignupFlow({
         </div>
       </div>
 
-      <Summary
-        locale={l}
-        profile={profile}
-        plan={activePlan}
-        billing={billing}
-        savingYear={result.savingYear}
-      />
+      {activePlan && (
+        <Summary locale={l} profile={profile} plan={activePlan} billing={billing} />
+      )}
     </div>
   );
 }
@@ -360,147 +340,26 @@ function StepHead({ heading, body }: { heading: string; body: string }) {
   );
 }
 
-function StepVenue({
-  locale: l,
-  profile,
-  onChange,
-  saving,
-}: {
-  locale: Locale;
-  profile: VenueProfile;
-  onChange: (p: Partial<VenueProfile>) => void;
-  saving: number;
-}) {
-  const t = tDefaults;
-  const ui = uiDefaults;
-
-  const v = venueType(profile.type);
-  return (
-    <div className="flex flex-col gap-9">
-      <StepHead heading={t.venue.heading[l]} body={t.venue.body[l]} />
-
-      <fieldset>
-        <legend className="u-label mb-4 text-ink-3">{t.summary.venue[l]}</legend>
-        <div className="flex flex-wrap gap-2">
-          {VENUE_TYPES.map((x) => (
-            <button
-              key={x.id}
-              type="button"
-              onClick={() => {
-                const nv = venueType(x.id as VenueTypeId);
-                onChange({
-                  type: x.id,
-                  m2: Math.min(Math.max(profile.m2, nv.minM2), nv.maxM2),
-                });
-              }}
-              aria-pressed={profile.type === x.id}
-              className={`rounded-full px-4 py-2 text-[0.875rem] font-medium transition-colors ${
-                profile.type === x.id
-                  ? "bg-accent text-accent-ink"
-                  : "bg-surface-2 text-ink-2 hover:text-ink"
-              }`}
-            >
-              {x.label[l]}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <div className="mb-3 flex items-baseline justify-between">
-          <legend className="u-label text-ink-3">{t.summary.area[l]}</legend>
-          <span className="u-num text-2xl text-accent">{fmtM2(profile.m2, l)}</span>
-        </div>
-        <input
-          type="range"
-          className="oda-range"
-          min={v.minM2}
-          max={v.maxM2}
-          step={5}
-          value={profile.m2}
-          aria-label={t.summary.area[l]}
-          style={{ ["--fill" as string]: `${((profile.m2 - v.minM2) / (v.maxM2 - v.minM2)) * 100}%` }}
-          onChange={(e) => onChange({ m2: Number(e.target.value) })}
-        />
-      </fieldset>
-
-      <div className="grid gap-8 sm:grid-cols-2">
-        <fieldset>
-          <legend className="u-label mb-3 text-ink-3">
-            {l === "da" ? "Åbningstid" : "Opening hours"}
-          </legend>
-          <div className="flex flex-col gap-0.5 rounded-[var(--radius-lg)] bg-surface-2 p-1">
-            {HOURS_BANDS.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => onChange({ hours: b.id as HoursBand })}
-                aria-pressed={profile.hours === b.id}
-                className={`rounded-[var(--radius-md)] px-4 py-2.5 text-left text-[0.875rem] font-medium transition-colors ${
-                  profile.hours === b.id
-                    ? "bg-surface text-ink shadow-sm"
-                    : "text-ink-3 hover:text-ink"
-                }`}
-              >
-                {b.label[l]}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend className="u-label mb-3 text-ink-3">{t.summary.locations[l]}</legend>
-          <div className="flex items-center gap-1 rounded-full bg-surface-2 p-1">
-            <button
-              type="button"
-              onClick={() => onChange({ locations: Math.max(1, profile.locations - 1) })}
-              disabled={profile.locations <= 1}
-              aria-label="-1"
-              className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink disabled:opacity-30"
-            >
-              −
-            </button>
-            <span className="u-num flex-1 text-center text-[1.25rem]">{num(profile.locations, l)}</span>
-            <button
-              type="button"
-              onClick={() => onChange({ locations: Math.min(99, profile.locations + 1) })}
-              aria-label="+1"
-              className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-      </div>
-
-      <p className="rounded-[var(--radius-lg)] bg-surface-2 px-5 py-4 text-[0.9375rem] text-ink-2">
-        {t.venue.savingsNote[l]}{" "}
-        <span className="u-num text-accent">{kr(saving, l)}</span>{" "}
-        {l === "da" ? "om året." : "a year."}{" "}
-        <span className="text-ink-3">{ui.indicative[l]}</span>
-      </p>
-    </div>
-  );
-}
-
 function StepPlan({
   locale: l,
   plans,
   activePlanId,
-  suggestedId,
   billing,
-  m2,
+  locations,
   onPlan,
   onBilling,
+  onLocations,
 }: {
   locale: Locale;
   plans: Plan[];
-  activePlanId: PlanId;
-  suggestedId: PlanId;
+  /** Null until the visitor picks. Nothing is recommended for them any
+      more, so nothing is pre-selected. */
+  activePlanId: PlanId | null;
   billing: Billing;
-  m2: number;
+  locations: number;
   onPlan: (id: PlanId) => void;
   onBilling: (b: Billing) => void;
+  onLocations: (n: number) => void;
 }) {
   const t = tDefaults;
   const ui = uiDefaults;
@@ -509,6 +368,30 @@ function StepPlan({
   return (
     <div className="flex flex-col gap-8">
       <StepHead heading={t.plan.heading[l]} body={t.plan.body[l]} />
+
+      <fieldset>
+        <legend className="u-label mb-3 text-ink-3">{t.summary.locations[l]}</legend>
+        <div className="flex w-full max-w-[220px] items-center gap-1 rounded-full bg-surface-2 p-1">
+          <button
+            type="button"
+            onClick={() => onLocations(Math.max(1, locations - 1))}
+            disabled={locations <= 1}
+            aria-label="-1"
+            className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink disabled:opacity-30"
+          >
+            −
+          </button>
+          <span className="u-num flex-1 text-center text-[1.25rem]">{num(locations, l)}</span>
+          <button
+            type="button"
+            onClick={() => onLocations(Math.min(99, locations + 1))}
+            aria-label="+1"
+            className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink"
+          >
+            +
+          </button>
+        </div>
+      </fieldset>
 
       <div className="inline-flex gap-0.5 self-start rounded-full bg-surface-2 p-1">
         {(["monthly", "annual"] as Billing[]).map((b) => (
@@ -529,7 +412,6 @@ function StepPlan({
       <div className="flex flex-col gap-3">
         {plans.map((p) => {
           const active = p.id === activePlanId;
-          const tooSmall = p.maxM2 !== null && m2 > p.maxM2;
           const pq = quote(p, billing, 1);
           return (
             <button
@@ -537,10 +419,9 @@ function StepPlan({
               type="button"
               onClick={() => onPlan(p.id)}
               aria-pressed={active}
-              disabled={tooSmall}
               className={`flex flex-col gap-3 rounded-[var(--radius-lg)] p-5 text-left transition-colors sm:flex-row sm:items-center sm:gap-6 ${
                 active ? "bg-surface-2 ring-1 ring-accent/40" : "bg-surface-2/50 hover:bg-surface-2"
-              } ${tooSmall ? "opacity-40" : ""}`}
+              }`}
             >
               <span
                 className={`mt-1 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border ${
@@ -550,17 +431,8 @@ function StepPlan({
                 {active && <CheckIcon size={11} />}
               </span>
               <span className="flex-1">
-                <span className="u-title block text-[1.0625rem]">
-                  {p.name}
-                  {p.id === suggestedId && (
-                    <span className="u-label ml-3 align-middle text-accent">
-                      {t.plan.recommended[l]}
-                    </span>
-                  )}
-                </span>
-                <span className="mt-1 block text-sm text-ink-2">
-                  {tooSmall ? t.plan.tooSmall[l] : p.tagline[l]}
-                </span>
+                <span className="u-title block text-[1.0625rem]">{p.name}</span>
+                <span className="mt-1 block text-sm text-ink-2">{p.tagline[l]}</span>
               </span>
               <span className="text-right">
                 <span className="u-num block text-[1.375rem]">{kr(Math.round(pq.perLocation), l)}</span>
@@ -621,18 +493,21 @@ function StepAccount({
     button just went back to "Start prøveperioden" with no explanation. */
 const PAYMENT_FIELD_KEYS = new Set(["card", "expiry", "cvc", "ean", "terms"]);
 
-/** `plan`/`venueType`/`m2`/`locations` have no text input of their own for
-    a visitor to have left blank — they're derived from earlier steps'
-    buttons and sliders — so the only way buildSignup ever rejects one is a
-    raw field a legitimate browser session couldn't produce. Routing that
-    through the generic "required" code (fix round 1's own fix) said "Skal
-    udfyldes" on a step where, from the visitor's point of view, nothing
-    was blank at all — demonstrated live in fix round 2's review. These
-    four get their own copy instead, naming what's actually wrong. */
+/** `plan` and `locations` have no text input of their own for a visitor to
+    have left blank — they come from buttons and a counter — so the only
+    way buildSignup rejects one is a raw field a legitimate browser session
+    could not produce. Routing that through the generic "required" code
+    said "Skal udfyldes" on a step where, from the visitor's point of view,
+    nothing was blank at all. These get their own copy instead, naming what
+    is actually wrong.
+
+    `venueType` and `m2` used to be here too. Signup no longer collects
+    them and buildSignup no longer validates them, so no server error can
+    carry those keys; their copy stays in lib/content/signup.ts unused
+    rather than being deleted, because the marketing calculator still
+    speaks in those terms. */
 const FIELD_ERROR_OVERRIDE: Record<string, keyof typeof tDefaults.errors> = {
   plan: "planInvalid",
-  venueType: "venueTypeInvalid",
-  m2: "m2Invalid",
   locations: "locationsInvalid",
 };
 
@@ -745,28 +620,22 @@ function Summary({
   profile,
   plan,
   billing,
-  savingYear,
 }: {
   locale: Locale;
   profile: VenueProfile;
   plan: Plan;
   billing: Billing;
-  savingYear: number;
 }) {
   const t = tDefaults;
   const pricingCopy = pricingCopyDefaults;
 
   const q = quote(plan, billing, profile.locations);
-  const v = venueType(profile.type);
-
   return (
     <aside className="border-t border-line bg-surface-2/60 lg:border-l lg:border-t-0">
       <div className="sticky top-[64px] flex flex-col gap-6 p-7 sm:p-8">
         <h2 className="u-label text-ink-3">{t.summary.heading[l]}</h2>
 
         <dl className="flex flex-col gap-3 border-b border-line pb-6 text-[0.875rem]">
-          <Row label={t.summary.venue[l]} value={v.label[l]} />
-          <Row label={t.summary.area[l]} value={fmtM2(profile.m2, l)} />
           <Row label={t.summary.locations[l]} value={num(profile.locations, l)} />
           <Row label={t.summary.plan[l]} value={q.plan.name} />
           <Row
@@ -800,16 +669,6 @@ function Summary({
             {t.summary.thenPay[l]} {kr(Math.round(q.chargeExVat), l)}
             {billing === "annual" ? (l === "da" ? "/år" : "/yr") : l === "da" ? "/md." : "/mo"} ·{" "}
             {kr(Math.round(q.chargeIncVat), l)} {t.summary.incVat[l]}
-          </p>
-        </div>
-
-        <div className="border-t border-line pt-6">
-          <p className="u-label mb-2 text-ink-3">{t.summary.savingLine[l]}</p>
-          <p className="u-num text-[1.5rem] text-accent">
-            {kr(savingYear, l)}
-            <span className="ml-1.5 text-[0.4em] tracking-normal text-ink-2">
-              {l === "da" ? "/år" : "/yr"}
-            </span>
           </p>
         </div>
       </div>
