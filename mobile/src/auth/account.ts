@@ -3,6 +3,11 @@ import { supabase } from "./supabase";
 
 export type AccountResult = { ok: true; account: Account | null } | { ok: false };
 
+async function hasSessionFor(userId: string): Promise<boolean> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id === userId;
+}
+
 /** Reads what the signed-in user is allowed to see about themselves.
     Row-level security does the filtering; the `.eq()` calls below only
     say which of the visible rows is wanted.
@@ -12,13 +17,18 @@ export type AccountResult = { ok: true; account: Account | null } | { ok: false 
     request that failed, which the caller must not mistake for that. */
 export async function fetchAccount(userId: string): Promise<AccountResult> {
   try {
+    /* Without a live session for this user supabase-js sends the anon key
+       and row-level security answers with zero rows and no error, which
+       would read as "no profile". Only believe an answer that was asked
+       as the user. */
+    if (!(await hasSessionFor(userId))) return { ok: false };
     const profile = await supabase
       .from("profiles")
       .select("role, full_name, customer_id")
       .eq("id", userId)
       .maybeSingle();
     if (profile.error) return { ok: false };
-    if (!profile.data) return { ok: true, account: null };
+    if (!profile.data) return (await hasSessionFor(userId)) ? { ok: true, account: null } : { ok: false };
 
     const p = profile.data as Account["profile"];
     if (!p.customer_id) return { ok: true, account: { profile: p, customer: null, subscription: null } };

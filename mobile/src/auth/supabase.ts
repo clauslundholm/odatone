@@ -15,6 +15,10 @@ export const configured = url !== "" && anonKey !== "";
 /** The website: POST /api/app/signup and the /my-odatone portal. */
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
 
+/** Named so sign-out can clear the stored session itself when the
+    server cannot be asked to. */
+export const AUTH_STORAGE_KEY = "odatone.auth.v1";
+
 /* The anon key, never the service role: everything this client reads is
    decided by row-level security (supabase/migrations/0003_tenancy.sql),
    which lets a signed-in user see their own profile, customer and
@@ -22,6 +26,7 @@ export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/+$/, "
 export const supabase = createClient(configured ? url : "http://localhost", configured ? anonKey : "missing", {
   auth: {
     storage: AsyncStorage,
+    storageKey: AUTH_STORAGE_KEY,
     persistSession: true,
     autoRefreshToken: true,
     /* There is no URL to read a session from in a native app; leaving

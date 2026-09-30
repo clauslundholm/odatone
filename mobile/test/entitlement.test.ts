@@ -6,7 +6,9 @@ import {
   accountEntitled,
   gateFor,
   latestSubscription,
+  effectiveUserId,
   parseCache,
+  sessionReady,
   resolveEntitled,
   type Account,
   type Role,
@@ -109,4 +111,34 @@ test("parseCache accepts only the exact shape it wrote", () => {
 test("the gate asks a signed-out person to log in and tells a signed-in one it has ended", () => {
   assert.equal(gateFor(false), "login");
   assert.equal(gateFor(true), "ended");
+});
+
+test("parseCache takes an optional email and rejects a non-string one", () => {
+  assert.deepEqual(parseCache('{"userId":"u1","entitled":true,"at":5,"email":"a@b.test"}'), {
+    userId: "u1",
+    entitled: true,
+    at: 5,
+    email: "a@b.test",
+  });
+  assert.equal(parseCache('{"userId":"u1","entitled":true,"at":5,"email":7}'), null);
+});
+
+test("effectiveUserId: a session wins, absence is signed out, unknown falls back to the cache", () => {
+  const cache = { userId: "cached", entitled: true, at: 1 };
+  assert.equal(effectiveUserId({ userId: "live" }, cache), "live");
+  assert.equal(effectiveUserId({ userId: "live" }, null), "live");
+  assert.equal(effectiveUserId("absent", cache), null);
+  assert.equal(effectiveUserId("absent", null), null);
+  assert.equal(effectiveUserId("unknown", cache), "cached");
+  assert.equal(effectiveUserId("unknown", null), null);
+});
+
+test("sessionReady waits for the cache, then for an answer or a cached identity", () => {
+  const cache = { userId: "u", entitled: true, at: 1 };
+  assert.equal(sessionReady("absent", false, null, true), false);
+  assert.equal(sessionReady("unknown", true, null, false), false);
+  assert.equal(sessionReady("unknown", true, cache, false), true);
+  assert.equal(sessionReady("unknown", true, null, true), true);
+  assert.equal(sessionReady("absent", true, null, false), true);
+  assert.equal(sessionReady({ userId: "u" }, true, null, false), true);
 });

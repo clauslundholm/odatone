@@ -55,7 +55,48 @@ export type AccountState =
   | { kind: "unavailable" };
 
 /** The last answer the server gave, kept on the device. */
-export type CachedEntitlement = { userId: string; entitled: boolean; at: number };
+export type CachedEntitlement = {
+  userId: string;
+  entitled: boolean;
+  at: number;
+  /** For the account card when the phone is offline. Optional: entries
+      written before it existed are still good. */
+  email?: string;
+};
+
+/** What the app knows about the stored session. `unknown` is "could not
+    find out" (the auth server did not answer), which is not the same as
+    `absent`, "checked, and there is none". */
+export type SessionState = "unknown" | "absent" | { userId: string };
+
+/** Who the app treats as signed in. A live session wins; a confirmed
+    absence is signed out; and when the auth server cannot be reached the
+    last known user stands, so a shop opening the app with its wifi down
+    keeps its music inside the offline window. */
+export function effectiveUserId(session: SessionState, cache: CachedEntitlement | null): string | null {
+  if (session === "absent") return null;
+  if (session === "unknown") return cache?.userId ?? null;
+  return session.userId;
+}
+
+/** Whether a screen may stop showing its splash. Waits for the stored
+    cache; then needs either a settled answer about the session or a
+    cached identity to go on. `settled` is true once getSession() has
+    returned at all, whatever it returned, so a first-run phone with no
+    cache and no network is not stuck. */
+export function sessionReady(
+  session: SessionState,
+  cacheRead: boolean,
+  cache: CachedEntitlement | null,
+  settled: boolean,
+): boolean {
+  return cacheRead && (session !== "unknown" || cache !== null || settled);
+}
+
+/** How often an open app re-reads the account. Foreground and login also
+    re-read it, but a counter tablet that is never backgrounded would
+    otherwise never notice a cancelled subscription. */
+export const RECHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 /** A shop with poor signal keeps its music for a week; a lapsed account
     does not keep it forever. */
@@ -73,7 +114,9 @@ export function parseCache(raw: string | null): CachedEntitlement | null {
     if (typeof v !== "object" || v === null) return null;
     const { userId, entitled, at } = v as Record<string, unknown>;
     if (typeof userId !== "string" || typeof entitled !== "boolean" || typeof at !== "number") return null;
-    return { userId, entitled, at };
+    const { email } = v as Record<string, unknown>;
+    if (email !== undefined && typeof email !== "string") return null;
+    return email === undefined ? { userId, entitled, at } : { userId, entitled, at, email };
   } catch {
     return null;
   }
