@@ -14,6 +14,7 @@ import { AppState } from "react-native";
 
 import { fetchAccount } from "./account";
 import {
+  CHECK_WAIT_MS,
   RECHECK_INTERVAL_MS,
   accountEntitled,
   accountKnown,
@@ -46,9 +47,12 @@ import { AUTH_STORAGE_KEY, configured, supabase } from "./supabase";
 const CACHE_KEY = "odatone.entitlement.v1";
 
 /** The longest a sign-in waits for the account read before it resolves
-    anyway. The read keeps going and applies its answer when it lands;
-    `checking` stays true until then. */
+    anyway. The read keeps going and applies its answer when it lands. */
 const SETTLE_WAIT_MS = 8000;
+
+/** The longest "Check again" waits for the auth server to hand back a
+    session before it resolves anyway. */
+const SESSION_WAIT_MS = 8000;
 
 type AuthValue = {
   /** False until the stored session has been read, so a screen can tell
@@ -60,9 +64,9 @@ type AuthValue = {
   /** May this person press play right now. */
   entitled: boolean;
   /** True while there is an identity, no yes to go on, and the server's
-      answer may still be on its way. A play gate must wait while this is
-      true rather than read `entitled: false` as "subscription not
-      active". */
+      answer may still be on its way — for at most CHECK_WAIT_MS. A play
+      gate must wait while this is true rather than read `entitled: false`
+      as "subscription not active". */
   checking: boolean;
   /** True only when the server's answer for this user has been read.
       `entitled: false` without it means "could not check", not "no". */
@@ -96,12 +100,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* Ticks so the 7-day offline window is re-evaluated on a device that is
      left running, not only when something else changes. */
   const [now, setNow] = useState(() => Date.now());
+  /* When the wait for an answer began, and for whom: `checking` is capped
+     at CHECK_WAIT_MS from `since`. */
+  const [wait, setWait] = useState<{ userId: string | null; since: number }>(() => ({ userId: null, since: Date.now() }));
 
   const sessionState: SessionState =
     session === "unknown" || session === "absent" ? session : { userId: session.user.id };
   const hasSession = typeof session === "object";
   const userId = effectiveUserId(sessionState, cache);
   const ready = sessionReady(sessionState, cacheRead, cache, settled);
+  /* A new identity starts a new wait. Set while rendering, not from an
+     effect, so no commit ever measures this user's wait from the last
+     one's start. */
+  if (wait.userId !== userId) setWait({ userId, since: Date.now() });
 
   /* Refs mirror what asynchronous callbacks need to see now, not as of
      the render that created them. */
@@ -376,13 +387,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /* "Check again" and pull-to-refresh. Never rejects. */
   const refresh = useCallback(async () => {
-    if (currentUser.current && typeof sessionRef.current === "object") await load(currentUser.current);
-  }, [load]);
+    try {
+      const id = currentUser.current;
+      if (!id) return;
+      /* Asking again is a new wait. */
+      setWait((w) => ({ ...w, since: Date.now() }));
+      const held = sessionRef.current;
+      if (typeof held === "object") {
+        await load(id);
+        return;
+      }
+      if (held === "absent") return;
+
+      /* An identity from the cache and no session: the auth server did not
+         answer at launch, so there is nothing to read the account as.
+         getSession() tries the token refresh again. It is not waited for
+         longer than SESSION_WAIT_MS; an attempt that lands later still
+         arrives as TOKEN_REFRESHED and is picked up from there. */
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const patience = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), SESSION_WAIT_MS);
+      });
+      const found = await Promise.race([
+        supabase.auth.getSession().then(
+          ({ data }) => data.session,
+          () => null,
+        ),
+        patience,
+      ]);
+      clearTimeout(timer);
+      /* Only for the user who asked, and only if they are still here and
+         did not sign out while it was away. */
+      if (!found || found.user.id !== id || currentUser.current !== id || sessionRef.current === "absent") return;
+      sessionRef.current = found;
+      setSession(found);
+      /* The session effect asks for the same read once React has the
+         session; whichever of the two comes first, the other joins it. */
+      await loadFor(id);
+    } catch {}
+  }, [load, loadFor]);
 
   const shown = effectiveAccountState(state, userId);
   const entitled = resolveEntitled(shown, cache, userId, now);
-  const checking = isChecking(shown, cache, userId, settledFor, canStillRead(sessionState, settled), now);
+  const checking = isChecking(shown, cache, userId, settledFor, canStillRead(sessionState, settled), now, wait.since);
+
+  /* ---- the cap on `checking`: the minute tick above is too coarse for
+          it, so re-render at the moment the wait runs out ---- */
+  useEffect(() => {
+    if (!checking) return;
+    const expires = wait.since + CHECK_WAIT_MS;
+    /* Never longer than the cap itself, whatever the phone's clock has
+       been set to since; and `now` is moved at least to `expires`, so a
+       timer that fires a millisecond early still ends the wait. */
+    const delay = Math.min(CHECK_WAIT_MS, Math.max(0, expires - Date.now()));
+    const timer = setTimeout(() => setNow(Math.max(Date.now(), expires)), delay);
+    return () => clearTimeout(timer);
+  }, [checking, wait.since]);
   const known = accountKnown(shown);
   const email =
     typeof session === "object" ? (session.user.email ?? null) : cache && cache.userId === userId ? (cache.email ?? null) : null;

@@ -159,10 +159,21 @@ export function canStillRead(session: SessionState, settled: boolean): boolean {
   return session !== "unknown" || !settled;
 }
 
+/** The longest `checking` may last, counted from when the wait began. A
+    token refresh against a dead network retries for about half a minute,
+    and a request that hangs never comes back at all; a play button that
+    does nothing for that long reads as a broken app. After this the app
+    stops waiting and says it could not check. */
+export const CHECK_WAIT_MS = 8000;
+
 /** True while there is an identity, the app cannot yet say yes, and the
     server's answer may still be on its way: no read for this user has
-    come back in this run (`settledFor`), and one still can (`canRead`,
-    see canStillRead). A play gate must wait, not refuse.
+    come back in this run (`settledFor`), one still can (`canRead`, see
+    canStillRead), and the wait is younger than CHECK_WAIT_MS (`since` is
+    when it began: when this identity appeared, or when the customer last
+    asked again). A play gate must wait, not refuse — but not for ever:
+    past the cap this is false, and with no answer the gate says it
+    could not check. A read that lands later still decides.
 
     The cache only ever counts as a yes. A stale entry (the customer was
     away for more than the offline window) or a cached no (they have
@@ -177,9 +188,11 @@ export function isChecking(
   settledFor: string | null,
   canRead: boolean,
   now: number,
+  since: number,
 ): boolean {
   if (userId === null || state.kind !== "unavailable") return false;
   if (settledFor === userId || !canRead) return false;
+  if (now - since >= CHECK_WAIT_MS) return false;
   return !resolveEntitled(state, cache, userId, now);
 }
 

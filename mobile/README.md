@@ -53,8 +53,10 @@ answer for 7 days.
 
 The account is re-read at login, whenever the app returns to the
 foreground, on pull-to-refresh on the Account tab, and every 30 minutes
-while the app stays open. Logging out signs out this device only, not
-the same login on other phones. Play from the lock screen or a headphone
+while the app stays open. The play button waits at most 8 seconds
+for an answer, and an account read is given up after 15, after which
+the app says it couldn't check rather than keep waiting. Logging out
+signs out this device only, not the same login on other phones. Play from the lock screen or a headphone
 button is held to the same rule as the play button.
 
 ## Configuration
@@ -82,8 +84,14 @@ answer is read.
 - If the account cannot be read and nothing stored says the customer may
   play (the first read after a fresh login fails, or the phone has been
   offline past the 7 days), the play gate says it couldn't check the
-  subscription, and "Check again" asks once more. It only says the
-  subscription isn't active when the server has said so.
+  subscription. "Check again", and pull-to-refresh on the Account tab,
+  ask once more: they read the account, first getting the session back
+  from the auth server (waiting up to 8 seconds for it) if the app was
+  opened without reaching it. One exception: for a minute after a failed
+  attempt to renew the session, supabase-js answers from that failure
+  without asking the server again, so "Check again" can come straight
+  back to the same sheet; after the minute it asks for real. The gate
+  only says the subscription isn't active when the server has said so.
 - The session handling in `AuthProvider` has no automated tests beyond
   its pure functions.
 - EAN and purchase-order numbers are collected but not stored; the

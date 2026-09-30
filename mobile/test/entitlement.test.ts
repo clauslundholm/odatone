@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  CHECK_WAIT_MS,
   OFFLINE_WINDOW_MS,
   accountEntitled,
   accountKnown,
@@ -178,45 +179,67 @@ test("canStillRead: a session can be asked as; without one, only until getSessio
 const un = { kind: "unavailable" } as const;
 
 test("isChecking: an identity with no cache and a read on its way is being checked", () => {
-  assert.equal(isChecking(un, null, "u1", null, true, NOW), true);
-  assert.equal(isChecking(un, cached(true, 0, "someone-else"), "u1", null, true, NOW), true);
+  assert.equal(isChecking(un, null, "u1", null, true, NOW, NOW), true);
+  assert.equal(isChecking(un, cached(true, 0, "someone-else"), "u1", null, true, NOW, NOW), true);
 });
 
 test("isChecking: a stale cached yes or a cached no is not an answer while a read can still happen", () => {
-  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, true, NOW), true);
-  assert.equal(isChecking(un, cached(false, 0), "u1", null, true, NOW), true);
-  assert.equal(isChecking(un, cached(true, -24 * 60 * 60 * 1000), "u1", null, true, NOW), true);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, true, NOW, NOW), true);
+  assert.equal(isChecking(un, cached(false, 0), "u1", null, true, NOW, NOW), true);
+  assert.equal(isChecking(un, cached(true, -24 * 60 * 60 * 1000), "u1", null, true, NOW, NOW), true);
 });
 
 test("isChecking: a valid cached yes is an answer, so nothing is waited for", () => {
-  assert.equal(isChecking(un, cached(true, 0), "u1", null, true, NOW), false);
-  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS), "u1", null, true, NOW), false);
+  assert.equal(isChecking(un, cached(true, 0), "u1", null, true, NOW, NOW), false);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS), "u1", null, true, NOW, NOW), false);
 });
 
 test("isChecking: once a read for this user has come back, or none can, the gate must answer", () => {
-  assert.equal(isChecking(un, null, "u1", "u1", true, NOW), false);
-  assert.equal(isChecking(un, cached(false, 0), "u1", "u1", true, NOW), false);
-  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", "u1", true, NOW), false);
+  assert.equal(isChecking(un, null, "u1", "u1", true, NOW, NOW), false);
+  assert.equal(isChecking(un, cached(false, 0), "u1", "u1", true, NOW, NOW), false);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", "u1", true, NOW, NOW), false);
   /* Offline with no session: nothing will ever come back. */
-  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, false, NOW), false);
-  assert.equal(isChecking(un, cached(false, 0), "u1", null, false, NOW), false);
-  assert.equal(isChecking(un, null, "u1", null, false, NOW), false);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, false, NOW, NOW), false);
+  assert.equal(isChecking(un, cached(false, 0), "u1", null, false, NOW, NOW), false);
+  assert.equal(isChecking(un, null, "u1", null, false, NOW, NOW), false);
 });
 
 test("isChecking: a read that came back for someone else does not count for this user", () => {
-  assert.equal(isChecking(un, null, "u1", "u0", true, NOW), true);
+  assert.equal(isChecking(un, null, "u1", "u0", true, NOW, NOW), true);
 });
 
 test("isChecking is false with a loaded account and with no identity", () => {
-  assert.equal(isChecking({ kind: "loaded", account: null }, null, "u1", null, true, NOW), false);
-  assert.equal(isChecking({ kind: "signed-out" }, null, null, null, true, NOW), false);
-  assert.equal(isChecking(un, null, null, null, true, NOW), false);
+  assert.equal(isChecking({ kind: "loaded", account: null }, null, "u1", null, true, NOW, NOW), false);
+  assert.equal(isChecking({ kind: "signed-out" }, null, null, null, true, NOW, NOW), false);
+  assert.equal(isChecking(un, null, null, null, true, NOW, NOW), false);
 });
 
 test("never both entitled and checking, and never neither while a first read is on its way", () => {
   for (const cache of [null, cached(true, 0), cached(true, OFFLINE_WINDOW_MS + 1), cached(false, 0)]) {
     const entitled = resolveEntitled(un, cache, "u1", NOW);
-    const checking = isChecking(un, cache, "u1", null, true, NOW);
+    const checking = isChecking(un, cache, "u1", null, true, NOW, NOW);
     assert.equal(entitled !== checking, true, JSON.stringify(cache));
+  }
+});
+
+test("isChecking: the wait is capped at 8 seconds from when it began", () => {
+  assert.equal(CHECK_WAIT_MS, 8000);
+  assert.equal(isChecking(un, null, "u1", null, true, NOW, NOW - (CHECK_WAIT_MS - 1)), true);
+  assert.equal(isChecking(un, null, "u1", null, true, NOW, NOW - CHECK_WAIT_MS), false);
+  assert.equal(isChecking(un, null, "u1", null, true, NOW, NOW - 60 * 1000), false);
+  /* The same for the answers the cache cannot give. */
+  assert.equal(isChecking(un, cached(false, 0), "u1", null, true, NOW, NOW - (CHECK_WAIT_MS - 1)), true);
+  assert.equal(isChecking(un, cached(false, 0), "u1", null, true, NOW, NOW - CHECK_WAIT_MS), false);
+  assert.equal(isChecking(un, cached(true, OFFLINE_WINDOW_MS + 1), "u1", null, true, NOW, NOW - CHECK_WAIT_MS), false);
+});
+
+test("isChecking: a wait that began after the clock last ticked has not run out", () => {
+  assert.equal(isChecking(un, null, "u1", null, true, NOW, NOW + 30 * 1000), true);
+});
+
+test("the cap on the wait changes nothing for a valid cached yes", () => {
+  for (const since of [NOW, NOW - (CHECK_WAIT_MS - 1), NOW - CHECK_WAIT_MS, NOW - 60 * 1000]) {
+    assert.equal(resolveEntitled(un, cached(true, 0), "u1", NOW), true);
+    assert.equal(isChecking(un, cached(true, 0), "u1", null, true, NOW, since), false);
   }
 });
