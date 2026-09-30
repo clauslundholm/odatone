@@ -58,12 +58,52 @@ function parsePlanFields(formData: FormData): Parsed<PlanFields> {
   };
 }
 
-export async function updatePlan(_prev: unknown, formData: FormData) {
+/* React resets an uncontrolled form once its Server Action resolves. Every
+   field here is a `defaultValue`, so a rejected submit used to hand the
+   operator an empty dialog: twelve fields typed, one of them wrong, all of
+   them gone. On the edit forms the same reset was quieter and arguably
+   worse — the fields snapped back to the stored row, so a failed save looked
+   like it had worked in reverse.
+
+   So every failure returns what was submitted, and the forms prefer those
+   values over their defaults. Only these fields are echoed, by name: a
+   blanket "return the whole FormData" would put whatever else a crafted POST
+   carried straight back into the rendered page. */
+const PLAN_FIELDS = [
+  "id", "name", "monthly", "maxM2", "taglineDa", "taglineEn", "featuresDa", "featuresEn", "active",
+] as const;
+const ADDON_FIELDS = ["id", "nameDa", "nameEn", "monthly", "active"] as const;
+/* The delete form has one field, and keeping it filled matters most on the
+   "in use" refusal, where the operator did nothing wrong and is about to
+   reach for the Active toggle instead. */
+const DELETE_FIELDS = ["confirm"] as const;
+
+export type ProductFormValues = Record<string, string>;
+
+/** What every action in this file returns, and what the forms read. One type
+    for all six so a form cannot be written against a shape only one action
+    produces: `values` is present on every failure, `count` only on the
+    "in-use" refusal, and `ok` only on success. */
+export type ProductFormState = {
+  ok?: boolean;
+  error?: string;
+  values?: ProductFormValues;
+  count?: number;
+};
+
+function rawValues(formData: FormData, keys: readonly string[]): ProductFormValues {
+  const out: ProductFormValues = {};
+  for (const key of keys) out[key] = String(formData.get(key) ?? "");
+  return out;
+}
+
+export async function updatePlan(_prev: unknown, formData: FormData): Promise<ProductFormState> {
+  const fail = (error: string) => ({ error, values: rawValues(formData, PLAN_FIELDS) });
   const id = String(formData.get("id") ?? "");
-  if (!id) return { error: "missing-id" };
+  if (!id) return fail("missing-id");
 
   const fields = parsePlanFields(formData);
-  if (!fields.ok) return { error: fields.error };
+  if (!fields.ok) return fail(fields.error);
 
   const supabase = await createClient();
   /* No service role here, and no role check either: the staff_admin-only
@@ -84,8 +124,8 @@ export async function updatePlan(_prev: unknown, formData: FormData) {
     .eq("id", id)
     .select("id");
 
-  if (error) return { error: "save" };
-  if (!data || data.length === 0) return { error: "forbidden" };
+  if (error) return fail("save");
+  if (!data || data.length === 0) return fail("forbidden");
 
   revalidatePlans();
   /* See createPlan's note: revalidatePlans() invalidates the public pricing
@@ -93,7 +133,7 @@ export async function updatePlan(_prev: unknown, formData: FormData) {
      only revalidatePath re-renders the current route in the action's
      response. Without it the dialog closed onto the old price. */
   revalidatePath("/admin/products");
-  return { ok: true } as const;
+  return { ok: true };
 }
 
 /* An INSERT refused by RLS behaves the opposite way to the UPDATE above, and
@@ -110,12 +150,13 @@ export async function updatePlan(_prev: unknown, formData: FormData) {
 const RLS_REFUSED = "42501";
 const UNIQUE_VIOLATION = "23505";
 
-export async function createPlan(_prev: unknown, formData: FormData) {
+export async function createPlan(_prev: unknown, formData: FormData): Promise<ProductFormState> {
+  const fail = (error: string) => ({ error, values: rawValues(formData, PLAN_FIELDS) });
   const id = parseProductId(String(formData.get("id") ?? ""));
-  if (id === null) return { error: "id" };
+  if (id === null) return fail("id");
 
   const fields = parsePlanFields(formData);
-  if (!fields.ok) return { error: fields.error };
+  if (!fields.ok) return fail(fields.error);
 
   const supabase = await createClient();
 
@@ -131,7 +172,7 @@ export async function createPlan(_prev: unknown, formData: FormData) {
     .select("sort")
     .order("sort", { ascending: false })
     .limit(1);
-  if (sortError) return { error: "save" };
+  if (sortError) return fail("save");
   const sort = ((last?.[0]?.sort as number | undefined) ?? 0) + 1;
 
   const { data, error } = await supabase
@@ -139,17 +180,17 @@ export async function createPlan(_prev: unknown, formData: FormData) {
     .insert({ id, ...fields.value, sort })
     .select("id");
 
-  if (error?.code === UNIQUE_VIOLATION) return { error: "duplicate" };
-  if (error?.code === RLS_REFUSED) return { error: "forbidden" };
+  if (error?.code === UNIQUE_VIOLATION) return fail("duplicate");
+  if (error?.code === RLS_REFUSED) return fail("forbidden");
   if (error) {
     console.error("[admin products] failed to create plan", error);
-    return { error: "save" };
+    return fail("save");
   }
   /* Belt and braces. A refusal should have arrived as 42501 above, but an
      insert that returns no row is a write this action cannot claim
      succeeded, whatever the reason — and reporting success here would leave
      an operator looking at a grid with no new plan in it and no error. */
-  if (!data || data.length === 0) return { error: "forbidden" };
+  if (!data || data.length === 0) return fail("forbidden");
 
   revalidatePlans();
   /* The grid on this page is read with the session client, uncached, so it
@@ -158,7 +199,7 @@ export async function createPlan(_prev: unknown, formData: FormData) {
      not re-render the current route as part of the action's response (see
      Next's Server Actions guide), revalidatePath does. */
   revalidatePath("/admin/products");
-  return { ok: true } as const;
+  return { ok: true };
 }
 
 /** The add-on lives in its own table with its own RLS policy
@@ -191,12 +232,13 @@ function parseAddonFields(formData: FormData): Parsed<AddonFields> {
   return { ok: true, value: { name: { da: nameDa, en: nameEn }, monthly_ore: toOre(monthly), active } };
 }
 
-export async function updateAddon(_prev: unknown, formData: FormData) {
+export async function updateAddon(_prev: unknown, formData: FormData): Promise<ProductFormState> {
+  const fail = (error: string) => ({ error, values: rawValues(formData, ADDON_FIELDS) });
   const id = String(formData.get("id") ?? "");
-  if (!id) return { error: "missing-id" };
+  if (!id) return fail("missing-id");
 
   const fields = parseAddonFields(formData);
-  if (!fields.ok) return { error: fields.error };
+  if (!fields.ok) return fail(fields.error);
 
   const supabase = await createClient();
   /* See updatePlan's comment on `.select("id")` — same reasoning, same
@@ -207,19 +249,20 @@ export async function updateAddon(_prev: unknown, formData: FormData) {
     .eq("id", id)
     .select("id");
 
-  if (error) return { error: "save" };
-  if (!data || data.length === 0) return { error: "forbidden" };
+  if (error) return fail("save");
+  if (!data || data.length === 0) return fail("forbidden");
 
   revalidatePath("/admin/products");
-  return { ok: true } as const;
+  return { ok: true };
 }
 
-export async function createAddon(_prev: unknown, formData: FormData) {
+export async function createAddon(_prev: unknown, formData: FormData): Promise<ProductFormState> {
+  const fail = (error: string) => ({ error, values: rawValues(formData, ADDON_FIELDS) });
   const id = parseProductId(String(formData.get("id") ?? ""));
-  if (id === null) return { error: "id" };
+  if (id === null) return fail("id");
 
   const fields = parseAddonFields(formData);
-  if (!fields.ok) return { error: fields.error };
+  if (!fields.ok) return fail(fields.error);
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -227,16 +270,16 @@ export async function createAddon(_prev: unknown, formData: FormData) {
     .insert({ id, ...fields.value })
     .select("id");
 
-  if (error?.code === UNIQUE_VIOLATION) return { error: "duplicate" };
-  if (error?.code === RLS_REFUSED) return { error: "forbidden" };
+  if (error?.code === UNIQUE_VIOLATION) return fail("duplicate");
+  if (error?.code === RLS_REFUSED) return fail("forbidden");
   if (error) {
     console.error("[admin products] failed to create add-on", error);
-    return { error: "save" };
+    return fail("save");
   }
-  if (!data || data.length === 0) return { error: "forbidden" };
+  if (!data || data.length === 0) return fail("forbidden");
 
   revalidatePath("/admin/products");
-  return { ok: true } as const;
+  return { ok: true };
 }
 
 /* A plan or add-on that nothing references can be deleted outright; one that
@@ -260,13 +303,14 @@ export async function createAddon(_prev: unknown, formData: FormData) {
    decision to record per customer, not a side effect of a delete button. */
 const FK_VIOLATION = "23503";
 
-export async function deletePlan(_prev: unknown, formData: FormData) {
+export async function deletePlan(_prev: unknown, formData: FormData): Promise<ProductFormState> {
+  const fail = (error: string) => ({ error, values: rawValues(formData, DELETE_FIELDS) });
   const id = String(formData.get("id") ?? "");
-  if (!id) return { error: "missing-id" };
+  if (!id) return fail("missing-id");
   /* Typed confirmation, checked server-side rather than only in the dialog:
      this endpoint is a POST anyone can send, and the check is worth as much
      as where it runs. */
-  if (String(formData.get("confirm") ?? "").trim() !== id) return { error: "confirm" };
+  if (String(formData.get("confirm") ?? "").trim() !== id) return fail("confirm");
 
   const supabase = await createClient();
 
@@ -276,9 +320,9 @@ export async function deletePlan(_prev: unknown, formData: FormData) {
     .eq("plan_id", id);
   if (countError) {
     console.error("[admin products] failed to count subscriptions before delete", countError);
-    return { error: "save" };
+    return fail("save");
   }
-  if ((count ?? 0) > 0) return { error: "in-use", count: count ?? 0 } as const;
+  if ((count ?? 0) > 0) return { ...fail("in-use"), count: count ?? 0 };
 
   /* `.select("id")` for the same reason updatePlan uses it: a DELETE refused
      by `plans_admin_write`'s `using` clause matches zero rows and raises
@@ -287,22 +331,23 @@ export async function deletePlan(_prev: unknown, formData: FormData) {
      RLS_REFUSED's comment above. */
   const { data, error } = await supabase.from("plans").delete().eq("id", id).select("id");
 
-  if (error?.code === FK_VIOLATION) return { error: "in-use" } as const;
+  if (error?.code === FK_VIOLATION) return fail("in-use");
   if (error) {
     console.error("[admin products] failed to delete plan", error);
-    return { error: "save" };
+    return fail("save");
   }
-  if (!data || data.length === 0) return { error: "forbidden" };
+  if (!data || data.length === 0) return fail("forbidden");
 
   revalidatePlans();
   revalidatePath("/admin/products");
-  return { ok: true } as const;
+  return { ok: true };
 }
 
-export async function deleteAddon(_prev: unknown, formData: FormData) {
+export async function deleteAddon(_prev: unknown, formData: FormData): Promise<ProductFormState> {
+  const fail = (error: string) => ({ error, values: rawValues(formData, DELETE_FIELDS) });
   const id = String(formData.get("id") ?? "");
-  if (!id) return { error: "missing-id" };
-  if (String(formData.get("confirm") ?? "").trim() !== id) return { error: "confirm" };
+  if (!id) return fail("missing-id");
+  if (String(formData.get("confirm") ?? "").trim() !== id) return fail("confirm");
 
   const supabase = await createClient();
 
@@ -316,19 +361,19 @@ export async function deleteAddon(_prev: unknown, formData: FormData) {
     .eq("addon_id", id);
   if (countError) {
     console.error("[admin products] failed to count subscription add-ons before delete", countError);
-    return { error: "save" };
+    return fail("save");
   }
-  if ((count ?? 0) > 0) return { error: "in-use", count: count ?? 0 } as const;
+  if ((count ?? 0) > 0) return { ...fail("in-use"), count: count ?? 0 };
 
   const { data, error } = await supabase.from("addons").delete().eq("id", id).select("id");
 
-  if (error?.code === FK_VIOLATION) return { error: "in-use" } as const;
+  if (error?.code === FK_VIOLATION) return fail("in-use");
   if (error) {
     console.error("[admin products] failed to delete add-on", error);
-    return { error: "save" };
+    return fail("save");
   }
-  if (!data || data.length === 0) return { error: "forbidden" };
+  if (!data || data.length === 0) return fail("forbidden");
 
   revalidatePath("/admin/products");
-  return { ok: true } as const;
+  return { ok: true };
 }

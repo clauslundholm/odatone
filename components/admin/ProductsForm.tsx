@@ -7,6 +7,7 @@ import { Field, TextField } from "@/components/ui/Field";
 import { toKroner } from "@/lib/money";
 import type { PlanRow } from "@/lib/plans-row";
 import {
+  type ProductFormState,
   createAddon,
   createPlan,
   deleteAddon,
@@ -22,8 +23,21 @@ type AddonRow = {
   active: boolean;
 };
 
-type FormState = { error?: string; ok?: boolean };
-const INITIAL_STATE: FormState = {};
+const INITIAL_STATE: ProductFormState = {};
+
+/** Prefers a value the server echoed back over the form's own default.
+    React resets an uncontrolled form once its Server Action resolves, so
+    without this a rejected submit handed back an empty dialog (on create) or
+    silently undid the operator's edits (on edit) — see actions.ts's
+    PLAN_FIELDS comment. */
+const kept = (state: ProductFormState, field: string, fallback: string | number) =>
+  state.values?.[field] ?? fallback;
+
+/** The checkbox equivalent. An unchecked checkbox sends nothing at all, so
+    `values.active` is "" rather than absent — which is why this cannot be
+    written as `kept(...) === "on"` against a missing key. */
+const keptActive = (state: ProductFormState, fallback: boolean) =>
+  state.values ? state.values.active === "on" : fallback;
 
 /** "forbidden" is the one actually reachable when a staff_support account
     submits this form — see actions.ts's `.select("id")` comment. "save" is
@@ -90,10 +104,11 @@ export function PlanForm({
           autoFocus
           hint="permanent, lowercase"
           placeholder="arena-stage"
+          defaultValue={kept(state, "id", "")}
         />
       )}
 
-      <Field label="Name" name="name" defaultValue={plan?.name ?? ""} required />
+      <Field label="Name" name="name" defaultValue={kept(state, "name", plan?.name ?? "")} required />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
@@ -103,7 +118,7 @@ export function PlanForm({
           min={0}
           max={21474836.47}
           step="0.01"
-          defaultValue={plan ? toKroner(plan.monthly_ore) : ""}
+          defaultValue={kept(state, "monthly", plan ? toKroner(plan.monthly_ore) : "")}
           required
         />
         <Field
@@ -113,13 +128,13 @@ export function PlanForm({
           min={0}
           max={2147483647}
           hint="blank = unbounded"
-          defaultValue={plan?.max_m2 ?? ""}
+          defaultValue={kept(state, "maxM2", plan?.max_m2 ?? "")}
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Tagline (Danish)" name="taglineDa" defaultValue={plan?.tagline.da ?? ""} />
-        <Field label="Tagline (English)" name="taglineEn" defaultValue={plan?.tagline.en ?? ""} />
+        <Field label="Tagline (Danish)" name="taglineDa" defaultValue={kept(state, "taglineDa", plan?.tagline.da ?? "")} />
+        <Field label="Tagline (English)" name="taglineEn" defaultValue={kept(state, "taglineEn", plan?.tagline.en ?? "")} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -127,20 +142,20 @@ export function PlanForm({
           label="Features (Danish)"
           name="featuresDa"
           hint="one per line"
-          defaultValue={plan?.features.map((f) => f.da).join("\n") ?? ""}
+          defaultValue={kept(state, "featuresDa", plan?.features.map((f) => f.da).join("\n") ?? "")}
         />
         <TextField
           label="Features (English)"
           name="featuresEn"
           hint="one per line, same order"
-          defaultValue={plan?.features.map((f) => f.en).join("\n") ?? ""}
+          defaultValue={kept(state, "featuresEn", plan?.features.map((f) => f.en).join("\n") ?? "")}
         />
       </div>
 
       {/* A new plan defaults to active: someone filling in a price and two
           taglines is publishing a plan, not drafting one. Unchecking it here
           is how you stage one instead. */}
-      <ActiveToggle defaultChecked={plan?.active ?? true} />
+      <ActiveToggle defaultChecked={keptActive(state, plan?.active ?? true)} />
 
       {state.error && (
         <p role="alert" className="text-[0.8125rem] text-bad">
@@ -198,6 +213,7 @@ export function AddonForm({
           autoFocus
           hint="permanent, lowercase"
           placeholder="live-sets"
+          defaultValue={kept(state, "id", "")}
         />
       )}
 
@@ -205,8 +221,8 @@ export function AddonForm({
           so a created one would have had no way to be corrected — and the box
           on this page is labelled from `name.en`. */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name (Danish)" name="nameDa" defaultValue={addon?.name.da ?? ""} required />
-        <Field label="Name (English)" name="nameEn" defaultValue={addon?.name.en ?? ""} required />
+        <Field label="Name (Danish)" name="nameDa" defaultValue={kept(state, "nameDa", addon?.name.da ?? "")} required />
+        <Field label="Name (English)" name="nameEn" defaultValue={kept(state, "nameEn", addon?.name.en ?? "")} required />
       </div>
 
       <Field
@@ -216,11 +232,11 @@ export function AddonForm({
         min={0}
         max={21474836.47}
         step="0.01"
-        defaultValue={addon ? toKroner(addon.monthly_ore) : ""}
+        defaultValue={kept(state, "monthly", addon ? toKroner(addon.monthly_ore) : "")}
         required
       />
 
-      <ActiveToggle defaultChecked={addon?.active ?? true} />
+      <ActiveToggle defaultChecked={keptActive(state, addon?.active ?? true)} />
 
       {state.error && (
         <p role="alert" className="text-[0.8125rem] text-bad">
@@ -299,7 +315,7 @@ export function DeleteProduct({
   const [armed, setArmed] = useState(false);
   const [state, formAction, pending] = useActionState(
     kind === "plan" ? deletePlan : deleteAddon,
-    INITIAL_STATE as FormState & { count?: number },
+    INITIAL_STATE,
   );
   const noun = kind === "plan" ? "plan" : "add-on";
 
@@ -339,6 +355,7 @@ export function DeleteProduct({
               autoComplete="off"
               placeholder={id}
               className="max-w-[240px]"
+              defaultValue={kept(state, "confirm", "")}
             />
             <Button type="submit" size="sm" variant="danger" disabled={pending}>
               {pending ? "Deleting…" : `Delete ${noun}`}

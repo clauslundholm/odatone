@@ -24,7 +24,28 @@ export function generateStaticParams() {
   );
 }
 
-export const dynamicParams = false;
+/* `export const dynamicParams = false` used to sit here, and it made every
+   page on this route 404 the moment anything revalidated them.
+
+   Reproduced on a production build: edit a plan's price in /admin/products,
+   and /da/priser and /en/pricing both return 404 while /da — the sibling
+   route that has generateStaticParams but not this line — stays 200. The
+   server log says `NoFallbackError`. updatePlan has called revalidatePlans()
+   since it was written, so this has been true of every price change on the
+   deployed site, and it is what the banner on /admin/products promising
+   "These prices are live on odatone.com" actually delivered.
+
+   The cause: `dynamicParams = false` tells Next never to render a param at
+   request time. Revalidation expires the prerendered entry and then needs
+   exactly that, so the two cannot both be true — the page had no cached
+   copy to serve and no permission to make a new one.
+
+   Nothing is lost by removing it. An unknown locale or slug still 404s, from
+   the notFound() calls in the page body below, which work whether or not an
+   entry is cached; generateStaticParams above still prerenders all 16 pages
+   at build time. */
+
+
 
 export async function generateMetadata({
   params,
