@@ -16,7 +16,9 @@ import { fetchAccount } from "./account";
 import {
   RECHECK_INTERVAL_MS,
   accountEntitled,
+  effectiveAccountState,
   effectiveUserId,
+  isChecking,
   parseCache,
   resolveEntitled,
   sessionReady,
@@ -50,6 +52,10 @@ type AuthValue = {
   account: Account | null;
   /** May this person press play right now. */
   entitled: boolean;
+  /** True while there is an identity but no answer yet. A play gate must
+      wait while this is true rather than read `entitled: false` as
+      "subscription not active". */
+  checking: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   verifyCode: (email: string, code: string, password: string, kind: CodeKind) => Promise<AuthResult>;
@@ -74,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cacheRead, setCacheRead] = useState(false);
   const [state, setState] = useState<AccountState>({ kind: "signed-out" });
   const [cache, setCache] = useState<CachedEntitlement | null>(null);
+  /* The user whose account read last came back, either way. */
+  const [settledFor, setSettledFor] = useState<string | null>(null);
   /* Ticks so the 7-day offline window is re-evaluated on a device that is
      left running, not only when something else changes. */
   const [now, setNow] = useState(() => Date.now());
@@ -94,10 +102,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      password step failed can skip the (single-use) code. */
   const verifiedFor = useRef<string | null>(null);
 
-  const markAbsent = useCallback(() => {
+  /* Every route to "there is no session" goes through here: the stored
+     entitlement and the half-finished code check belong to that session. */
+  const sessionGone = useCallback(() => {
+    verifiedFor.current = null;
     sessionRef.current = "absent";
     setSession("absent");
+    setCache(null);
+    setSettledFor(null);
+    AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
   }, []);
+  const inflight = useRef<{ id: string; promise: Promise<void> } | null>(null);
 
   /* ---- stored entitlement: read once, independently of the session ---- */
   useEffect(() => {
@@ -122,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         if (!alive) return;
         if (data.session) setSession(data.session);
-        else if (!error) setSession((now) => (now === "unknown" ? "absent" : now));
+        else if (!error && sessionRef.current === "unknown") sessionGone();
       })
       .catch(() => {})
       .finally(() => alive && setSettled(true));
@@ -132,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        loaded from the effect below instead, once React has the new id. */
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       if (next) setSession(next);
-      else if (event === "SIGNED_OUT") setSession("absent");
+      else if (event === "SIGNED_OUT") sessionGone();
       /* INITIAL_SESSION with null also arrives when the refresh could not
          reach the server: not evidence of anything. */
     });
@@ -140,29 +155,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alive = false;
       data.subscription.unsubscribe();
     };
+  }, [sessionGone]);
+
+  const load = useCallback((id: string): Promise<void> => {
+    const promise = (async () => {
+      const request = ++requestSeq.current;
+      const result = await fetchAccount(id);
+      /* An answer counts only if nothing newer was asked since, and it is
+         for the user who is still there. */
+      if (request !== requestSeq.current || currentUser.current !== id) return;
+      setSettledFor(id);
+      if (!result.ok) {
+        setState({ kind: "unavailable" });
+        return;
+      }
+      setState({ kind: "loaded", account: result.account });
+      const live = sessionRef.current;
+      const next: CachedEntitlement = {
+        userId: id,
+        entitled: accountEntitled(result.account),
+        at: Date.now(),
+        ...(typeof live === "object" && live.user.email ? { email: live.user.email } : {}),
+      };
+      setCache(next);
+      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
+    })();
+    const entry = { id, promise };
+    inflight.current = entry;
+    promise.finally(() => {
+      if (inflight.current === entry) inflight.current = null;
+    });
+    return promise;
   }, []);
 
-  const load = useCallback(async (id: string) => {
-    const request = ++requestSeq.current;
-    const result = await fetchAccount(id);
-    /* An answer counts only if nothing newer was asked since, and it is
-       for the user who is still there. */
-    if (request !== requestSeq.current || currentUser.current !== id) return;
-    if (!result.ok) {
-      setState({ kind: "unavailable" });
-      return;
-    }
-    setState({ kind: "loaded", account: result.account });
-    const live = sessionRef.current;
-    const next: CachedEntitlement = {
-      userId: id,
-      entitled: accountEntitled(result.account),
-      at: Date.now(),
-      ...(typeof live === "object" && live.user.email ? { email: live.user.email } : {}),
-    };
-    setCache(next);
-    AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
-  }, []);
+  /* A read for this user already under way is joined, not restarted, so
+     signIn can wait for the same answer the session effect asked for. */
+  const loadFor = useCallback(
+    (id: string) => (inflight.current?.id === id ? inflight.current.promise : load(id)),
+    [load],
+  );
 
   /* ---- account: reload whenever the identity or the session appears ---- */
   useEffect(() => {
@@ -177,12 +208,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        the shop's wifi is down. With an identity but no session there is
        nothing to ask as, so it stays that way. */
     setState({ kind: "unavailable" });
-    if (hasSession) load(userId);
-  }, [userId, hasSession, load]);
+    if (hasSession) loadFor(userId);
+  }, [userId, hasSession, loadFor]);
 
   /* ---- while open: re-read the account periodically, and tick ---- */
   useEffect(() => {
     if (!userId) return;
+    setNow(Date.now());
     const clock = setInterval(() => setNow(Date.now()), 60 * 1000);
     const recheck = hasSession ? setInterval(() => load(userId), RECHECK_INTERVAL_MS) : null;
     return () => {
@@ -211,15 +243,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [load]);
 
+  /* Waits for the new user's account, so a screen that closes on success
+     has an entitlement to show. The id comes from the call's own result:
+     React state has not caught up yet. A failed read is not a failed
+     sign-in; `checking` and the cache cover it. */
+  const settleAccount = useCallback(
+    async (fresh: Session) => {
+      currentUser.current = fresh.user.id;
+      sessionRef.current = fresh;
+      await loadFor(fresh.user.id).catch(() => {});
+    },
+    [loadFor],
+  );
+
   const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     try {
       if (!configured) return fail("service");
-      const { error } = await supabase.auth.signInWithPassword({ email: normalizeEmail(email), password });
-      return error ? fail(signInError(error)) : OK;
+      verifiedFor.current = null;
+      const { data, error } = await supabase.auth.signInWithPassword({ email: normalizeEmail(email), password });
+      if (error) return fail(signInError(error));
+      if (data.session) await settleAccount(data.session);
+      return OK;
     } catch {
       return fail("service");
     }
-  }, []);
+  }, [settleAccount]);
 
   const signOut = useCallback(async () => {
     /* "local": this phone only. The default signs the account out
@@ -234,11 +282,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       removed = !error;
     } catch {}
     if (!removed) await AsyncStorage.removeItem(AUTH_STORAGE_KEY).catch(() => {});
-    verifiedFor.current = null;
-    markAbsent();
-    setCache(null);
-    await AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
-  }, [markAbsent]);
+    sessionGone();
+  }, [sessionGone]);
 
   const verifyCode = useCallback(
     async (email: string, code: string, password: string, kind: CodeKind): Promise<AuthResult> => {
@@ -260,12 +305,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const failed = error ? passwordError(error) : null;
         if (failed) return fail(failed);
         verifiedFor.current = null;
+        const { data: current } = await supabase.auth.getSession();
+        if (current.session) await settleAccount(current.session);
         return OK;
       } catch {
         return fail("service");
       }
     },
-    [],
+    [settleAccount],
   );
 
   const resendCode = useCallback(async (email: string): Promise<AuthResult> => {
@@ -299,10 +346,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (currentUser.current && typeof sessionRef.current === "object") await load(currentUser.current);
   }, [load]);
 
-  const entitled = resolveEntitled(state, cache, userId, now);
+  const shown = effectiveAccountState(state, userId);
+  const entitled = resolveEntitled(shown, cache, userId, now);
+  const checking = isChecking(shown, cache, userId, settledFor);
   const email =
     typeof session === "object" ? (session.user.email ?? null) : cache && cache.userId === userId ? (cache.email ?? null) : null;
-  const account = state.kind === "loaded" ? state.account : null;
+  const account = shown.kind === "loaded" ? shown.account : null;
 
   const value = useMemo<AuthValue>(
     () => ({
@@ -311,6 +360,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       account,
       entitled,
+      checking,
       signIn,
       signOut,
       verifyCode,
@@ -318,7 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       requestReset,
       refresh,
     }),
-    [ready, userId, email, account, entitled, signIn, signOut, verifyCode, resendCode, requestReset, refresh],
+    [ready, userId, email, account, entitled, checking, signIn, signOut, verifyCode, resendCode, requestReset, refresh],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -39,6 +39,10 @@ export async function fetchAccount(userId: string): Promise<AccountResult> {
     ]);
     if (customer.error || subscriptions.error) return { ok: false };
 
+    /* The session can go between reads; RLS would then answer with empty
+       rows and no error. */
+    if (!(await hasSessionFor(userId))) return { ok: false };
+
     return {
       ok: true,
       account: {

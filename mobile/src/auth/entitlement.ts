@@ -138,6 +138,29 @@ export function resolveEntitled(
   return age >= -CLOCK_DRIFT_MS && age <= OFFLINE_WINDOW_MS;
 }
 
+/** The state to use for this render. `state` is only updated from
+    effects, so on the render where an identity first appears (from the
+    cache, before the session is read) it can still say "signed-out";
+    treating that as "not asked yet" keeps a cached yes from flashing to
+    no for one commit. */
+export function effectiveAccountState(state: AccountState, userId: string | null): AccountState {
+  if (userId === null) return { kind: "signed-out" };
+  return state.kind === "signed-out" ? { kind: "unavailable" } : state;
+}
+
+/** True while there is an identity but nothing to answer "may they play"
+    with yet: no account read, no cache entry for this user, and no read
+    has come back (`settledFor`). A play gate must wait, not refuse. */
+export function isChecking(
+  state: AccountState,
+  cache: CachedEntitlement | null,
+  userId: string | null,
+  settledFor: string | null,
+): boolean {
+  if (userId === null || state.kind !== "unavailable") return false;
+  return cache?.userId !== userId && settledFor !== userId;
+}
+
 export type Gate = "login" | "ended";
 
 /** What to tell someone who pressed play and may not. */

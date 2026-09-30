@@ -6,7 +6,9 @@ import {
   accountEntitled,
   gateFor,
   latestSubscription,
+  effectiveAccountState,
   effectiveUserId,
+  isChecking,
   parseCache,
   sessionReady,
   resolveEntitled,
@@ -141,4 +143,22 @@ test("sessionReady waits for the cache, then for an answer or a cached identity"
   assert.equal(sessionReady("unknown", true, null, true), true);
   assert.equal(sessionReady("absent", true, null, false), true);
   assert.equal(sessionReady({ userId: "u" }, true, null, false), true);
+});
+
+test("effectiveAccountState never shows an identity as signed-out", () => {
+  assert.deepEqual(effectiveAccountState({ kind: "signed-out" }, "u1"), { kind: "unavailable" });
+  assert.deepEqual(effectiveAccountState({ kind: "loaded", account: null }, "u1"), { kind: "loaded", account: null });
+  assert.deepEqual(effectiveAccountState({ kind: "unavailable" }, "u1"), { kind: "unavailable" });
+  assert.deepEqual(effectiveAccountState({ kind: "loaded", account: null }, null), { kind: "signed-out" });
+});
+
+test("isChecking is true only for an identity with no answer of any kind", () => {
+  const un = { kind: "unavailable" } as const;
+  const cache = { userId: "u1", entitled: true, at: 1 };
+  assert.equal(isChecking(un, null, "u1", null), true);
+  assert.equal(isChecking(un, cache, "u1", null), false);
+  assert.equal(isChecking(un, { ...cache, userId: "other" }, "u1", null), true);
+  assert.equal(isChecking(un, null, "u1", "u1"), false);
+  assert.equal(isChecking({ kind: "loaded", account: null }, null, "u1", null), false);
+  assert.equal(isChecking(un, null, null, null), false);
 });
