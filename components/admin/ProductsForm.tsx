@@ -1,12 +1,19 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Field, TextField } from "@/components/ui/Field";
 import { toKroner } from "@/lib/money";
 import type { PlanRow } from "@/lib/plans-row";
-import { createAddon, createPlan, updateAddon, updatePlan } from "@/app/admin/products/actions";
+import {
+  createAddon,
+  createPlan,
+  deleteAddon,
+  deletePlan,
+  updateAddon,
+  updatePlan,
+} from "@/app/admin/products/actions";
 
 type AddonRow = {
   id: string;
@@ -251,5 +258,102 @@ function ActiveToggle({ defaultChecked }: { defaultChecked: boolean }) {
       </span>
       <span className="text-[0.875rem] text-ink-2">Active on the public site</span>
     </label>
+  );
+}
+
+const DELETE_ERRORS: Record<string, string> = {
+  "missing-id": "Something went wrong identifying this. Reload and try again.",
+  confirm: "Type the id exactly as shown to confirm.",
+  forbidden: "Only staff_admin can delete this. Ask an admin to make the change.",
+  save: "Something went wrong deleting this. Try again in a moment.",
+};
+
+/** The delete control for an existing plan or add-on, rendered inside the
+    same dialog as its form but deliberately outside it — a `<form>` cannot
+    nest, and a single form with two submit buttons makes "which one did
+    Enter press" a question nobody should have to answer about a delete.
+ *
+ *  Collapsed until asked for, then it wants the id typed. The id rather than
+ *  a plain "are you sure": every product box in the grid opens a dialog that
+ *  looks like this one, and typing "arena-stage" is the step that cannot be
+ *  completed on the wrong dialog by muscle memory. The server checks the same
+ *  thing (./actions.ts), because this endpoint is a POST anyone can send.
+ *
+ *  A plan that subscriptions reference cannot be deleted at all — the answer
+ *  is the Active toggle above, which keeps existing subscriptions working and
+ *  removes the plan from new signups. The refusal says so with the number of
+ *  subscriptions involved, because "you cannot" without "how many" leaves an
+ *  operator with nothing to check. */
+export function DeleteProduct({
+  kind,
+  id,
+  name,
+  onDeleted,
+}: {
+  kind: "plan" | "addon";
+  id: string;
+  name: string;
+  /** Called once the row is actually gone; the dialog closes on it. */
+  onDeleted?: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    kind === "plan" ? deletePlan : deleteAddon,
+    INITIAL_STATE as FormState & { count?: number },
+  );
+  const noun = kind === "plan" ? "plan" : "add-on";
+
+  useEffect(() => {
+    if (state.ok && !state.error) onDeleted?.();
+  }, [state.ok, state.error, onDeleted]);
+
+  const inUse =
+    state.error === "in-use"
+      ? typeof state.count === "number"
+        ? `${state.count} subscription${state.count === 1 ? " is" : "s are"} on this ${noun}, so it cannot be deleted. Switch Active off instead — existing subscriptions keep working and it disappears from new signups.`
+        : `A subscription was added to this ${noun} just now, so it cannot be deleted. Switch Active off instead.`
+      : null;
+
+  return (
+    <div className="mt-6 border-t border-line pt-5">
+      {!armed ? (
+        <button
+          type="button"
+          onClick={() => setArmed(true)}
+          className="text-[0.8125rem] text-bad underline decoration-bad/40 underline-offset-2 transition-colors hover:decoration-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          Delete this {noun}
+        </button>
+      ) : (
+        <form action={formAction} className="flex flex-col gap-3">
+          <input type="hidden" name="id" value={id} />
+          <p className="text-[0.8125rem] text-ink-2">
+            Deleting <span className="font-medium text-ink">{name}</span> cannot be undone. Type{" "}
+            <span className="font-mono text-ink">{id}</span> to confirm.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field
+              label="Confirm id"
+              name="confirm"
+              autoFocus
+              autoComplete="off"
+              placeholder={id}
+              className="max-w-[240px]"
+            />
+            <Button type="submit" size="sm" variant="danger" disabled={pending}>
+              {pending ? "Deleting…" : `Delete ${noun}`}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setArmed(false)}>
+              Cancel
+            </Button>
+          </div>
+          {(inUse || state.error) && (
+            <p role="alert" className="text-[0.8125rem] text-bad">
+              {inUse ?? DELETE_ERRORS[state.error as string] ?? `Something went wrong deleting this ${noun}.`}
+            </p>
+          )}
+        </form>
+      )}
+    </div>
   );
 }

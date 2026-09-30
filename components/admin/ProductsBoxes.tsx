@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { Badge } from "@/components/admin/Badge";
 import { Modal } from "@/components/admin/Modal";
-import { AddonForm, PlanForm } from "@/components/admin/ProductsForm";
+import { AddonForm, DeleteProduct, PlanForm } from "@/components/admin/ProductsForm";
 import { formatDkk } from "@/lib/money";
 import type { PlanRow } from "@/lib/plans-row";
 
@@ -86,6 +86,7 @@ export function PlanBox({ plan }: { plan: PlanRow & { active: boolean } }) {
       />
       <Modal open={open} onClose={close} title={`Edit ${plan.name}`} trigger={triggerRef}>
         <PlanForm plan={plan} onSaved={close} />
+        <DeleteProduct kind="plan" id={plan.id} name={plan.name} onDeleted={close} />
       </Modal>
     </>
   );
@@ -109,6 +110,7 @@ export function AddonBox({ addon }: { addon: AddonRow }) {
       />
       <Modal open={open} onClose={close} title={`Edit ${title}`} trigger={triggerRef}>
         <AddonForm addon={addon} onSaved={close} />
+        <DeleteProduct kind="addon" id={addon.id} name={addon.name.en} onDeleted={close} />
       </Modal>
     </>
   );

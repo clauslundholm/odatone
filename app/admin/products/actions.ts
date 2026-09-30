@@ -238,3 +238,97 @@ export async function createAddon(_prev: unknown, formData: FormData) {
   revalidatePath("/admin/products");
   return { ok: true } as const;
 }
+
+/* A plan or add-on that nothing references can be deleted outright; one that
+   something references cannot, and must not be. `subscriptions.plan_id` and
+   `subscription_addons.addon_id` are `not null references ...` with no
+   `on delete` clause (0002_commerce.sql), so Postgres refuses the delete —
+   and that refusal, not the count below, is the actual guarantee. The count
+   exists to tell the operator *how many*, which a bare 23503 cannot, and to
+   say so before anything is attempted.
+
+   Two reasons the count is not load-bearing. It is read under the caller's
+   own RLS, and `subscriptions_read` scopes non-staff to their own rows, so a
+   caller who is not staff would see zero (they are refused at the delete
+   itself by `plans_admin_write`, so this is not a hole — but a count they
+   could trust would be). And a signup can create a subscription between the
+   count and the delete, which is exactly what the foreign key is for. Hence
+   23503 is handled as "in use" too, just without a number.
+
+   The alternative to refusing — deleting the plan and moving its subscribers
+   somewhere else — would silently change what those customers pay. That is a
+   decision to record per customer, not a side effect of a delete button. */
+const FK_VIOLATION = "23503";
+
+export async function deletePlan(_prev: unknown, formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "missing-id" };
+  /* Typed confirmation, checked server-side rather than only in the dialog:
+     this endpoint is a POST anyone can send, and the check is worth as much
+     as where it runs. */
+  if (String(formData.get("confirm") ?? "").trim() !== id) return { error: "confirm" };
+
+  const supabase = await createClient();
+
+  const { count, error: countError } = await supabase
+    .from("subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("plan_id", id);
+  if (countError) {
+    console.error("[admin products] failed to count subscriptions before delete", countError);
+    return { error: "save" };
+  }
+  if ((count ?? 0) > 0) return { error: "in-use", count: count ?? 0 } as const;
+
+  /* `.select("id")` for the same reason updatePlan uses it: a DELETE refused
+     by `plans_admin_write`'s `using` clause matches zero rows and raises
+     nothing, so an empty result is the only way to tell a refusal from a
+     success. Distinct from the insert case, which raises 42501 — see
+     RLS_REFUSED's comment above. */
+  const { data, error } = await supabase.from("plans").delete().eq("id", id).select("id");
+
+  if (error?.code === FK_VIOLATION) return { error: "in-use" } as const;
+  if (error) {
+    console.error("[admin products] failed to delete plan", error);
+    return { error: "save" };
+  }
+  if (!data || data.length === 0) return { error: "forbidden" };
+
+  revalidatePlans();
+  revalidatePath("/admin/products");
+  return { ok: true } as const;
+}
+
+export async function deleteAddon(_prev: unknown, formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "missing-id" };
+  if (String(formData.get("confirm") ?? "").trim() !== id) return { error: "confirm" };
+
+  const supabase = await createClient();
+
+  /* `addon_id`, not `id`: subscription_addons is a join table whose primary
+     key is (subscription_id, addon_id) and it has no `id` column at all
+     (0002_commerce.sql), so selecting one would fail the request rather than
+     count anything. */
+  const { count, error: countError } = await supabase
+    .from("subscription_addons")
+    .select("addon_id", { count: "exact", head: true })
+    .eq("addon_id", id);
+  if (countError) {
+    console.error("[admin products] failed to count subscription add-ons before delete", countError);
+    return { error: "save" };
+  }
+  if ((count ?? 0) > 0) return { error: "in-use", count: count ?? 0 } as const;
+
+  const { data, error } = await supabase.from("addons").delete().eq("id", id).select("id");
+
+  if (error?.code === FK_VIOLATION) return { error: "in-use" } as const;
+  if (error) {
+    console.error("[admin products] failed to delete add-on", error);
+    return { error: "save" };
+  }
+  if (!data || data.length === 0) return { error: "forbidden" };
+
+  revalidatePath("/admin/products");
+  return { ok: true } as const;
+}

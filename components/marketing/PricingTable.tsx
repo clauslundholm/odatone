@@ -13,7 +13,7 @@ import { CheckIcon } from "@/components/player/Icons";
 export default function PricingTable({
   locale,
   plans,
-  recommended = "medium",
+  recommended,
   showVolume = true,
 }: {
   locale: Locale;
@@ -23,11 +23,32 @@ export default function PricingTable({
       monthly price it starts from is now this object's, not a re-lookup
       against the compiled PLANS. */
   plans: Plan[];
+  /** Which plan carries the "most popular" badge. Optional, and no caller
+      passes it today — it used to default to the literal id `"medium"`, which
+      was safe only while that plan could not stop existing. Deleting or
+      deactivating Medium Stage in /admin/products would have left the badge
+      on nothing at all, with no error to explain the missing highlight. */
   recommended?: PlanId;
   showVolume?: boolean;
 }) {
   const l = locale;
   const [billing, setBilling] = useState<Billing>("monthly");
+
+  /* The middle card by position, unless a caller names one that is actually
+     present. Below three plans there is no middle and nothing for "most
+     popular" to mean against one or two options, so nothing is badged. */
+  const featuredId =
+    recommended && plans.some((p) => p.id === recommended)
+      ? recommended
+      : plans.length >= 3
+        ? plans[Math.floor((plans.length - 1) / 2)].id
+        : undefined;
+
+  /* The grid was a fixed `md:grid-cols-3`, which was the whole design while
+     exactly three plans existed. A fourth plan laid out as 3 + 1 leaves one
+     card alone on a row looking like a rendering fault, so four go out as
+     2 + 2; three or fewer keep their own column each. */
+  const columns = plans.length === 4 ? "md:grid-cols-2" : "md:grid-cols-3";
 
   return (
     <div className="flex flex-col gap-10">
@@ -51,10 +72,10 @@ export default function PricingTable({
         <p className="u-label">{ui.exVat[l]}</p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className={`grid gap-5 ${columns}`}>
         {plans.map((p) => {
           const q = quote(p, billing, 1);
-          const featured = p.id === recommended;
+          const featured = p.id === featuredId;
           return (
             <div
               key={p.id}
