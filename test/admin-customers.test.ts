@@ -18,6 +18,14 @@ test("an unbounded plan always fits", () => {
   assert.equal(locationFit(9000, null), "within");
 });
 
+test("an unstated area is 'unknown', never 'within'", () => {
+  // Signup stopped asking for a floor area (0014), so a location created
+  // after it has none. Calling that "within" would draw a reassuring meter
+  // beside a figure nobody ever gave.
+  assert.equal(locationFit(null, 300), "unknown");
+  assert.equal(locationFit(null, null), "unknown");
+});
+
 const BASE: RawCustomer = {
   id: "c1",
   name: "Café Nordlys",

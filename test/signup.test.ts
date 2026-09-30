@@ -15,7 +15,7 @@ const form = (fields: Record<string, string>) => {
 
 const VALID = {
   name: "Jens Hansen", company: "Café Nord", email: "jens@nord.test",
-  plan: "small", billing: "monthly", locations: "1", m2: "80", venueType: "cafe",
+  plan: "small", billing: "monthly", locations: "1",
 };
 
 test("accepts a complete signup", () => {
@@ -24,7 +24,6 @@ test("accepts a complete signup", () => {
   if (r.ok) {
     assert.equal(r.value.customer.name, "Café Nord");
     assert.equal(r.value.locations.length, 1);
-    assert.equal(r.value.locations[0].m2, 80);
   }
 });
 
@@ -71,10 +70,28 @@ test("keeps the contact person's name separate from the company name", () => {
   }
 });
 
-test("rejects an unrecognised venue type rather than trusting the form", () => {
-  const r = buildSignup(form({ ...VALID, venueType: "spaceship" }));
-  assert.equal(r.ok, false);
-  if (!r.ok) assert.equal(r.errors.venueType, "required");
+test("no longer asks for venue type, area or opening hours", () => {
+  // The signup flow stopped collecting these: a visitor answers how many
+  // locations they have and picks a plan, nothing more. A form that still
+  // sends them must not be able to write them either — they are ignored,
+  // not trusted.
+  const r = buildSignup(form({ ...VALID, venueType: "spaceship", m2: "-5", hoursBand: "nonsense" }));
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    const loc = r.value.locations[0] as Record<string, unknown>;
+    assert.equal("venue_type" in loc, false);
+    assert.equal("m2" in loc, false);
+    assert.equal("hours_band" in loc, false);
+  }
+});
+
+test("a location carries only its name now", () => {
+  const r = buildSignup(form({ ...VALID, locations: "2" }));
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    assert.equal(r.value.locations.length, 2);
+    assert.deepEqual(Object.keys(r.value.locations[0]), ["name"]);
+  }
 });
 
 test("clamps a zero or blank location count up to one rather than rejecting it", () => {

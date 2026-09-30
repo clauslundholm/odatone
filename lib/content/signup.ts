@@ -2,10 +2,13 @@ import type { L10n } from "@/lib/i18n";
 
 export const signup = {
   eyebrow: { da: "Kom i gang", en: "Get started" } as L10n,
-  title: { da: "Fire trin.\nSå spiller det.", en: "Four steps.\nThen it plays." } as L10n,
+  title: { da: "Tre trin.\nSå spiller det.", en: "Three steps.\nThen it plays." } as L10n,
 
+  /* Three steps. "Forretningen" is gone: it asked for a venue type, a floor
+     area and an opening-hours band, and now that none of those are
+     collected the only control left on it was the location count, which
+     moved onto the Plan step. */
   steps: [
-    { key: "venue", label: { da: "Forretningen", en: "Your business" } as L10n },
     { key: "plan", label: { da: "Plan", en: "Plan" } as L10n },
     { key: "account", label: { da: "Konto", en: "Account" } as L10n },
     { key: "payment", label: { da: "Betaling", en: "Payment" } as L10n },
@@ -26,8 +29,8 @@ export const signup = {
   plan: {
     heading: { da: "Vælg din plan", en: "Choose your plan" } as L10n,
     body: {
-      da: "Vi har forudvalgt den, der passer til arealet. Alle planer starter med 14 dage gratis, og du kan skifte når som helst.",
-      en: "We have pre-selected the one that fits your floor area. Every plan starts with 14 days free and you can switch whenever.",
+      da: "Alle planer starter med 14 dage gratis, og du kan skifte når som helst.",
+      en: "Every plan starts with 14 days free and you can switch whenever.",
     } as L10n,
     recommended: { da: "Anbefalet til dig", en: "Recommended for you" } as L10n,
     tooSmall: {

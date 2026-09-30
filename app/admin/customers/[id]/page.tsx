@@ -70,8 +70,8 @@ type LocationRow = {
   name: string;
   address: string | null;
   city: string | null;
-  venue_type: string;
-  m2: number;
+  venue_type: string | null;
+  m2: number | null;
 };
 
 type SubscriptionRow = {
@@ -316,15 +316,22 @@ export default async function CustomerDetailPage({
                   return (
                     <tr key={loc.id} className="border-b border-line last:border-0">
                       <td className="px-5 py-3 text-ink">{loc.name}</td>
-                      <td className="px-5 py-3 capitalize text-ink-2">{loc.venue_type}</td>
+                      <td className="px-5 py-3 capitalize text-ink-2">{loc.venue_type ?? "—"}</td>
                       <td className="px-5 py-3 text-ink-2">{loc.city ?? "—"}</td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-40">
-                            <Meter used={loc.m2} limit={maxM2} />
+                        {/* No area was ever stated for locations created
+                            after signup stopped asking. A meter drawn from
+                            nothing would imply a measurement. */}
+                        {fit === "unknown" ? (
+                          <span className="text-ink-3">—</span>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <div className="w-40">
+                              <Meter used={loc.m2 as number} limit={maxM2} />
+                            </div>
+                            {fit === "over" && <Badge tone="warn">over</Badge>}
                           </div>
-                          {fit === "over" && <Badge tone="warn">over</Badge>}
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );

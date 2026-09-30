@@ -1,6 +1,5 @@
 import { EMAIL_RE, type FieldErrors } from "./forms.ts";
 import { PLANS, type Billing, type PlanId } from "./pricing.ts";
-import { VENUE_TYPES } from "./rates.ts";
 
 /* Pure form-parsing/validation for the public signup flow, kept apart from
    app/actions.ts (which imports "use server" and, once it persists, the
@@ -19,12 +18,16 @@ import { VENUE_TYPES } from "./rates.ts";
 
 /** One `locations` row's worth of data, keyed exactly as the table's
     columns are spelled so app/actions.ts can spread it straight into an
-    insert without a second remapping step. */
+    insert without a second remapping step.
+
+    Only a name. The signup flow used to ask every visitor for a venue
+    type, a floor area and an opening-hours band; it no longer does, and
+    inventing plausible values for columns nobody filled in would be worse
+    than leaving them empty — a made-up 150 m² goes on to drive the "Fit"
+    meter in /admin as though someone had said it. `venue_type` and `m2`
+    are nullable as of 0014, and `hours_band` keeps its own default. */
 export type SignupLocation = {
   name: string;
-  venue_type: string;
-  m2: number;
-  hours_band: string;
 };
 
 export type SignupInput = {
@@ -70,7 +73,6 @@ export type BuildSignupResult =
   | { ok: false; errors: FieldErrors };
 
 const PLAN_IDS = new Set<string>(PLANS.map((p) => p.id));
-const VENUE_TYPE_IDS = new Set<string>(VENUE_TYPES.map((v) => v.id));
 const BILLING_TERMS = new Set<string>(["monthly", "annual"]);
 
 /* `locations.m2` and the location count both land in Postgres `integer`
@@ -81,7 +83,6 @@ const BILLING_TERMS = new Set<string>(["monthly", "annual"]);
    the database. Same reject-before-coerce shape is used here: validate the
    raw string first, only then turn it into a number. */
 const DIGITS_RE = /^\d+$/;
-const MAX_M2 = 2_147_483_647;
 /** Not a database limit — the UI's own stepper stops at 99 (SignupFlow's
     `+`/`-` buttons). A raw POST could still claim more, so this is a sane
     ceiling on how many `locations` rows one signup may create in a single
@@ -108,19 +109,12 @@ const MAX_TEXT_LEN = 200;
 const MAX_EMAIL_LEN = 254; // RFC 5321 §4.5.3.1.3
 const MAX_OPTIONAL_LEN = 300;
 
-function parsePositiveInt(raw: string, max: number): number | null {
-  const trimmed = raw.trim();
-  if (!DIGITS_RE.test(trimmed)) return null;
-  const n = Number(trimmed);
-  return n > 0 && n <= max ? n : null;
-}
-
 /** "clamps locations to at least 1" per the brief: blank is the calculator's
     own default, and 0 clamps up rather than erroring — but this fix round
     found the previous version reaching that leniency through a bare
     `Number(raw)`, which parses `"0x1F4"` as 500 and `"3.7"` as 4 (rounded).
     A digit string is now required before any numeric coercion at all, the
-    same doctrine `parsePositiveInt` already applies to `m2` — genuinely
+    the same doctrine the old `m2` parser applied — genuinely
     malformed input (hex, decimals, negatives, letters) is rejected outright
     rather than silently reinterpreted as some other, arbitrary count. */
 function parseLocationCount(raw: string): { count: number } | { error: true } {
@@ -163,7 +157,6 @@ export function buildSignup(formData: FormData): BuildSignupResult {
      and quietly failing the other's. */
   const planRaw = get("planId") || get("plan");
   const billingRaw = get("billing");
-  const venueTypeRaw = get("venueType");
 
   if (!name) errors.name = "required";
   else if (name.length > MAX_TEXT_LEN) errors.name = "long";
@@ -176,11 +169,7 @@ export function buildSignup(formData: FormData): BuildSignupResult {
   else if (!EMAIL_RE.test(email)) errors.email = "email";
 
   if (!PLAN_IDS.has(planRaw)) errors.plan = "required";
-  if (!VENUE_TYPE_IDS.has(venueTypeRaw)) errors.venueType = "required";
   if (billingRaw && !BILLING_TERMS.has(billingRaw)) errors.billing = "required";
-
-  const m2 = parsePositiveInt(get("m2"), MAX_M2);
-  if (m2 === null) errors.m2 = "required";
 
   const parsedLocations = parseLocationCount(get("locations"));
   if ("error" in parsedLocations) errors.locations = "required";
@@ -202,9 +191,6 @@ export function buildSignup(formData: FormData): BuildSignupResult {
   const billing: Billing = billingRaw === "annual" ? "annual" : "monthly";
   const locations: SignupLocation[] = Array.from({ length: locationCount }, (_, i) => ({
     name: locationCount > 1 ? `${company} #${i + 1}` : company,
-    venue_type: venueTypeRaw,
-    m2: m2 as number,
-    hours_band: "normal",
   }));
 
   return {

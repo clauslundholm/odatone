@@ -42,8 +42,8 @@ type LocationRow = {
   id: string;
   name: string;
   city: string | null;
-  venue_type: string;
-  m2: number;
+  venue_type: string | null;
+  m2: number | null;
 };
 
 type SubscriptionRow = {
@@ -319,21 +319,25 @@ export default async function PortalSummaryPage() {
                     <tr key={loc.id} className="border-b border-line last:border-0">
                       <td className="px-5 py-3 text-ink">{loc.name}</td>
                       <td className="px-5 py-3 text-ink-2">
-                        {venueType(loc.venue_type as VenueTypeId).label[locale]}
+                        {loc.venue_type ? venueType(loc.venue_type as VenueTypeId).label[locale] : "—"}
                       </td>
                       <td className="px-5 py-3 text-ink-2">{loc.city ?? "—"}</td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-40">
-                            <Meter
-                              used={loc.m2}
-                              limit={maxM2}
-                              noLimitCaption={t.meterNoLimitCaption[locale]}
-                              noLimitAria={t.meterNoLimitAria[locale]}
-                            />
+                        {fit === "unknown" ? (
+                          <span className="text-ink-3">—</span>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <div className="w-40">
+                              <Meter
+                                used={loc.m2 as number}
+                                limit={maxM2}
+                                noLimitCaption={t.meterNoLimitCaption[locale]}
+                                noLimitAria={t.meterNoLimitAria[locale]}
+                              />
+                            </div>
+                            {fit === "over" && <Badge tone="warn">{t.locationOver[locale]}</Badge>}
                           </div>
-                          {fit === "over" && <Badge tone="warn">{t.locationOver[locale]}</Badge>}
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );
