@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SystemUI from "expo-system-ui";
 
 import { PlayerProvider } from "../src/audio/PlayerProvider";
+import { AuthProvider } from "../src/auth/AuthProvider";
 import { I18nProvider } from "../src/i18n/i18n";
 import { ThemeProvider, useTheme } from "../src/theme/theme";
 
@@ -13,9 +14,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <I18nProvider>
-          <PlayerProvider>
-            <Shell />
-          </PlayerProvider>
+          <AuthProvider>
+            <PlayerProvider>
+              <Shell />
+            </PlayerProvider>
+          </AuthProvider>
         </I18nProvider>
       </ThemeProvider>
     </SafeAreaProvider>
