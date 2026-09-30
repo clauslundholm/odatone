@@ -28,6 +28,13 @@ npm run build
 
 25 statically generated routes including `sitemap.xml` and `robots.txt`.
 
+## The mobile app
+
+`mobile/` is the Expo / React Native app — its own `package.json`, its own
+`node_modules`, no shared workspace. See `mobile/README.md`. The website's
+TypeScript project excludes it, and `vercel.json` skips a deploy when a
+commit touches nothing outside `mobile/`.
+
 ## Stack
 
 Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS v4 · next-themes.
