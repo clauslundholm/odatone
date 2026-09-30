@@ -10,6 +10,10 @@ import {
   type ReactNode,
 } from "react";
 
+import { router } from "expo-router";
+
+import { useAuth } from "../auth/AuthProvider";
+import { gateFor } from "../auth/entitlement.ts";
 import { TRACKS, type Track } from "../data/tracks";
 import { AUDIO } from "./assets";
 
@@ -73,6 +77,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   indexRef.current = index;
   repeatRef.current = repeat;
 
+  /* Refs, not state in the callbacks' dependency lists: every play
+     control would otherwise be rebuilt each time the account refreshes. */
+  const { ready, entitled, signedIn, checking } = useAuth();
+  const readyRef = useRef(ready);
+  const entitledRef = useRef(entitled);
+  const signedInRef = useRef(signedIn);
+  const checkingRef = useRef(checking);
+  readyRef.current = ready;
+  entitledRef.current = entitled;
+  signedInRef.current = signedIn;
+  checkingRef.current = checking;
+  const lastGate = useRef(0);
+
+  /** May playback start? If not, says why — once, however many times
+      the button is tapped. Pausing never asks. */
+  const guard = useCallback(() => {
+    if (entitledRef.current) return true;
+    /* The stored session has not been read yet, or someone is signed in
+       and their account has not been read yet. Telling a customer who is
+       logged in to log in, or that their subscription is not active,
+       because they tapped in that first moment, would be wrong; doing
+       nothing for that moment is not. */
+    if (!readyRef.current || checkingRef.current) return false;
+    const now = Date.now();
+    if (now - lastGate.current > 1000) {
+      lastGate.current = now;
+      router.push({ pathname: "/auth/gate", params: { kind: gateFor(signedInRef.current) } });
+    }
+    return false;
+  }, []);
+
   const track = index >= 0 && index < queue.length ? queue[index] : null;
 
   /* ---- audio session: keep playing when the app goes to the background,
@@ -134,8 +169,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [player]);
 
+  /* ---- entitlement lost while playing: a subscription cancelled in
+         /admin, found out when the app came back to the foreground.
+         While `checking` there is no answer yet (and never a cached yes,
+         see isChecking), so nothing is paused on that alone. ---- */
+  useEffect(() => {
+    if (entitled || checking) return;
+    wantsPlay.current = false;
+    player.pause();
+  }, [entitled, checking, player]);
+
+  /* ---- signed out: the next person at this phone starts from nothing,
+         not from the last customer's queue ---- */
+  useEffect(() => {
+    if (signedIn) return;
+    setIndex(-1);
+    setSource(null);
+    setQueue(TRACKS);
+    setShuffle(false);
+    try {
+      player.setActiveForLockScreen(false);
+    } catch {
+      /* lock-screen controls need a dev build; nothing to clear in Expo Go */
+    }
+  }, [signedIn, player]);
+
   const playTrack = useCallback(
     (next: Track, nextQueue?: Track[], nextSource?: string) => {
+      if (!guard()) return;
       const q = nextQueue?.length ? nextQueue : queueRef.current;
       const at = q.findIndex((t) => t.id === next.id);
       wantsPlay.current = true;
@@ -147,12 +208,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       setIndex(at >= 0 ? at : 0);
     },
-    [player],
+    [guard, player],
   );
 
   const playList = useCallback(
     (list: Track[], label: string, opts?: { shuffle?: boolean }) => {
-      if (!list.length) return;
+      if (!list.length || !guard()) return;
       const q = opts?.shuffle ? shuffled(list) : list;
       if (opts?.shuffle) setShuffle(true);
       wantsPlay.current = true;
@@ -160,7 +221,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setSource(label);
       setIndex(0);
     },
-    [],
+    [guard],
   );
 
   const toggle = useCallback(() => {
@@ -172,19 +233,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       wantsPlay.current = false;
       player.pause();
     } else {
+      if (!guard()) return;
       wantsPlay.current = true;
       player.play();
     }
-  }, [playList, player, track]);
+  }, [guard, playList, player, track]);
 
   const next = useCallback(() => {
     const q = queueRef.current;
-    if (!q.length) return;
+    if (!q.length || !guard()) return;
     wantsPlay.current = true;
     setIndex((i) => (i + 1 < q.length ? i + 1 : 0));
-  }, []);
+  }, [guard]);
 
   const previous = useCallback(() => {
+    if (!guard()) return;
     /* Standard player behaviour: the first press restarts the track. */
     if (player.currentTime > 3) {
       player.seekTo(0).catch(() => {});
@@ -193,7 +256,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const q = queueRef.current;
     wantsPlay.current = true;
     setIndex((i) => (i - 1 >= 0 ? i - 1 : Math.max(0, q.length - 1)));
-  }, [player]);
+  }, [guard, player]);
 
   const seekTo = useCallback(
     (seconds: number) => {

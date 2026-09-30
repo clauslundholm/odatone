@@ -55,6 +55,15 @@ function Shell() {
         <Stack.Screen name="auth/forgot" options={AUTH_MODAL} />
         <Stack.Screen name="auth/verify" options={AUTH_MODAL} />
         <Stack.Screen name="auth/signup" options={AUTH_MODAL} />
+        <Stack.Screen
+          name="auth/gate"
+          options={{
+            presentation: "formSheet",
+            sheetAllowedDetents: [0.45],
+            sheetGrabberVisible: true,
+            sheetCornerRadius: 28,
+          }}
+        />
       </Stack>
     </>
   );

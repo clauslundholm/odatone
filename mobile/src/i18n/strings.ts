@@ -254,6 +254,17 @@ export const STRINGS = {
     en: "Your account for {email} is set up, but we couldn't send the email with the code just now. Contact us and we'll send it by hand.",
   },
 
+  "gate.login.title": { da: "Log ind for at spille", en: "Log in to play" },
+  "gate.login.body": {
+    da: "Musikken er for Odatone-kunder. Log ind, eller opret en konto — de første 14 dage er gratis.",
+    en: "The music is for Odatone customers. Log in, or create an account — the first 14 days are free.",
+  },
+  "gate.ended.title": { da: "Dit abonnement er ikke aktivt", en: "Your subscription isn't active" },
+  "gate.ended.body": {
+    da: "Denne konto har ikke et aktivt abonnement. Administrér det på Mit Odatone, eller kontakt os.",
+    en: "This account has no active subscription. Manage it on My Odatone, or contact us.",
+  },
+  "gate.ended.retry": { da: "Tjek igen", en: "Check again" },
   "common.min": { da: "min", en: "min" },
   "common.bpm": { da: "BPM", en: "BPM" },
   "common.instrumental": { da: "Instrumental", en: "Instrumental" },
