@@ -79,8 +79,8 @@ export default function PlayerPage({ locale: l }: { locale: Locale }) {
             </h2>
             <p className="u-lede max-w-[44ch]">
               {l === "da"
-                ? "14 dage gratis, intet betalingskort, fem minutter til musik i højttalerne."
-                : "14 days free, no card, five minutes to music in the speakers."}
+                ? "14 dage gratis, ingen binding, fem minutter til musik i højttalerne."
+                : "14 days free, no commitment, five minutes to music in the speakers."}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
               <LinkButton href={href(l, "signup")} variant="primary" size="lg">

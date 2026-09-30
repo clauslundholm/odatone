@@ -292,8 +292,8 @@ export const home = {
       en: "Set the tone.\nKeep the money.",
     } as L10n,
     lede: {
-      da: "14 dage gratis. Intet betalingskort. Fem minutter til musik i højttalerne.",
-      en: "14 days free. No card. Five minutes to music in the speakers.",
+      da: "14 dage gratis. Ingen binding. Fem minutter til musik i højttalerne.",
+      en: "14 days free. No commitment. Five minutes to music in the speakers.",
     } as L10n,
   },
 };

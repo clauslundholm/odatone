@@ -46,7 +46,7 @@ export const contact = {
     ],
     en: [
       ["Response time", "One working day"],
-      ["Trial", "14 days, no card"],
+      ["Trial", "14 days, no commitment"],
       ["Setup", "Five minutes per location"],
       ["Languages", "Danish and English"],
     ],

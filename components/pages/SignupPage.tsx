@@ -19,8 +19,8 @@ export default async function SignupPage({ locale: l }: { locale: Locale }) {
         title={signup.title[l]}
         lede={
           l === "da"
-            ? `${num(PROOF.trialDays, l)} dage gratis. Intet betalingskort. Du kan skifte plan eller stoppe når som helst.`
-            : `${num(PROOF.trialDays, l)} days free. No card. Change plan or stop whenever you like.`
+            ? `${num(PROOF.trialDays, l)} dage gratis. Du kan skifte plan eller stoppe når som helst.`
+            : `${num(PROOF.trialDays, l)} days free. Change plan or stop whenever you like.`
         }
       />
 

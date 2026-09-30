@@ -59,8 +59,8 @@ export const player = {
     en: "The demo is over.",
   } as L10n,
   expiredBody: {
-    da: "Du har hørt {days} dage af biblioteket. Hele kataloget — over 4.000 numre — åbner i det øjeblik du starter en prøveperiode. 14 dage gratis, intet betalingskort.",
-    en: "You have had {days} days of the library. The whole catalogue — over 4,000 tracks — opens the moment you start a trial. 14 days free, no card.",
+    da: "Du har hørt {days} dage af biblioteket. Hele kataloget — over 4.000 numre — åbner i det øjeblik du starter en prøveperiode. 14 dage gratis, ingen binding.",
+    en: "You have had {days} days of the library. The whole catalogue — over 4,000 tracks — opens the moment you start a trial. 14 days free, no commitment.",
   } as L10n,
 
   placeholderNote: {

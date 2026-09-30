@@ -1,8 +1,21 @@
 import type { L10n } from "@/lib/i18n";
 
 export const signup = {
+/* "Intet betalingskort" was true while signup offered Faktura / EAN as an
+   alternative to a card. It no longer does — the card is the only method and
+   its fields are required — so every place that funnelled a visitor here on
+   that promise now says "ingen binding" instead, which is what is actually
+   on offer: a monthly term they can change or stop whenever they like.
+
+   Deliberately NOT changed: the lines about trying the PLAYER without an
+   account or a card (lib/content/player.ts's hero, lib/content/home.ts's
+   player strip). Those are about listening, not subscribing, and they are
+   still true. */
   eyebrow: { da: "Kom i gang", en: "Get started" } as L10n,
-  title: { da: "Tre trin.\nSå spiller det.", en: "Three steps.\nThen it plays." } as L10n,
+  /* "Tre trin" until the flow stopped being a wizard. There are still three
+     numbered sections, so it was not exactly false — but "trin" describes
+     stepping through screens, and there is now one screen to scroll. */
+  title: { da: "Én side.\nSå spiller det.", en: "One page.\nThen it plays." } as L10n,
 
   /* Three sections on one page, in the order they are filled in — not steps
      any more. The flow was a wizard (Plan, then Konto, then Betaling) and is
