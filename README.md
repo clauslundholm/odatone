@@ -28,6 +28,13 @@ npm run build
 
 25 statically generated routes including `sitemap.xml` and `robots.txt`.
 
+## The mobile app
+
+`mobile/` is the Expo / React Native app — its own `package.json`, its own
+`node_modules`, no shared workspace. See `mobile/README.md`. The website's
+TypeScript project excludes it, and `vercel.json` skips a deploy when a
+commit touches nothing outside `mobile/`.
+
 ## Stack
 
 Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS v4 · next-themes.
@@ -264,6 +271,17 @@ still kept as a real, pending customer — `/admin/customers/[id]` shows "No
 users yet" for exactly that case, which is how staff notice one needs a
 manual re-invite (there is no button for that yet). `submitSalesLead` is
 still the original prototype: validates and logs, nothing persisted.
+
+The mobile app places the same order through `POST /api/app/signup`
+(`app/api/app/signup/route.ts`), which turns the app's JSON into the
+`FormData` `submitSignup` takes and calls it unchanged. Only the fields
+`buildSignup` reads are passed on (`APP_SIGNUP_FIELDS` in
+`lib/app-signup.ts`; a test fails if the two lists differ), so payment
+details a client sends, such as a card number, `ean` or `po`, are dropped:
+the app collects none. The CVR is required and the plan is checked against
+the database's active plans, exactly as for the website's form. The app cannot
+follow the invite link, so the invite and recovery emails also print a
+6-digit code; see `docs/supabase-email-templates.md`.
 
 ## Environment variables
 

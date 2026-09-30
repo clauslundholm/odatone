@@ -1,0 +1,281 @@
+import type { L10n } from "../types";
+
+/* Every string in the app lives here, in both languages. Components hold
+   no copy of their own — same rule as the website's lib/content. */
+export const STRINGS = {
+  "tab.home": { da: "Hjem", en: "Home" },
+  "tab.playlists": { da: "Lister", en: "Playlists" },
+  "tab.search": { da: "Søg", en: "Search" },
+  "tab.account": { da: "Konto", en: "Account" },
+
+  "home.morning": { da: "Godmorgen", en: "Good morning" },
+  "home.afternoon": { da: "God eftermiddag", en: "Good afternoon" },
+  "home.evening": { da: "God aften", en: "Good evening" },
+  "home.sub": {
+    da: "Sæt musik på rummet. Ingen Koda, ingen Gramex, ingen efterregning.",
+    en: "Put music in the room. No Koda, no Gramex, no invoice after the fact.",
+  },
+  "home.resume": { da: "Fortsæt hvor du slap", en: "Pick up where you left off" },
+  "home.moods": { da: "Til rummet lige nu", en: "For the room right now" },
+  "home.lists": { da: "Kuraterede lister", en: "Curated lists" },
+  "home.fresh": { da: "Nyt i biblioteket", en: "New in the library" },
+  "home.seeAll": { da: "Se alle", en: "See all" },
+
+  "player.nowPlaying": { da: "Spiller nu", en: "Now playing" },
+  "player.upNext": { da: "Næste", en: "Up next" },
+  "player.queue": { da: "Kø", en: "Queue" },
+  "player.empty": { da: "Ingenting spiller", en: "Nothing playing" },
+  "player.emptyBody": {
+    da: "Vælg en stemning, så finder afspilleren resten.",
+    en: "Pick a mood and the player will do the rest.",
+  },
+  "player.from": { da: "Fra", en: "From" },
+  "player.shuffleOn": { da: "Bland slået til", en: "Shuffle on" },
+  "player.shuffleOff": { da: "Bland slået fra", en: "Shuffle off" },
+  "player.repeatOne": { da: "Gentag nummer", en: "Repeat track" },
+  "player.repeatAll": { da: "Gentag liste", en: "Repeat list" },
+  "player.repeatOff": { da: "Gentag fra", en: "Repeat off" },
+  "player.invite": { da: "Tryk play — 7 dage gratis", en: "Hit play — 7 days free" },
+
+  "playlists.title": { da: "Lister", en: "Playlists" },
+  "playlists.sub": {
+    da: "Bygget til bestemte timer i butikken, ikke til bestemte genrer.",
+    en: "Built for particular hours in the room, not for particular genres.",
+  },
+  "playlists.moods": { da: "Stemninger", en: "Moods" },
+  "playlists.curated": { da: "Kuraterede", en: "Curated" },
+  "playlists.play": { da: "Afspil", en: "Play" },
+  "playlists.shuffle": { da: "Bland", en: "Shuffle" },
+  "playlists.queued": { da: "Lagt i kø", en: "Queued" },
+
+  "search.title": { da: "Søg", en: "Search" },
+  "search.placeholder": { da: "Nummer, artist eller stemning", en: "Track, artist or mood" },
+  "search.recent": { da: "Seneste søgninger", en: "Recent searches" },
+  "search.clear": { da: "Ryd", en: "Clear" },
+  "search.filters": { da: "Filtre", en: "Filters" },
+  "search.genre": { da: "Genre", en: "Genre" },
+  "search.mood": { da: "Stemning", en: "Mood" },
+  "search.vocals": { da: "Vokal", en: "Vocals" },
+  "search.vocalsAny": { da: "Alle", en: "Any" },
+  "search.vocalsWith": { da: "Med vokal", en: "With vocals" },
+  "search.vocalsWithout": { da: "Instrumental", en: "Instrumental" },
+  "search.energy": { da: "Energi", en: "Energy" },
+  "search.reset": { da: "Nulstil", en: "Reset" },
+  "search.noResults": { da: "Ingen numre matcher", en: "Nothing matches" },
+  "search.noResultsBody": {
+    da: "Prøv en bredere stemning, eller ryd filtrene.",
+    en: "Try a broader mood, or clear the filters.",
+  },
+  "search.browse": { da: "Eller bare bladr", en: "Or just browse" },
+
+  "account.title": { da: "Konto", en: "Account" },
+  "account.plan": { da: "Plan", en: "Plan" },
+  "account.preferences": { da: "Indstillinger", en: "Preferences" },
+  "account.language": { da: "Sprog", en: "Language" },
+  "account.appearance": { da: "Udseende", en: "Appearance" },
+  "account.system": { da: "System", en: "System" },
+  "account.light": { da: "Lys", en: "Light" },
+  "account.dark": { da: "Mørk", en: "Dark" },
+  "account.about": { da: "Om", en: "About" },
+  "account.prototype": { da: "Prototype", en: "Prototype" },
+  "account.prototypeBody": {
+    da: "Musikken i denne app er syntetiseret pladsholdermateriale, og artistnavnene er opdigtede. Intet af det er Odatones katalog.",
+    en: "The music in this app is synthesised placeholder material and the artist names are invented. None of it is Odatone's catalogue.",
+  },
+  "account.web": { da: "odatone.com", en: "odatone.com" },
+
+  "common.tracks": { da: "numre", en: "tracks" },
+  "common.track": { da: "nummer", en: "track" },
+  "auth.close": { da: "Luk", en: "Close" },
+  "auth.email": { da: "E-mail", en: "Email" },
+  "auth.password": { da: "Adgangskode", en: "Password" },
+  "auth.newPassword": { da: "Ny adgangskode", en: "New password" },
+  "auth.passwordHint": { da: "mindst 8 tegn", en: "at least 8 characters" },
+  "auth.code": { da: "Kode fra e-mailen", en: "Code from the email" },
+
+  "auth.login.title": { da: "Log ind", en: "Log in" },
+  "auth.login.body": {
+    da: "Log ind med den e-mail og adgangskode, du bruger på Mit Odatone.",
+    en: "Log in with the email and password you use for My Odatone.",
+  },
+  "auth.login.submit": { da: "Log ind", en: "Log in" },
+  "auth.login.forgot": { da: "Glemt adgangskode?", en: "Forgot password?" },
+
+  "auth.forgot.title": { da: "Nulstil adgangskode", en: "Reset password" },
+  "auth.forgot.body": {
+    da: "Skriv din e-mail, så sender vi en kode, du kan vælge en ny adgangskode med.",
+    en: "Enter your email and we'll send a code you can choose a new password with.",
+  },
+  "auth.forgot.submit": { da: "Send kode", en: "Send code" },
+  "auth.forgot.back": { da: "Tilbage til log ind", en: "Back to log in" },
+
+  "auth.verify.titleInvite": { da: "Bekræft din e-mail", en: "Confirm your email" },
+  "auth.verify.titleRecovery": { da: "Vælg en ny adgangskode", en: "Choose a new password" },
+  "auth.verify.body": {
+    da: "Vi har sendt en kode på 6 cifre til {email}. Skriv den her, og vælg en adgangskode.",
+    en: "We've sent a 6-digit code to {email}. Enter it here and choose a password.",
+  },
+  "auth.verify.submit": { da: "Gem og fortsæt", en: "Save and continue" },
+  "auth.verify.resend": { da: "Send koden igen", en: "Resend code" },
+  "auth.verify.resent": { da: "Vi har sendt en ny kode.", en: "We've sent a new code." },
+
+  "auth.error.invalid": {
+    da: "Den e-mail og adgangskode passer ikke sammen.",
+    en: "That email and password don't match.",
+  },
+  "auth.error.code": {
+    da: "Koden er forkert eller udløbet.",
+    en: "The code is wrong or has expired.",
+  },
+  "auth.error.weak": {
+    da: "Adgangskoden skal være mindst 8 tegn.",
+    en: "The password must be at least 8 characters.",
+  },
+  "auth.error.rate": {
+    da: "For mange forsøg. Vent lidt, og prøv igen.",
+    en: "Too many attempts. Wait a moment and try again.",
+  },
+  "auth.error.service": {
+    da: "Vi kunne ikke få forbindelse til Odatone. Prøv igen.",
+    en: "Couldn't reach Odatone. Try again.",
+  },
+  "auth.error.email": { da: "Ugyldig e-mail", en: "Invalid email" },
+
+  "account.signedOut.title": { da: "Log ind for at spille", en: "Log in to play" },
+  "account.signedOut.body": {
+    da: "Musikken er for Odatone-kunder. Log ind, eller opret en konto med 14 dage gratis.",
+    en: "The music is for Odatone customers. Log in, or create an account with 14 days free.",
+  },
+  "account.logIn": { da: "Log ind", en: "Log in" },
+  "account.logOut": { da: "Log ud", en: "Log out" },
+  "account.manage": { da: "Administrér abonnement", en: "Manage subscription" },
+  "account.noAccess": {
+    da: "Din konto er ikke sat op til Odatone endnu. Kontakt os.",
+    en: "Your account isn't set up for Odatone yet. Contact us.",
+  },
+  "account.staff": { da: "Odatone-medarbejder", en: "Odatone staff" },
+  "account.noSubscription": { da: "Intet abonnement", en: "No subscription" },
+  "account.status.pending": { da: "Afventer", en: "Pending" },
+  "account.status.trialing": { da: "Prøveperiode", en: "Trialing" },
+  "account.status.active": { da: "Aktiv", en: "Active" },
+  "account.status.past_due": { da: "Forfalden", en: "Past due" },
+  "account.status.cancelled": { da: "Opsagt", en: "Cancelled" },
+
+  "account.create": { da: "Opret konto", en: "Create account" },
+
+  "signup.title": { da: "Opret konto", en: "Create account" },
+  "signup.step.plan": { da: "Plan", en: "Plan" },
+  "signup.step.account": { da: "Konto", en: "Account" },
+  "signup.next": { da: "Næste", en: "Next" },
+  "signup.back": { da: "Tilbage", en: "Back" },
+  "signup.haveAccount": { da: "Har du allerede en konto? Log ind", en: "Already have an account? Log in" },
+  "signup.optional": { da: "valgfri", en: "optional" },
+
+  "signup.plan.heading": { da: "Vælg din plan", en: "Choose your plan" },
+  "signup.plan.body": {
+    da: "Alle planer starter med 14 dage gratis, og du kan skifte når som helst.",
+    en: "Every plan starts with 14 days free and you can switch whenever.",
+  },
+  "signup.billing.monthly": { da: "Måned", en: "Monthly" },
+  "signup.billing.annual": { da: "År", en: "Annual" },
+  "signup.locations": { da: "Lokationer", en: "Locations" },
+  "signup.locations.fewer": { da: "Færre lokationer", en: "Fewer locations" },
+  "signup.locations.more": { da: "Flere lokationer", en: "More locations" },
+  "signup.perLocation": { da: "Pr. lokation", en: "Per location" },
+  "signup.perMonth": { da: "pr. md.", en: "per month" },
+  "signup.perYear": { da: "pr. år", en: "per year" },
+  "signup.volumeDiscount": { da: "Mængderabat", en: "Volume discount" },
+  "signup.annualDiscount": { da: "Årsrabat", en: "Annual discount" },
+  "signup.dueToday": { da: "Betales i dag", en: "Due today" },
+  "signup.freeTrial": { da: "0 kr. — 14 dage gratis", en: "0 kr. — 14 days free" },
+  "signup.then": { da: "Derefter", en: "Then" },
+  "signup.exVat": { da: "ekskl. moms", en: "excl. VAT" },
+
+  "signup.account.heading": { da: "Din konto", en: "Your account" },
+  "signup.account.body": {
+    da: "Kun det vi skal bruge for at oprette abonnementet og sende dig dokumentationen.",
+    en: "Only what we need to set up the subscription and send you the documentation.",
+  },
+  "signup.field.name": { da: "Fulde navn", en: "Full name" },
+  "signup.field.company": { da: "Virksomhed", en: "Company" },
+  "signup.field.cvr": { da: "CVR-nummer", en: "Company reg. no." },
+  "signup.field.email": { da: "Arbejds-e-mail", en: "Work email" },
+  "signup.field.phone": { da: "Telefon", en: "Phone" },
+  "signup.field.address": { da: "Adresse på lokationen", en: "Address of the location" },
+  "signup.field.postcode": { da: "Postnr.", en: "Postcode" },
+  "signup.field.city": { da: "By", en: "City" },
+
+  "signup.payment.subheading": { da: "Sådan betaler du", en: "How you pay" },
+  "signup.payment.body": {
+    da: "Vi trækker ingenting nu. De første 14 dage er gratis, og du får en påmindelse tre dage før perioden slutter.",
+    en: "Nothing is charged now. The first 14 days are free and you get a reminder three days before the period ends.",
+  },
+  "signup.terms": {
+    da: "Jeg accepterer handelsbetingelserne og privatlivspolitikken.",
+    en: "I accept the terms of business and the privacy policy.",
+  },
+  "signup.termsRead": { da: "Læs dem", en: "Read them" },
+  "signup.submit": { da: "Start prøveperioden", en: "Start the trial" },
+
+  "signup.error.required": { da: "Skal udfyldes", en: "Required" },
+  "signup.error.long": { da: "For langt", en: "Too long" },
+  "signup.error.email": { da: "Ugyldig e-mail", en: "Invalid email" },
+  "signup.error.cvr": { da: "8 cifre", en: "8 digits" },
+  "signup.error.terms": { da: "Du skal acceptere betingelserne", en: "You must accept the terms" },
+  "signup.error.exists": {
+    da: "Der findes allerede en konto med denne e-mail.",
+    en: "An account with this email already exists.",
+  },
+  "signup.error.server": {
+    da: "Der opstod en fejl. Prøv igen om lidt, eller kontakt os hvis det gentager sig.",
+    en: "Something went wrong. Please try again shortly, or contact us if it keeps happening.",
+  },
+  "signup.error.plan": {
+    da: "Den valgte plan er ikke gyldig. Vælg en plan igen.",
+    en: "The selected plan isn't valid. Choose a plan again.",
+  },
+  "signup.error.locations": {
+    da: "Antallet af lokationer er ikke gyldigt.",
+    en: "The number of locations isn't valid.",
+  },
+  "signup.unreachable": {
+    da: "Vi kunne ikke få forbindelse til Odatone. Intet er gået tabt — prøv igen.",
+    en: "Couldn't reach Odatone. Nothing is lost — try again.",
+  },
+  "signup.fixAbove": { da: "Ret de markerede felter ovenfor.", en: "Fix the marked fields above." },
+  "signup.exists.code": { da: "Jeg har en kode", en: "I have a code" },
+  "signup.exists.reset": { da: "Nulstil adgangskode", en: "Reset password" },
+  "signup.noInvite.title": { da: "Kontoen er oprettet", en: "Your account is set up" },
+  "signup.noInvite.body": {
+    da: "Din konto til {email} er oprettet, men vi kunne ikke sende e-mailen med koden lige nu. Kontakt os, så sender vi den manuelt.",
+    en: "Your account for {email} is set up, but we couldn't send the email with the code just now. Contact us and we'll send it by hand.",
+  },
+
+  "gate.login.title": { da: "Log ind for at spille", en: "Log in to play" },
+  "gate.login.body": {
+    da: "Musikken er for Odatone-kunder. Log ind, eller opret en konto — de første 14 dage er gratis.",
+    en: "The music is for Odatone customers. Log in, or create an account — the first 14 days are free.",
+  },
+  "gate.ended.title": { da: "Dit abonnement er ikke aktivt", en: "Your subscription isn't active" },
+  "gate.ended.body": {
+    da: "Denne konto har ikke et aktivt abonnement. Administrér det på Mit Odatone, eller kontakt os.",
+    en: "This account has no active subscription. Manage it on My Odatone, or contact us.",
+  },
+  "gate.ended.retry": { da: "Tjek igen", en: "Check again" },
+  "gate.unknown.title": { da: "Vi kunne ikke tjekke dit abonnement", en: "We couldn't check your subscription" },
+  "gate.unknown.body": {
+    da: "Tjek din internetforbindelse, og prøv igen.",
+    en: "Check your internet connection and try again.",
+  },
+  "account.unknown": {
+    da: "Vi kunne ikke hente din konto lige nu. Træk ned for at prøve igen.",
+    en: "We couldn't load your account just now. Pull down to try again.",
+  },
+  "common.min": { da: "min", en: "min" },
+  "common.bpm": { da: "BPM", en: "BPM" },
+  "common.instrumental": { da: "Instrumental", en: "Instrumental" },
+  "common.vocals": { da: "Vokal", en: "Vocals" },
+  "common.playAll": { da: "Afspil alle", en: "Play all" },
+} satisfies Record<string, L10n>;
+
+export type StringKey = keyof typeof STRINGS;
