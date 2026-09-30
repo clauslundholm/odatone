@@ -1,5 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Linking, Pressable, ScrollView, View } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import { PLANS } from "@web/pricing";
+
+import { useAuth } from "../../src/auth/AuthProvider";
+import { API_URL } from "../../src/auth/supabase";
+import { Button } from "../../src/components/Button";
 
 import { Chip } from "../../src/components/Chip";
 import { Mark } from "../../src/components/Cover";
@@ -7,23 +14,32 @@ import { BOTTOM_INSET, Screen, ScreenTitle, SectionHead } from "../../src/compon
 import { Txt } from "../../src/components/Txt";
 import { TRACKS_ARE_PLACEHOLDER } from "../../src/data/tracks";
 import { useI18n } from "../../src/i18n/i18n";
+import { STRINGS, type StringKey } from "../../src/i18n/strings";
 import { useTheme, type ThemeMode } from "../../src/theme/theme";
 import { RADIUS, SPACE } from "../../src/theme/tokens";
 
 export default function AccountTab() {
   const { c, mode, setMode } = useTheme();
   const { t, pref, setPref } = useI18n();
+  const { refresh, signedIn } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const pull = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ paddingBottom: BOTTOM_INSET }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: BOTTOM_INSET }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={signedIn ? <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={c.ink3} /> : undefined}
+      >
         <ScreenTitle title={t("account.title")} />
 
-        <Card>
-          <Txt variant="label" tone="ink3">{t("account.plan")}</Txt>
-          <Txt variant="section">{t("account.planName")}</Txt>
-          <Txt variant="body" tone="ink2">{t("account.planPrice")}</Txt>
-        </Card>
+        <AccountCard />
 
         <SectionHead title={t("account.preferences")} />
 
@@ -77,6 +93,78 @@ export default function AccountTab() {
         </Card>
       </ScrollView>
     </Screen>
+  );
+}
+
+/** Who is signed in and what they are on — or, signed out, the way in. */
+function AccountCard() {
+  const { t } = useI18n();
+  const router = useRouter();
+  const { ready, signedIn, email, account, entitled, checking, signOut } = useAuth();
+  const [leaving, setLeaving] = useState(false);
+
+  /* Nothing until the stored session has been read: showing "Log in" for
+     half a second to someone who is logged in is worse than a gap. */
+  if (!ready) return null;
+
+  if (!signedIn) {
+    return (
+      <Card>
+        <Txt variant="section">{t("account.signedOut.title")}</Txt>
+        <Txt variant="body" tone="ink2">{t("account.signedOut.body")}</Txt>
+        <View style={{ gap: 10, marginTop: 8 }}>
+          <Button label={t("account.logIn")} onPress={() => router.push("/auth/login")} />
+        </View>
+      </Card>
+    );
+  }
+
+  const staff = account?.profile.role === "staff_admin" || account?.profile.role === "staff_support";
+  const subscription = account?.subscription ?? null;
+  const planName = subscription ? PLANS.find((p) => p.id === subscription.plan_id)?.name ?? subscription.plan_id : null;
+  /* An enum value this build has no label for falls back to the raw
+     word rather than throwing — the website's statusLabel does the same. */
+  const statusKey = `account.status.${subscription?.status ?? ""}`;
+  const status = subscription ? (statusKey in STRINGS ? t(statusKey as StringKey) : subscription.status) : null;
+
+  const leave = async () => {
+    setLeaving(true);
+    await signOut();
+    setLeaving(false);
+  };
+
+  return (
+    <Card>
+      <Txt variant="label" tone="ink3">{account?.customer?.name ?? (staff ? t("account.staff") : t("account.title"))}</Txt>
+      <Txt variant="section" numberOfLines={1}>{account?.profile.full_name || email}</Txt>
+      {account?.profile.full_name ? <Txt variant="body" tone="ink2" numberOfLines={1}>{email}</Txt> : null}
+
+      {/* No account yet: warn only when the read finished and nothing
+          cached says they may play. While checking, or offline on a valid
+          cached entitlement, show just who is signed in. */}
+      {account === null ? (
+        !checking && !entitled ? (
+          <Txt variant="body" tone="warn" style={{ marginTop: 6 }}>{t("account.noAccess")}</Txt>
+        ) : null
+      ) : staff ? null : (
+        <View style={{ marginTop: 10, gap: 2 }}>
+          <Txt variant="label" tone="ink3">{t("account.plan")}</Txt>
+          <Txt variant="bodyStrong">{planName ?? t("account.noSubscription")}</Txt>
+          {status ? <Txt variant="body" tone={subscription?.status === "cancelled" ? "warn" : "ink2"}>{status}</Txt> : null}
+        </View>
+      )}
+
+      <View style={{ gap: 10, marginTop: 12 }}>
+        {!staff && account !== null ? (
+          <Button
+            variant="secondary"
+            label={t("account.manage")}
+            onPress={() => Linking.openURL(`${API_URL}/my-odatone`).catch(() => {})}
+          />
+        ) : null}
+        <Button variant="secondary" label={t("account.logOut")} onPress={leave} busy={leaving} />
+      </View>
+    </Card>
   );
 }
 

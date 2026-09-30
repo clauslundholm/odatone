@@ -9,6 +9,10 @@ import { AuthProvider } from "../src/auth/AuthProvider";
 import { I18nProvider } from "../src/i18n/i18n";
 import { ThemeProvider, useTheme } from "../src/theme/theme";
 
+/* Every auth screen is a modal over whatever the customer was looking at,
+   so closing it puts them back there. */
+const AUTH_MODAL = { presentation: "modal", animation: "slide_from_bottom" } as const;
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -47,6 +51,9 @@ function Shell() {
           options={{ presentation: "modal", animation: "slide_from_bottom" }}
         />
         <Stack.Screen name="playlist/[id]" />
+        <Stack.Screen name="auth/login" options={AUTH_MODAL} />
+        <Stack.Screen name="auth/forgot" options={AUTH_MODAL} />
+        <Stack.Screen name="auth/verify" options={AUTH_MODAL} />
       </Stack>
     </>
   );

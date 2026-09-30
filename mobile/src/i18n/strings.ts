@@ -70,8 +70,6 @@ export const STRINGS = {
 
   "account.title": { da: "Konto", en: "Account" },
   "account.plan": { da: "Plan", en: "Plan" },
-  "account.planName": { da: "Small Venue", en: "Small Venue" },
-  "account.planPrice": { da: "149 kr. pr. lokation / måned", en: "DKK 149 per location / month" },
   "account.preferences": { da: "Indstillinger", en: "Preferences" },
   "account.language": { da: "Sprog", en: "Language" },
   "account.appearance": { da: "Udseende", en: "Appearance" },
@@ -88,6 +86,84 @@ export const STRINGS = {
 
   "common.tracks": { da: "numre", en: "tracks" },
   "common.track": { da: "nummer", en: "track" },
+  "auth.close": { da: "Luk", en: "Close" },
+  "auth.email": { da: "E-mail", en: "Email" },
+  "auth.password": { da: "Adgangskode", en: "Password" },
+  "auth.newPassword": { da: "Ny adgangskode", en: "New password" },
+  "auth.passwordHint": { da: "mindst 8 tegn", en: "at least 8 characters" },
+  "auth.code": { da: "Kode fra e-mailen", en: "Code from the email" },
+
+  "auth.login.title": { da: "Log ind", en: "Log in" },
+  "auth.login.body": {
+    da: "Log ind med den e-mail og adgangskode, du bruger på Mit Odatone.",
+    en: "Log in with the email and password you use for My Odatone.",
+  },
+  "auth.login.submit": { da: "Log ind", en: "Log in" },
+  "auth.login.forgot": { da: "Glemt adgangskode?", en: "Forgot password?" },
+
+  "auth.forgot.title": { da: "Nulstil adgangskode", en: "Reset password" },
+  "auth.forgot.body": {
+    da: "Skriv din e-mail, så sender vi en kode, du kan vælge en ny adgangskode med.",
+    en: "Enter your email and we'll send a code you can choose a new password with.",
+  },
+  "auth.forgot.submit": { da: "Send kode", en: "Send code" },
+  "auth.forgot.back": { da: "Tilbage til log ind", en: "Back to log in" },
+
+  "auth.verify.titleInvite": { da: "Bekræft din e-mail", en: "Confirm your email" },
+  "auth.verify.titleRecovery": { da: "Vælg en ny adgangskode", en: "Choose a new password" },
+  "auth.verify.body": {
+    da: "Vi har sendt en kode på 6 cifre til {email}. Skriv den her, og vælg en adgangskode.",
+    en: "We've sent a 6-digit code to {email}. Enter it here and choose a password.",
+  },
+  "auth.verify.submit": { da: "Gem og fortsæt", en: "Save and continue" },
+  "auth.verify.resend": { da: "Send koden igen", en: "Resend code" },
+  "auth.verify.resent": {
+    da: "Vi har sendt en ny kode. Den gamle virker ikke længere.",
+    en: "We've sent a new code. The old one no longer works.",
+  },
+
+  "auth.error.invalid": {
+    da: "Den e-mail og adgangskode passer ikke sammen.",
+    en: "That email and password don't match.",
+  },
+  "auth.error.code": {
+    da: "Koden er forkert eller udløbet.",
+    en: "The code is wrong or has expired.",
+  },
+  "auth.error.weak": {
+    da: "Adgangskoden skal være mindst 8 tegn.",
+    en: "The password must be at least 8 characters.",
+  },
+  "auth.error.rate": {
+    da: "For mange forsøg. Vent lidt, og prøv igen.",
+    en: "Too many attempts. Wait a moment and try again.",
+  },
+  "auth.error.service": {
+    da: "Vi kunne ikke få forbindelse til Odatone. Prøv igen.",
+    en: "Couldn't reach Odatone. Try again.",
+  },
+  "auth.error.email": { da: "Ugyldig e-mail", en: "Invalid email" },
+
+  "account.signedOut.title": { da: "Log ind for at spille", en: "Log in to play" },
+  "account.signedOut.body": {
+    da: "Musikken er for Odatone-kunder. Log ind, eller opret en konto med 14 dage gratis.",
+    en: "The music is for Odatone customers. Log in, or create an account with 14 days free.",
+  },
+  "account.logIn": { da: "Log ind", en: "Log in" },
+  "account.logOut": { da: "Log ud", en: "Log out" },
+  "account.manage": { da: "Administrér abonnement", en: "Manage subscription" },
+  "account.noAccess": {
+    da: "Din konto er ikke sat op til Odatone endnu. Kontakt os.",
+    en: "Your account isn't set up for Odatone yet. Contact us.",
+  },
+  "account.staff": { da: "Odatone-medarbejder", en: "Odatone staff" },
+  "account.noSubscription": { da: "Intet abonnement", en: "No subscription" },
+  "account.status.pending": { da: "Afventer", en: "Pending" },
+  "account.status.trialing": { da: "Prøveperiode", en: "Trialing" },
+  "account.status.active": { da: "Aktiv", en: "Active" },
+  "account.status.past_due": { da: "Forfalden", en: "Past due" },
+  "account.status.cancelled": { da: "Opsagt", en: "Cancelled" },
+
   "common.min": { da: "min", en: "min" },
   "common.bpm": { da: "BPM", en: "BPM" },
   "common.instrumental": { da: "Instrumental", en: "Instrumental" },
