@@ -1,6 +1,9 @@
 /* The app imports a few pure modules from the website (../lib) — pricing
-   above all, so the app and the web can never quote different prices.
-   Metro only reads files inside the project unless told otherwise. */
+   above all. The app and the web share one pricing module, so a build
+   of each from the same commit quotes the same prices. (It is compiled
+   into each build: an app built from an older commit keeps that
+   commit's prices until it is rebuilt.) Metro only reads files inside
+   the project unless told otherwise. */
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require("node:path");
 

@@ -153,10 +153,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
       .finally(() => alive && setSettled(true));
 
-    /* Only set state here. Calling another supabase method from inside
-       this callback deadlocks supabase-js's auth lock; the account is
-       loaded from the effect below instead, once React has the new id. */
+    /* This callback only records the session. The account is loaded from
+       the effect below, once React has the new id — no supabase call is
+       made from in here. That is the sound rule in any version of
+       supabase-js, and a requirement if an auth lock is ever configured
+       (the callback would then run while the lock is held). */
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      /* A token refresh that was already in flight when this phone signed
+         out can land a moment later and hand back the session that was
+         just removed. The app's own "signed out" stands: a real sign-in
+         arrives as SIGNED_IN, never as TOKEN_REFRESHED. */
+      if (event === "TOKEN_REFRESHED" && sessionRef.current === "absent") return;
       if (next) setSession(next);
       else if (event === "SIGNED_OUT") sessionGone();
       /* INITIAL_SESSION with null also arrives when the refresh could not
