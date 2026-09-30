@@ -2,7 +2,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { PLANS } from "@web/pricing";
 
 import { useAuth } from "../../src/auth/AuthProvider";
 import { API_URL } from "../../src/auth/supabase";
@@ -12,6 +11,7 @@ import { Chip } from "../../src/components/Chip";
 import { Mark } from "../../src/components/Cover";
 import { BOTTOM_INSET, Screen, ScreenTitle, SectionHead } from "../../src/components/Screen";
 import { Txt } from "../../src/components/Txt";
+import { usePlans } from "../../src/data/plans";
 import { TRACKS_ARE_PLACEHOLDER } from "../../src/data/tracks";
 import { useI18n } from "../../src/i18n/i18n";
 import { STRINGS, type StringKey } from "../../src/i18n/strings";
@@ -102,6 +102,8 @@ function AccountCard() {
   const router = useRouter();
   const { ready, signedIn, email, account, entitled, checking, known, signOut } = useAuth();
   const [leaving, setLeaving] = useState(false);
+  /* The database's plans, so one created in /admin shows its name here. */
+  const plans = usePlans();
 
   /* Nothing until the stored session has been read: showing "Log in" for
      half a second to someone who is logged in is worse than a gap. */
@@ -122,7 +124,7 @@ function AccountCard() {
 
   const staff = account?.profile.role === "staff_admin" || account?.profile.role === "staff_support";
   const subscription = account?.subscription ?? null;
-  const planName = subscription ? PLANS.find((p) => p.id === subscription.plan_id)?.name ?? subscription.plan_id : null;
+  const planName = subscription ? plans.find((p) => p.id === subscription.plan_id)?.name ?? subscription.plan_id : null;
   /* An enum value this build has no label for falls back to the raw
      word rather than throwing — the website's statusLabel does the same. */
   const statusKey = `account.status.${subscription?.status ?? ""}`;

@@ -166,7 +166,6 @@ export const STRINGS = {
   "signup.title": { da: "Opret konto", en: "Create account" },
   "signup.step.plan": { da: "Plan", en: "Plan" },
   "signup.step.account": { da: "Konto", en: "Account" },
-  "signup.step.payment": { da: "Betaling", en: "Payment" },
   "signup.next": { da: "Næste", en: "Next" },
   "signup.back": { da: "Tilbage", en: "Back" },
   "signup.haveAccount": { da: "Har du allerede en konto? Log ind", en: "Already have an account? Log in" },
@@ -206,13 +205,11 @@ export const STRINGS = {
   "signup.field.postcode": { da: "Postnr.", en: "Postcode" },
   "signup.field.city": { da: "By", en: "City" },
 
-  "signup.payment.heading": { da: "Betaling", en: "Payment" },
+  "signup.payment.subheading": { da: "Sådan betaler du", en: "How you pay" },
   "signup.payment.body": {
-    da: "Vi trækker ingenting nu. De første 14 dage er gratis, og derefter sender vi en faktura.",
-    en: "Nothing is charged now. The first 14 days are free, and after that we send an invoice.",
+    da: "Vi trækker ingenting nu. De første 14 dage er gratis, og du får en påmindelse tre dage før perioden slutter.",
+    en: "Nothing is charged now. The first 14 days are free and you get a reminder three days before the period ends.",
   },
-  "signup.field.ean": { da: "EAN-nummer", en: "EAN number" },
-  "signup.field.po": { da: "Rekvisitionsnummer", en: "Purchase order" },
   "signup.terms": {
     da: "Jeg accepterer handelsbetingelserne og privatlivspolitikken.",
     en: "I accept the terms of business and the privacy policy.",
@@ -224,7 +221,6 @@ export const STRINGS = {
   "signup.error.long": { da: "For langt", en: "Too long" },
   "signup.error.email": { da: "Ugyldig e-mail", en: "Invalid email" },
   "signup.error.cvr": { da: "8 cifre", en: "8 digits" },
-  "signup.error.ean": { da: "13 cifre", en: "13 digits" },
   "signup.error.terms": { da: "Du skal acceptere betingelserne", en: "You must accept the terms" },
   "signup.error.exists": {
     da: "Der findes allerede en konto med denne e-mail.",

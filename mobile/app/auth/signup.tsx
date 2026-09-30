@@ -14,7 +14,6 @@ import {
   stepForErrors,
   toPayload,
   validateAccount,
-  validatePayment,
   validatePlan,
   visibleErrors,
   type FieldErrors,
@@ -32,11 +31,13 @@ import { kr } from "../../src/lib/format";
 import { useTheme } from "../../src/theme/theme";
 import { RADIUS, SPACE } from "../../src/theme/tokens";
 
-const STEPS = ["signup.step.plan", "signup.step.account", "signup.step.payment"] as const;
+const STEPS = ["signup.step.plan", "signup.step.account"] as const;
 
-/** The website's order, in three steps: plan, account, payment. The
-    order itself is placed by the website (POST /api/app/signup), which
-    runs the same code as its own form. */
+/** The website's order, in two steps: plan, then account. There is no
+    payment step: the app collects no payment details (App Store and card
+    rules), and the trial is free. The order itself is placed by the
+    website (POST /api/app/signup), which runs the same code as its own
+    form. */
 export default function SignupScreen() {
   const { c } = useTheme();
   const { t, l, locale } = useI18n();
@@ -61,14 +62,14 @@ export default function SignupScreen() {
   const q = quote(selected, draft.billing, draft.locations);
 
   const next = () => {
-    const found = step === 0 ? validatePlan({ ...draft, planId: selected.id }) : validateAccount(draft);
+    const found = validatePlan({ ...draft, planId: selected.id });
     setErrors(found);
-    if (Object.keys(found).length === 0) setStep(step + 1);
+    if (Object.keys(found).length === 0) setStep(1);
   };
 
   const submit = async () => {
     if (busy) return;
-    const found = validatePayment(draft);
+    const found = validateAccount(draft);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
@@ -258,7 +259,6 @@ export default function SignupScreen() {
           />
           <Field
             label={t("signup.field.cvr")}
-            hint={t("signup.optional")}
             value={draft.cvr}
             onChangeText={(v) => set("cvr", v)}
             error={message("cvr")}
@@ -315,32 +315,9 @@ export default function SignupScreen() {
               />
             </View>
           </View>
-        </>
-      )}
 
-      {step === 2 && (
-        <>
-          <Txt variant="section">{t("signup.payment.heading")}</Txt>
+          <Txt variant="bodyStrong">{t("signup.payment.subheading")}</Txt>
           <Txt variant="body" tone="ink2">{t("signup.payment.body")}</Txt>
-
-          {unreachable ? <Notice text={t("signup.unreachable")} /> : null}
-          {errors.form ? <Notice text={t(`signup.error.${errorKey("form", errors.form)}`)} /> : null}
-
-          <Field
-            label={t("signup.field.ean")}
-            hint={t("signup.optional")}
-            value={draft.ean}
-            onChangeText={(v) => set("ean", v)}
-            error={message("ean")}
-            keyboardType="number-pad"
-          />
-          <Field
-            label={t("signup.field.po")}
-            hint={t("signup.optional")}
-            value={draft.po}
-            onChangeText={(v) => set("po", v)}
-            error={message("po")}
-          />
 
           <Pressable
             accessibilityRole="checkbox"
@@ -363,11 +340,14 @@ export default function SignupScreen() {
               Linking.openURL(`${API_URL}/${locale}/${locale === "da" ? "betingelser" : "terms"}`).catch(() => {})
             }
           />
+
+          {unreachable ? <Notice text={t("signup.unreachable")} /> : null}
+          {errors.form ? <Notice text={t(`signup.error.${errorKey("form", errors.form)}`)} /> : null}
         </>
       )}
 
       <View style={{ gap: 10, marginTop: SPACE.sm }}>
-        {step < 2 ? (
+        {step < STEPS.length - 1 ? (
           <Button label={t("signup.next")} onPress={next} />
         ) : (
           <Button label={t("signup.submit")} onPress={submit} busy={busy} />

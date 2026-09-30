@@ -18,8 +18,6 @@ export type SignupDraft = {
   address: string;
   postcode: string;
   city: string;
-  ean: string;
-  po: string;
   terms: boolean;
 };
 
@@ -35,8 +33,6 @@ export const EMPTY_DRAFT: SignupDraft = {
   address: "",
   postcode: "",
   city: "",
-  ean: "",
-  po: "",
   terms: false,
 };
 
@@ -51,7 +47,16 @@ const MAX_TEXT = 200;
 const MAX_EMAIL = 254;
 const MAX_OPTIONAL = 300;
 
-const digits = (value: string) => value.replace(/\D/g, "");
+/* lib/signup.ts's parseCvr, copied: the app cannot import that file's
+   module graph under `node --test`, and the rule is small. A Danish CVR is
+   eight digits, written with a "DK" prefix, spaces, dots or dashes by
+   different people; what is sent is always the bare eight. Null for blank
+   too — the caller tells "required" from "cvr" by whether anything was
+   typed. Keep in step with parseCvr. */
+export function parseCvr(raw: string): string | null {
+  const cleaned = raw.trim().replace(/^DK/i, "").replace(/[\s.\-]/g, "");
+  return /^\d{8}$/.test(cleaned) ? cleaned : null;
+}
 
 function required(value: string, max: number): string | null {
   const v = value.trim();
@@ -68,6 +73,8 @@ export function validatePlan(d: SignupDraft): FieldErrors {
   return e;
 }
 
+/** The account step: who is signing up, where invoices go, and the terms
+    acceptance that sits under the submit button. */
 export function validateAccount(d: SignupDraft): FieldErrors {
   const e: FieldErrors = {};
   const put = (field: string, code: string | null) => {
@@ -76,7 +83,10 @@ export function validateAccount(d: SignupDraft): FieldErrors {
 
   put("name", required(d.name, MAX_TEXT));
   put("company", required(d.company, MAX_TEXT));
-  if (d.cvr.trim() && digits(d.cvr).length !== 8) e.cvr = "cvr";
+  /* Required by the server since the website's signup was rebuilt: an
+     invoice names the customer's company registration. */
+  if (!d.cvr.trim()) e.cvr = "required";
+  else if (parseCvr(d.cvr) === null) e.cvr = "cvr";
 
   const email = normalizeEmail(d.email);
   if (email.length > MAX_EMAIL) e.email = "long";
@@ -88,13 +98,8 @@ export function validateAccount(d: SignupDraft): FieldErrors {
   put("address", required(d.address, MAX_OPTIONAL));
   put("postcode", required(d.postcode, MAX_OPTIONAL));
   put("city", required(d.city, MAX_OPTIONAL));
-  return e;
-}
-
-export function validatePayment(d: SignupDraft): FieldErrors {
-  const e: FieldErrors = {};
-  if (d.ean.trim() && digits(d.ean).length !== 13) e.ean = "ean";
-  if (d.po.trim().length > MAX_OPTIONAL) e.po = "long";
+  /* The last thing the customer does before pressing the button, and the
+     app collects no payment details, so there is no step of its own for it. */
   if (!d.terms) e.terms = "terms";
   return e;
 }
@@ -107,7 +112,7 @@ export function toPayload(d: SignupDraft): Record<string, string | number> {
     name: d.name.trim(),
     company: d.company.trim(),
     email: normalizeEmail(d.email),
-    cvr: digits(d.cvr),
+    cvr: parseCvr(d.cvr) ?? "",
     phone: d.phone.trim(),
     address: d.address.trim(),
     postcode: d.postcode.trim(),
@@ -115,8 +120,6 @@ export function toPayload(d: SignupDraft): Record<string, string | number> {
     planId: d.planId,
     billing: d.billing,
     locations: d.locations,
-    ean: digits(d.ean),
-    po: d.po.trim(),
   };
 }
 
@@ -124,14 +127,13 @@ export function toPayload(d: SignupDraft): Record<string, string | number> {
     uses for the plan; `form` is a message about the whole order. */
 const STEP_FIELDS: readonly (readonly string[])[] = [
   ["plan", "billing", "locations"],
-  ["name", "company", "cvr", "email", "phone", "address", "postcode", "city"],
-  ["ean", "po", "terms", "form"],
+  ["name", "company", "cvr", "email", "phone", "address", "postcode", "city", "terms", "form"],
 ];
 const KNOWN_FIELDS = new Set(STEP_FIELDS.flat());
 
 /** The server can name a field this screen does not have — `venueType`
-    and `m2` until the website's simpler signup is deployed, or whatever a
-    later version adds. An error nobody can see is a form that silently
+    and `m2` from a website that has not yet deployed its simpler signup,
+    `ean` or `po` from one older still, or whatever a later version adds. An error nobody can see is a form that silently
     does nothing, so those collapse into one generic message. */
 export function visibleErrors(errors: FieldErrors): FieldErrors {
   const shown: FieldErrors = {};
@@ -156,14 +158,13 @@ export type ErrorKey =
   | "long"
   | "email"
   | "cvr"
-  | "ean"
   | "terms"
   | "exists"
   | "server"
   | "plan"
   | "locations";
 
-const CODES: readonly string[] = ["required", "long", "email", "cvr", "ean", "terms", "exists", "server"];
+const CODES: readonly string[] = ["required", "long", "email", "cvr", "terms", "exists", "server"];
 
 /** Which sentence to show. The plan and the location count have no text
     field, so "Required" under them would make no sense — they get their

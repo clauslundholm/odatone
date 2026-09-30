@@ -7,7 +7,6 @@ import {
   stepForErrors,
   toPayload,
   validateAccount,
-  validatePayment,
   validatePlan,
   visibleErrors,
   type SignupDraft,
@@ -17,6 +16,7 @@ const VALID: SignupDraft = {
   ...EMPTY_DRAFT,
   name: "Jens Hansen",
   company: "Café Nord",
+  cvr: "12345678",
   email: "jens@nord.test",
   address: "Nørregade 1",
   postcode: "8000",
@@ -24,25 +24,32 @@ const VALID: SignupDraft = {
   terms: true,
 };
 
-test("an empty account step names every required field", () => {
+test("an empty account step names every required field, the terms included", () => {
   assert.deepEqual(validateAccount(EMPTY_DRAFT), {
     name: "required",
     company: "required",
+    cvr: "required",
     email: "email",
     address: "required",
     postcode: "required",
     city: "required",
+    terms: "terms",
   });
 });
 
-test("a complete account step has no errors, with the optional fields blank", () => {
+test("a complete account step has no errors, with the phone blank", () => {
   assert.deepEqual(validateAccount(VALID), {});
 });
 
-test("a CVR is optional, but if given it is 8 digits however it is typed", () => {
-  assert.deepEqual(validateAccount({ ...VALID, cvr: "12 34 56 78" }), {});
-  assert.deepEqual(validateAccount({ ...VALID, cvr: "DK12345678" }), {});
-  assert.deepEqual(validateAccount({ ...VALID, cvr: "1234567" }), { cvr: "cvr" });
+test("a CVR is required, and is 8 digits however it is typed", () => {
+  assert.deepEqual(validateAccount({ ...VALID, cvr: "" }), { cvr: "required" });
+  assert.deepEqual(validateAccount({ ...VALID, cvr: "   " }), { cvr: "required" });
+  for (const cvr of ["12345678", "DK12345678", "dk12345678", "12 34 56 78", "12.34.56.78", "12-34-56-78", " DK 12 34 56 78 "]) {
+    assert.deepEqual(validateAccount({ ...VALID, cvr }), {}, cvr);
+  }
+  for (const cvr of ["1234567", "123456789", "1234567a", "abcdefgh", "12345678DK", "DKDK12345678"]) {
+    assert.deepEqual(validateAccount({ ...VALID, cvr }), { cvr: "cvr" }, cvr);
+  }
 });
 
 test("an email is judged after trimming and lower-casing", () => {
@@ -69,11 +76,8 @@ test("the plan step wants a plan and a whole number of locations from 1 to 99", 
   assert.deepEqual(validatePlan({ ...VALID, locations: 99 }), {});
 });
 
-test("the payment step wants the terms accepted and, if given, a 13-digit EAN", () => {
-  assert.deepEqual(validatePayment(VALID), {});
-  assert.deepEqual(validatePayment({ ...VALID, terms: false }), { terms: "terms" });
-  assert.deepEqual(validatePayment({ ...VALID, ean: "5790 0000 0000 0" }), {});
-  assert.deepEqual(validatePayment({ ...VALID, ean: "12345" }), { ean: "ean" });
+test("the terms must be accepted before the account step passes", () => {
+  assert.deepEqual(validateAccount({ ...VALID, terms: false }), { terms: "terms" });
 });
 
 test("the payload is trimmed, the email normalised, and the numbers reduced to digits", () => {
@@ -82,7 +86,6 @@ test("the payload is trimmed, the email normalised, and the numbers reduced to d
     name: "  Jens Hansen ",
     email: " Jens@Nord.Test ",
     cvr: "DK 12 34 56 78",
-    ean: "5790 0000 0000 0",
     billing: "annual",
     locations: 3,
     planId: "medium",
@@ -99,8 +102,6 @@ test("the payload is trimmed, the email normalised, and the numbers reduced to d
     planId: "medium",
     billing: "annual",
     locations: 3,
-    ean: "5790000000000",
-    po: "",
   });
   assert.equal("terms" in payload, false);
 });
@@ -110,19 +111,24 @@ test("a server error sends the customer to the earliest step that owns a field i
   assert.equal(stepForErrors({ locations: "required", email: "exists" }), 0);
   assert.equal(stepForErrors({ email: "exists" }), 1);
   assert.equal(stepForErrors({ postcode: "long", form: "server" }), 1);
-  assert.equal(stepForErrors({ form: "server" }), 2);
+  assert.equal(stepForErrors({ terms: "terms" }), 1);
+  assert.equal(stepForErrors({ form: "server" }), 1);
 });
 
 test("error keys the app has no field for become the generic server message on the last step", () => {
   const shown = visibleErrors({ venueType: "required", m2: "required" });
   assert.deepEqual(shown, { form: "server" });
-  assert.equal(stepForErrors(shown), 2);
+  assert.equal(stepForErrors(shown), 1);
 });
 
 test("a known field error survives next to an unknown one, and an existing form error is kept", () => {
   assert.deepEqual(visibleErrors({ email: "exists", venueType: "required" }), { email: "exists", form: "server" });
   assert.deepEqual(visibleErrors({ form: "invalid", mystery: "x" }), { form: "invalid" });
   assert.deepEqual(visibleErrors({ name: "required" }), { name: "required" });
+});
+
+test("an EAN or PO error from an older server is not a field this screen has", () => {
+  assert.deepEqual(visibleErrors({ ean: "ean", po: "long" }), { form: "server" });
 });
 
 test("every error resolves to a message the app has, never a raw code", () => {
@@ -133,4 +139,5 @@ test("every error resolves to a message the app has, never a raw code", () => {
   assert.equal(errorKey("form", "server"), "server");
   assert.equal(errorKey("form", "invalid"), "server");
   assert.equal(errorKey("name", "something-new"), "server");
+  assert.equal(errorKey("ean", "ean"), "server");
 });
