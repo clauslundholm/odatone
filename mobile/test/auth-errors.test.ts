@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   codeError,
+  isEmail,
   normalizeEmail,
   passwordError,
   sendError,
@@ -13,6 +14,19 @@ import {
 test("normalizeEmail trims and lower-cases, the way the server stores addresses", () => {
   assert.equal(normalizeEmail("  Jens@Nord.Test "), "jens@nord.test");
   assert.equal(normalizeEmail("jens@nord.test"), "jens@nord.test");
+});
+
+test("isEmail applies the website's rule to the normalised address", () => {
+  assert.equal(isEmail("jens@nord.test"), true);
+  assert.equal(isEmail("  Jens@Nord.Test "), true);
+  assert.equal(isEmail(""), false);
+  assert.equal(isEmail("jens"), false);
+  assert.equal(isEmail("jens@nord"), false);
+  assert.equal(isEmail("jens@nord.t"), false);
+  assert.equal(isEmail("jens@@nord.test"), false);
+  assert.equal(isEmail("jens@nord.test@x.dk"), false);
+  assert.equal(isEmail("je ns@nord.test"), false);
+  assert.equal(isEmail("j*@nord.test"), false);
 });
 
 test("a wrong password and an unknown address are the same error", () => {

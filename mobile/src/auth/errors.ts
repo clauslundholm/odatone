@@ -20,6 +20,15 @@ export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+/** lib/forms.ts's EMAIL_RE, copied: that file's other exports are web
+    form types the app has no use for. Keep the two in step. */
+const EMAIL_RE = /^[^\s@*]+@[^\s@*]+\.[^\s@*]{2,}$/;
+
+/** The one rule for "is this an address", for every form in the app. */
+export function isEmail(raw: string): boolean {
+  return EMAIL_RE.test(normalizeEmail(raw));
+}
+
 type Failure = { code?: string; status?: number };
 
 const RATE_CODES = ["over_email_send_rate_limit", "over_request_rate_limit"];

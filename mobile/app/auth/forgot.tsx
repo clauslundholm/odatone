@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 
 import { useAuth } from "../../src/auth/AuthProvider";
-import { normalizeEmail, type AuthErrorCode } from "../../src/auth/errors.ts";
+import { isEmail, normalizeEmail, type AuthErrorCode } from "../../src/auth/errors.ts";
 import { AuthScreen, Notice } from "../../src/components/AuthScreen";
 import { Button } from "../../src/components/Button";
 import { Field } from "../../src/components/Field";
@@ -20,7 +20,7 @@ export default function ForgotScreen() {
   const submit = async () => {
     if (busy) return;
     const address = normalizeEmail(email);
-    if (!/^\S+@\S+\.\S+$/.test(address)) {
+    if (!isEmail(address)) {
       setError("email");
       return;
     }

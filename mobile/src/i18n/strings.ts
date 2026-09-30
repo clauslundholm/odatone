@@ -117,10 +117,7 @@ export const STRINGS = {
   },
   "auth.verify.submit": { da: "Gem og fortsæt", en: "Save and continue" },
   "auth.verify.resend": { da: "Send koden igen", en: "Resend code" },
-  "auth.verify.resent": {
-    da: "Vi har sendt en ny kode. Den gamle virker ikke længere.",
-    en: "We've sent a new code. The old one no longer works.",
-  },
+  "auth.verify.resent": { da: "Vi har sendt en ny kode.", en: "We've sent a new code." },
 
   "auth.error.invalid": {
     da: "Den e-mail og adgangskode passer ikke sammen.",
@@ -183,6 +180,8 @@ export const STRINGS = {
   "signup.billing.monthly": { da: "Måned", en: "Monthly" },
   "signup.billing.annual": { da: "År", en: "Annual" },
   "signup.locations": { da: "Lokationer", en: "Locations" },
+  "signup.locations.fewer": { da: "Færre lokationer", en: "Fewer locations" },
+  "signup.locations.more": { da: "Flere lokationer", en: "More locations" },
   "signup.perLocation": { da: "Pr. lokation", en: "Per location" },
   "signup.perMonth": { da: "pr. md.", en: "per month" },
   "signup.perYear": { da: "pr. år", en: "per year" },
@@ -247,6 +246,7 @@ export const STRINGS = {
     da: "Vi kunne ikke få forbindelse til Odatone. Intet er gået tabt — prøv igen.",
     en: "Couldn't reach Odatone. Nothing is lost — try again.",
   },
+  "signup.exists.code": { da: "Jeg har en kode", en: "I have a code" },
   "signup.exists.reset": { da: "Nulstil adgangskode", en: "Reset password" },
   "signup.noInvite.title": { da: "Kontoen er oprettet", en: "Your account is set up" },
   "signup.noInvite.body": {

@@ -4,7 +4,7 @@
    field on the step that has it rather than after pressing the last
    button. Keep the limits in step with buildSignup. */
 
-import { normalizeEmail } from "./errors.ts";
+import { isEmail, normalizeEmail } from "./errors.ts";
 
 export type SignupDraft = {
   planId: string;
@@ -51,10 +51,6 @@ const MAX_TEXT = 200;
 const MAX_EMAIL = 254;
 const MAX_OPTIONAL = 300;
 
-/** lib/forms.ts's EMAIL_RE, copied: that file's other exports are web
-    form types this module has no use for. */
-const EMAIL_RE = /^[^\s@*]+@[^\s@*]+\.[^\s@*]{2,}$/;
-
 const digits = (value: string) => value.replace(/\D/g, "");
 
 function required(value: string, max: number): string | null {
@@ -84,7 +80,7 @@ export function validateAccount(d: SignupDraft): FieldErrors {
 
   const email = normalizeEmail(d.email);
   if (email.length > MAX_EMAIL) e.email = "long";
-  else if (!EMAIL_RE.test(email)) e.email = "email";
+  else if (!isEmail(email)) e.email = "email";
 
   if (d.phone.trim().length > MAX_OPTIONAL) e.phone = "long";
   /* Optional on the server, required by the website's own form — an

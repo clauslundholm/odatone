@@ -161,7 +161,7 @@ export default function SignupScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: SPACE.md }}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="−"
+                accessibilityLabel={t("signup.locations.fewer")}
                 hitSlop={10}
                 disabled={draft.locations <= MIN_LOCATIONS}
                 onPress={() => set("locations", Math.max(MIN_LOCATIONS, draft.locations - 1))}
@@ -175,7 +175,7 @@ export default function SignupScreen() {
               <Txt variant="title" style={{ minWidth: 36, textAlign: "center" }}>{draft.locations}</Txt>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="+"
+                accessibilityLabel={t("signup.locations.more")}
                 hitSlop={10}
                 disabled={draft.locations >= MAX_LOCATIONS}
                 onPress={() => set("locations", Math.min(MAX_LOCATIONS, draft.locations + 1))}
@@ -223,6 +223,17 @@ export default function SignupScreen() {
           {errors.email === "exists" ? (
             <View style={{ gap: 10 }}>
               <Notice text={t("signup.error.exists")} />
+              {/* The order may already be placed and its code already in
+                  the customer's inbox: the request timed out after the
+                  server committed, or the app was closed on the code
+                  screen. This is the way back to that screen. */}
+              <Button
+                variant="secondary"
+                label={t("signup.exists.code")}
+                onPress={() =>
+                  router.replace({ pathname: "/auth/verify", params: { email: normalizeEmail(draft.email), kind: "invite" } })
+                }
+              />
               <Button variant="secondary" label={t("account.logIn")} onPress={() => router.replace("/auth/login")} />
               <Button variant="link" label={t("signup.exists.reset")} onPress={() => router.replace("/auth/forgot")} />
             </View>
