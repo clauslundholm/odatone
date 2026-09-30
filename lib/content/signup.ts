@@ -4,15 +4,30 @@ export const signup = {
   eyebrow: { da: "Kom i gang", en: "Get started" } as L10n,
   title: { da: "Tre trin.\nSå spiller det.", en: "Three steps.\nThen it plays." } as L10n,
 
-  /* Three steps. "Forretningen" is gone: it asked for a venue type, a floor
-     area and an opening-hours band, and now that none of those are
-     collected the only control left on it was the location count, which
-     moved onto the Plan step. */
-  steps: [
-    { key: "plan", label: { da: "Plan", en: "Plan" } as L10n },
+  /* Three sections on one page, in the order they are filled in — not steps
+     any more. The flow was a wizard (Plan, then Konto, then Betaling) and is
+     now a single scrolling form, so these label headings rather than tabs,
+     and the order changed with it: the business comes first and the plan
+     last, so nobody is asked to choose what to buy before they have told us
+     who is buying.
+
+     "Forretningen" was a fourth step once. It asked for a venue type, a
+     floor area and an opening-hours band; none of those are collected now,
+     and the only control left on it — the location count — sits in
+     Abonnement. */
+  sections: [
+    { key: "company", label: { da: "Virksomhed", en: "Company" } as L10n },
     { key: "account", label: { da: "Konto", en: "Account" } as L10n },
-    { key: "payment", label: { da: "Betaling", en: "Payment" } as L10n },
+    { key: "subscription", label: { da: "Abonnement", en: "Subscription" } as L10n },
   ],
+
+  company: {
+    heading: { da: "Din virksomhed", en: "Your company" } as L10n,
+    body: {
+      da: "Det er den her adresse og det her CVR-nummer, der står på fakturaen og på dokumentationen for dine rettigheder.",
+      en: "This address and registration number are what appear on your invoice and on the documentation for your rights.",
+    } as L10n,
+  },
 
   venue: {
     heading: { da: "Fortæl os om rummet", en: "Tell us about the room" } as L10n,
@@ -42,24 +57,29 @@ export const signup = {
   account: {
     heading: { da: "Din konto", en: "Your account" } as L10n,
     body: {
-      da: "Kun det vi skal bruge for at oprette abonnementet og sende dig dokumentationen.",
-      en: "Only what we need to set up the subscription and send you the documentation.",
+      da: "Hvem logger ind? Vi sender en invitation til den e-mail, du skriver her.",
+      en: "Who signs in? We send an invitation to the email you put here.",
     } as L10n,
   },
 
   payment: {
     heading: { da: "Betaling", en: "Payment" } as L10n,
+    /* The payment controls are no longer a step of their own — they sit at
+       the foot of Abonnement — so they need a quieter in-section label than
+       the section heading they used to be. */
+    subheading: { da: "Sådan betaler du", en: "How you pay" } as L10n,
     body: {
       da: "Vi trækker ingenting nu. De første 14 dage er gratis, og du får en påmindelse tre dage før perioden slutter.",
       en: "Nothing is charged now. The first 14 days are free and you get a reminder three days before the period ends.",
     } as L10n,
-    card: { da: "Betalingskort", en: "Card" } as L10n,
-    invoice: { da: "Faktura / EAN", en: "Invoice / EAN" } as L10n,
+    /* `card`, `invoice`, `ean` and `po` lived here for the payment-method
+       toggle signup used to show. Signup takes a card and nothing else now,
+       so the toggle and the EAN/requisition fields are gone and so is their
+       copy. Staff choosing how an issued invoice is payable is unrelated and
+       keeps its own strings in components/admin/InvoiceActions.tsx. */
     cardNumber: { da: "Kortnummer", en: "Card number" } as L10n,
     expiry: { da: "Udløb", en: "Expiry" } as L10n,
     cvc: { da: "CVC", en: "CVC" } as L10n,
-    ean: { da: "EAN-nummer", en: "EAN number" } as L10n,
-    po: { da: "Rekvisitionsnummer", en: "Purchase order" } as L10n,
     terms: {
       da: "Jeg accepterer handelsbetingelserne og privatlivspolitikken.",
       en: "I accept the terms of business and the privacy policy.",
@@ -125,12 +145,24 @@ export const signup = {
   fields: {
     name: { da: "Fulde navn", en: "Full name" } as L10n,
     company: { da: "Virksomhed", en: "Company" } as L10n,
+    /* No "valgfri" hint any more — this is required. See lib/signup.ts's
+       parseCvr for why, and note the hint is what a visitor reads as
+       permission to skip it. */
     cvr: { da: "CVR-nummer", en: "Company reg. no." } as L10n,
     email: { da: "Arbejds-e-mail", en: "Work email" } as L10n,
     phone: { da: "Telefon", en: "Phone" } as L10n,
     address: { da: "Adresse på lokationen", en: "Address of the location" } as L10n,
     city: { da: "By", en: "City" } as L10n,
     zip: { da: "Postnr.", en: "Postcode" } as L10n,
+  },
+
+  /* One page means a failed submit can produce a dozen errors at once, most
+     of them scrolled out of sight — so the button says how many, and the
+     first one is focused. Without that, pressing the button and staying put
+     reads as nothing having happened at all. */
+  incomplete: {
+    one: { da: "1 felt mangler", en: "1 field needs attention" } as L10n,
+    many: { da: "{n} felter mangler", en: "{n} fields need attention" } as L10n,
   },
 
   errors: {
@@ -142,7 +174,6 @@ export const signup = {
     expiry: { da: "MM/ÅÅ", en: "MM/YY" } as L10n,
     cvc: { da: "3 cifre", en: "3 digits" } as L10n,
     terms: { da: "Du skal acceptere betingelserne", en: "You must accept the terms" } as L10n,
-    ean: { da: "13 cifre", en: "13 digits" } as L10n,
     /** A signup-only server-side error: the email already has a completed
         account (an owner profile exists), or the invite call turned out to
         target one mid-request. Never produced by client-side validation. */
@@ -163,9 +194,13 @@ export const signup = {
         couldn't produce. These say what's actually wrong instead of the
         generic "Skal udfyldes", which read as though a blank field had been
         left on a step where nothing looks blank at all. */
+    /* "Gå tilbage til trin 2" until the flow became one page. There are no
+       steps to go back to, and the plan cards are a few centimetres above
+       wherever this is read — telling someone to navigate to a place that no
+       longer exists is worse than saying nothing. */
     planInvalid: {
-      da: "Den valgte plan er ikke gyldig. Gå tilbage til trin 2 og vælg en plan igen.",
-      en: "The selected plan isn't valid. Go back to step 2 and choose a plan again.",
+      da: "Vælg en plan ovenfor.",
+      en: "Choose a plan above.",
     } as L10n,
     venueTypeInvalid: {
       da: "Den valgte virksomhedstype er ikke gyldig. Gå tilbage til trin 1 og vælg igen.",
@@ -176,8 +211,8 @@ export const signup = {
       en: "The floor area isn't valid. Go back to step 1 and adjust it.",
     } as L10n,
     locationsInvalid: {
-      da: "Antallet af lokationer er ikke gyldigt. Gå tilbage til trin 1 og justér det.",
-      en: "The number of locations isn't valid. Go back to step 1 and adjust it.",
+      da: "Antallet af lokationer er ikke gyldigt. Justér det ovenfor.",
+      en: "The number of locations isn't valid. Adjust it above.",
     } as L10n,
   },
 };

@@ -49,6 +49,10 @@ export type SignupInput = {
         showed "CVR —" and "Address DK" in /admin. `null`, not `""`, for
         "not given" — these are nullable text columns
         (supabase/migrations/0001_core.sql). */
+    /** Eight digits, normalised by parseCvr. Never null for a signup built
+        here — the field is required — but the type keeps null because
+        `customers.cvr` is a nullable column holding rows created before it
+        was, and lib/gdpr.ts nulls it when anonymising. */
     cvr: string | null;
     address: string | null;
     postcode: string | null;
@@ -97,8 +101,9 @@ const MAX_LOCATIONS = 500;
    rejected outright when too long (silently truncating a legal company name
    would create a wrong record, not a safe one).
 
-   Fix round 2 corrected the optional business fields (cvr/address/postcode/
-   city/phone) to match: they used to be silently truncated at this same
+   Fix round 2 corrected the optional business fields (address/postcode/
+   city/phone — cvr was one of them until it became required; see parseCvr)
+   to match: they used to be silently truncated at this same
    bound rather than rejected, which is the identical "wrong record, not a
    safe one" mistake — a CVR number or an invoicing address cut off mid-way
    is not a safe fallback for a real one, it's a corrupted one nobody would
@@ -123,6 +128,26 @@ function parseLocationCount(raw: string): { count: number } | { error: true } {
   const n = Number(trimmed);
   if (n > MAX_LOCATIONS) return { error: true };
   return { count: Math.max(1, n) };
+}
+
+/** A Danish CVR number is exactly eight digits. People write it with spaces
+    ("12 34 56 78"), with a "DK" prefix off a letterhead, or with dots, so
+    those are stripped before counting rather than rejected — but what gets
+    stored is always the bare eight digits, so two customers who typed the
+    same number the same way are the same string in the database.
+ *
+ *  Returns null for anything that isn't eight digits, INCLUDING blank. CVR
+ *  used to be optional here (a `boundedOptional` alongside address and
+ *  phone, stored as null when absent), which left /admin showing "CVR —" on
+ *  real customers and, more seriously, left invoices without the one field
+ *  that identifies a Danish business on them — lib/invoice-issuer.ts prints
+ *  the customer's CVR, and a null there is a document that names no company
+ *  registration at all. The signup form now requires it, and this is what
+ *  makes that a rule rather than a decoration: a raw POST bypassing the form
+ *  is refused here too. */
+export function parseCvr(raw: string): string | null {
+  const cleaned = raw.trim().replace(/^DK/i, "").replace(/[\s.\-]/g, "");
+  return /^\d{8}$/.test(cleaned) ? cleaned : null;
 }
 
 /** Blank is a legitimate "not given" (`null`); anything else past `max` is
@@ -180,6 +205,14 @@ export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string
   else if (email.length > MAX_EMAIL_LEN) errors.email = "long";
   else if (!EMAIL_RE.test(email)) errors.email = "email";
 
+  /* Two codes, not one: a blank field and a mistyped one are different
+     mistakes, and "8 cifre" is a strange thing to say about a field nobody
+     has touched yet. */
+  const cvrRaw = get("cvr");
+  const cvr = parseCvr(cvrRaw);
+  if (!cvrRaw) errors.cvr = "required";
+  else if (cvr === null) errors.cvr = "cvr";
+
   if (!validPlanIds.has(planRaw)) errors.plan = "required";
   if (billingRaw && !BILLING_TERMS.has(billingRaw)) errors.billing = "required";
 
@@ -187,12 +220,10 @@ export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string
   if ("error" in parsedLocations) errors.locations = "required";
   const locationCount = "count" in parsedLocations ? parsedLocations.count : 1;
 
-  const cvrField = boundedOptional(get("cvr"), MAX_OPTIONAL_LEN);
   const addressField = boundedOptional(get("address"), MAX_OPTIONAL_LEN);
   const postcodeField = boundedOptional(get("postcode"), MAX_OPTIONAL_LEN);
   const cityField = boundedOptional(get("city"), MAX_OPTIONAL_LEN);
   const phoneField = boundedOptional(get("phone"), MAX_OPTIONAL_LEN);
-  if ("error" in cvrField) errors.cvr = "long";
   if ("error" in addressField) errors.address = "long";
   if ("error" in postcodeField) errors.postcode = "long";
   if ("error" in cityField) errors.city = "long";
@@ -212,7 +243,7 @@ export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string
         name: company,
         email,
         contactName: name,
-        cvr: "value" in cvrField ? cvrField.value : null,
+        cvr,
         address: "value" in addressField ? addressField.value : null,
         postcode: "value" in postcodeField ? postcodeField.value : null,
         city: "value" in cityField ? cityField.value : null,

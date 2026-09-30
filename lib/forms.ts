@@ -16,22 +16,14 @@ export type SalesLead = {
   message: string;
 };
 
-export type SignupSubmission = {
-  name: string;
-  company: string;
-  cvr: string;
-  email: string;
-  phone: string;
-  address: string;
-  zip: string;
-  city: string;
-  planId: string;
-  billing: string;
-  locations: number;
-  venueType: string;
-  m2: number;
-  paymentMethod: "card" | "invoice";
-};
+/* `SignupSubmission` used to sit here: a hand-kept mirror of the signup
+   form's shape. Nothing ever imported it — buildSignup (lib/signup.ts) reads
+   the FormData and produces its own `SignupInput`, which is the real
+   contract — and being unused it drifted: it still listed `venueType` and
+   `m2` long after signup stopped asking for them, and `paymentMethod` after
+   signup stopped offering a choice. A type nobody checks against is a
+   comment that looks like a guarantee, so it is deleted rather than
+   corrected. */
 
 /* Excludes `*` as well as whitespace and `@`, on top of the already-narrow
    shape. Defence in depth, not the primary fix: fix round 4 found that

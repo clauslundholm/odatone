@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { buildSignup, decideSignupDedupe, inviteCreatedNewUser } from "../lib/signup.ts";
+import { buildSignup, decideSignupDedupe, inviteCreatedNewUser, parseCvr } from "../lib/signup.ts";
 import { EMAIL_RE } from "../lib/forms.ts";
 
 /* The plan ids buildSignup accepts now come from the caller, because they
@@ -25,6 +25,7 @@ const form = (fields: Record<string, string>) => {
 
 const VALID = {
   name: "Jens Hansen", company: "Café Nord", email: "jens@nord.test",
+  cvr: "12345678",
   plan: "small", billing: "monthly", locations: "1",
 };
 
@@ -156,9 +157,14 @@ test("rejects an email past the length cap", () => {
 test("rejects an overlong optional field rather than truncating it", () => {
   // Fix round 2: this used to truncate silently at 300 chars, which is the
   // identical "wrong record, not a safe one" mistake already rejected for
-  // company/name/email — a cut-off address or CVR number is not a safe
-  // fallback for a real one.
-  for (const field of ["cvr", "address", "postcode", "city", "phone"] as const) {
+  // company/name/email — a cut-off address is not a safe fallback for a
+  // real one.
+  //
+  // `cvr` was on this list until it became required. It cannot be overlong
+  // any more: parseCvr accepts eight digits and nothing else, so a 301-char
+  // value is rejected as malformed rather than as too long, and its own
+  // tests below cover it.
+  for (const field of ["address", "postcode", "city", "phone"] as const) {
     const r = build(form({ ...VALID, [field]: "X".repeat(301) }));
     assert.equal(r.ok, false, `expected an overlong "${field}" to be rejected`);
     if (!r.ok) assert.equal(r.errors[field], "long");
@@ -173,26 +179,26 @@ test("accepts an optional field exactly at the length cap", () => {
 
 test("persists the optional business fields when given, null when blank", () => {
   const withFields = build(
-    form({ ...VALID, cvr: "12345678", address: "Hovedgaden 1", postcode: "8000", city: "Aarhus", phone: "12345678" }),
+    form({ ...VALID, address: "Hovedgaden 1", postcode: "8000", city: "Aarhus", phone: "12345678" }),
   );
   assert.equal(withFields.ok, true);
   if (withFields.ok) {
     assert.deepEqual(
       {
-        cvr: withFields.value.customer.cvr,
         address: withFields.value.customer.address,
         postcode: withFields.value.customer.postcode,
         city: withFields.value.customer.city,
         phone: withFields.value.customer.phone,
       },
-      { cvr: "12345678", address: "Hovedgaden 1", postcode: "8000", city: "Aarhus", phone: "12345678" },
+      { address: "Hovedgaden 1", postcode: "8000", city: "Aarhus", phone: "12345678" },
     );
   }
 
+  /* `cvr` is deliberately not here any more: VALID carries one because the
+     field is required, so "blank" is not a state a valid signup can be in. */
   const withoutFields = build(form(VALID));
   assert.equal(withoutFields.ok, true);
   if (withoutFields.ok) {
-    assert.equal(withoutFields.value.customer.cvr, null);
     assert.equal(withoutFields.value.customer.address, null);
     assert.equal(withoutFields.value.customer.postcode, null);
     assert.equal(withoutFields.value.customer.city, null);
@@ -387,4 +393,41 @@ test("rejects a plan id outside the set it is given, including a deactivated one
      accepts nothing, rather than falling open. */
   const noPlans = buildSignup(form(VALID), new Set());
   assert.equal(noPlans.ok, false);
+});
+
+/* CVR stopped being optional. It is what identifies a Danish business, it is
+   printed on every invoice (lib/invoice-issuer.ts), and a null there is a
+   document naming no company registration at all. */
+test("parseCvr accepts eight digits however they were typed, and normalises them", () => {
+  for (const raw of ["12345678", " 12345678 ", "12 34 56 78", "12.34.56.78", "12-34-56-78", "DK12345678", "dk 12 34 56 78"]) {
+    assert.equal(parseCvr(raw), "12345678", `should accept ${JSON.stringify(raw)}`);
+  }
+});
+
+test("parseCvr rejects anything that is not eight digits", () => {
+  for (const raw of ["", "   ", "1234567", "123456789", "1234567a", "abcdefgh", "DK", "1234 5678 9", "٠١٢٣٤٥٦٧"]) {
+    assert.equal(parseCvr(raw), null, `should reject ${JSON.stringify(raw)}`);
+  }
+});
+
+test("buildSignup requires a CVR, and tells a blank one apart from a wrong one", () => {
+  const blank = build(form({ ...VALID, cvr: "" }));
+  assert.equal(blank.ok, false);
+  if (!blank.ok) assert.equal(blank.errors.cvr, "required");
+
+  const short = build(form({ ...VALID, cvr: "1234567" }));
+  assert.equal(short.ok, false);
+  if (!short.ok) assert.equal(short.errors.cvr, "cvr");
+
+  const letters = build(form({ ...VALID, cvr: "abcdefgh" }));
+  assert.equal(letters.ok, false);
+  if (!letters.ok) assert.equal(letters.errors.cvr, "cvr");
+});
+
+test("buildSignup stores the CVR as bare digits, whatever separators were typed", () => {
+  const r = build(form({ ...VALID, cvr: "DK 12 34 56 78" }));
+  assert.equal(r.ok, true);
+  /* Normalised, not echoed: two customers who typed the same number
+     differently must be the same string in the database. */
+  if (r.ok) assert.equal(r.value.customer.cvr, "12345678");
 });
