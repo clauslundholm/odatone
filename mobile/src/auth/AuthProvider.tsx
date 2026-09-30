@@ -43,6 +43,11 @@ import { AUTH_STORAGE_KEY, configured, supabase } from "./supabase";
 
 const CACHE_KEY = "odatone.entitlement.v1";
 
+/** The longest a sign-in waits for the account read before it resolves
+    anyway. The read keeps going and applies its answer when it lands;
+    `checking` stays true until then. */
+const SETTLE_WAIT_MS = 8000;
+
 type AuthValue = {
   /** False until the stored session has been read, so a screen can tell
       "signed out" from "not checked yet". */
@@ -112,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSettledFor(null);
     AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
   }, []);
-  const inflight = useRef<{ id: string; promise: Promise<void> } | null>(null);
+  const inflight = useRef<{ id: string; seq: number; promise: Promise<void> } | null>(null);
 
   /* ---- stored entitlement: read once, independently of the session ---- */
   useEffect(() => {
@@ -158,8 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [sessionGone]);
 
   const load = useCallback((id: string): Promise<void> => {
+    const request = ++requestSeq.current;
     const promise = (async () => {
-      const request = ++requestSeq.current;
       const result = await fetchAccount(id);
       /* An answer counts only if nothing newer was asked since, and it is
          for the user who is still there. */
@@ -180,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCache(next);
       AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
     })();
-    const entry = { id, promise };
+    const entry = { id, seq: request, promise };
     inflight.current = entry;
     promise.finally(() => {
       if (inflight.current === entry) inflight.current = null;
@@ -189,9 +194,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /* A read for this user already under way is joined, not restarted, so
-     signIn can wait for the same answer the session effect asked for. */
+     signIn can wait for the same answer the session effect asked for.
+     Only a read that is still the latest is joined: one that was
+     superseded (the user signed out meanwhile) will be discarded when it
+     lands, so joining it would leave no answer coming. */
   const loadFor = useCallback(
-    (id: string) => (inflight.current?.id === id ? inflight.current.promise : load(id)),
+    (id: string) => {
+      const running = inflight.current;
+      return running && running.id === id && running.seq === requestSeq.current ? running.promise : load(id);
+    },
     [load],
   );
 
@@ -251,7 +262,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (fresh: Session) => {
       currentUser.current = fresh.user.id;
       sessionRef.current = fresh;
-      await loadFor(fresh.user.id).catch(() => {});
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const patience = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, SETTLE_WAIT_MS);
+      });
+      await Promise.race([loadFor(fresh.user.id).catch(() => {}), patience]);
+      clearTimeout(timer);
     },
     [loadFor],
   );
@@ -304,9 +320,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.updateUser({ password });
         const failed = error ? passwordError(error) : null;
         if (failed) return fail(failed);
+        /* The password is saved: from here nothing may turn this into a
+           failure, or a retry would re-submit a spent code. */
+        try {
+          const { data: current } = await supabase.auth.getSession();
+          if (current.session) await settleAccount(current.session);
+        } catch {}
         verifiedFor.current = null;
-        const { data: current } = await supabase.auth.getSession();
-        if (current.session) await settleAccount(current.session);
         return OK;
       } catch {
         return fail("service");
