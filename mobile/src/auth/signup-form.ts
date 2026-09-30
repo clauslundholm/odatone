@@ -133,8 +133,9 @@ const KNOWN_FIELDS = new Set(STEP_FIELDS.flat());
 
 /** The server can name a field this screen does not have — `venueType`
     and `m2` from a website that has not yet deployed its simpler signup,
-    `ean` or `po` from one older still, or whatever a later version adds. An error nobody can see is a form that silently
-    does nothing, so those collapse into one generic message. */
+    `ean` or `po` from one older still, or whatever a later version
+    adds. An error nobody can see is a form that silently does nothing,
+    so those collapse into one generic message. */
 export function visibleErrors(errors: FieldErrors): FieldErrors {
   const shown: FieldErrors = {};
   let unknown = false;
