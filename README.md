@@ -272,6 +272,12 @@ users yet" for exactly that case, which is how staff notice one needs a
 manual re-invite (there is no button for that yet). `submitSalesLead` is
 still the original prototype: validates and logs, nothing persisted.
 
+The mobile app places the same order through `POST /api/app/signup`
+(`app/api/app/signup/route.ts`), which turns the app's JSON into the
+`FormData` `submitSignup` takes and calls it unchanged. The app cannot
+follow the invite link, so the invite and recovery emails also print a
+6-digit code; see `docs/supabase-email-templates.md`.
+
 ## Environment variables
 
 See `.env.example`. `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`

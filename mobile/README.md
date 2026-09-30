@@ -37,9 +37,56 @@ languages at once**, so "calm" finds the same tracks as "rolig" whichever
 language the app is set to. Mood, genre and vocal filters stack on top.
 Recent searches persist in `AsyncStorage`.
 
-**Account.** Plan, language, appearance, and the
-placeholder warning. Deliberately thin: no signup or payment flow — buying
-belongs on the website.
+**Account.** Log in, create an account, reset a password, log out. Playback
+is for customers: a signed-in account whose subscription is `pending`,
+`trialing`, `active` or `past_due` (or a staff account) can play; anyone
+can browse. The rule is `src/auth/entitlement.ts`, and
+`src/auth/AuthProvider.tsx` holds the session.
+
+Signing up places the same order as the website's form, through
+`POST /api/app/signup` on the website. Login, the emailed 6-digit codes
+and reading the customer's own subscription go straight to Supabase with
+the public anon key; row-level security decides what is visible.
+
+A phone that cannot reach the server keeps playing on its last known
+answer for 7 days.
+
+The account is re-read at login, whenever the app returns to the
+foreground, on pull-to-refresh on the Account tab, and every 30 minutes
+while the app stays open. Logging out signs out this device only, not
+the same login on other phones. Play from the lock screen or a headphone
+button is held to the same rule as the play button.
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in the three values. The Supabase
+URL and anon key are the website's public ones (`NEXT_PUBLIC_SUPABASE_URL`
+and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the repository root's `.env.local`);
+`EXPO_PUBLIC_API_URL` is the website's address with no trailing slash.
+Restart `npm start` after changing `.env`.
+
+The signup email must print a 6-digit code. See
+`../docs/supabase-email-templates.md` for the dashboard step.
+
+## Tests
+
+`npm test` runs the pure modules under `node --test`: who may play, which
+stored identity counts when the auth server cannot be reached, how auth
+errors are worded, the signup form's rules, and how the signup endpoint's
+answer is read.
+
+## Known limits
+
+- None of the screens, the play gate sheet or the lock-screen behaviour
+  has been checked on a device or simulator yet.
+- If the very first account read after a fresh login fails, the play gate
+  says the subscription isn't active, and "Check again" puts it right.
+- The session handling in `AuthProvider` has no automated tests beyond
+  its pure functions.
+- EAN and purchase-order numbers are collected but not stored; the
+  website's form has the same gap.
+- There is no in-app purchase. Ordering a subscription in the app without
+  one may not pass App Store review.
 
 ## Structure
 
