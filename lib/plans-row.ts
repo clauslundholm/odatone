@@ -1,5 +1,5 @@
 import { toKroner } from "./money.ts";
-import type { Plan, PlanId } from "./pricing.ts";
+import type { Plan } from "./pricing.ts";
 
 /** One row of the `plans` table, as selected by lib/plans-server.ts. */
 export type PlanRow = {
@@ -19,7 +19,7 @@ export type PlanRow = {
     break the unbounded plan — can be unit tested directly. */
 export function rowToPlan(row: PlanRow): Plan {
   return {
-    id: row.id as PlanId,
+    id: row.id,
     name: row.name,
     monthly: toKroner(row.monthly_ore),
     maxM2: row.max_m2,

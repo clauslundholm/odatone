@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseFeatures, parseMaxM2, parsePriceKr } from "../app/admin/products/validate.ts";
+import { parseFeatures, parseMaxM2, parsePriceKr, parseProductId } from "../app/admin/products/validate.ts";
 
 /* Task 12's fix round: a blank or non-numeric price field, coerced with a
    bare `Number(...)`, silently became 0 or NaN-that-slips-past-a-loose-
@@ -121,4 +121,35 @@ test("parseFeatures absorbs a textarea's trailing newline without an extra blank
 test("parseFeatures on two entirely blank textareas produces no entries", () => {
   assert.deepEqual(parseFeatures("", ""), []);
   assert.deepEqual(parseFeatures("\n\n", "\n\n"), []);
+});
+
+test("parseProductId accepts a slug", () => {
+  assert.equal(parseProductId("arena"), "arena");
+  assert.equal(parseProductId("arena-stage"), "arena-stage");
+  assert.equal(parseProductId("stage2"), "stage2");
+  assert.equal(parseProductId("a"), "a");
+  // Surrounding whitespace is a typing artefact, not part of the id.
+  assert.equal(parseProductId("  arena  "), "arena");
+  assert.equal(parseProductId("x".repeat(32)), "x".repeat(32));
+});
+
+test("parseProductId rejects anything that would not survive a URL, a log line or a foreign key", () => {
+  for (const bad of [
+    "",
+    "   ",
+    "Arena", // uppercase: the id appears in ?p= and in audit rows verbatim
+    "arena stage",
+    "arena_stage",
+    "arena-", // trailing hyphen
+    "-arena", // leading hyphen
+    "arena--stage", // double hyphen
+    "2arena", // leading digit
+    "arena.stage",
+    "arena/stage",
+    "árena",
+    "arena!",
+    "x".repeat(33),
+  ]) {
+    assert.equal(parseProductId(bad), null, `should reject ${JSON.stringify(bad)}`);
+  }
 });

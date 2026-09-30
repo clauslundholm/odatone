@@ -2,26 +2,28 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { PLANS, plan, planForM2, quote, recommendPlan, type Billing } from "../lib/pricing.ts";
+import { compiled } from "./helpers.ts";
 
-/* quote() gained an additive overload so a caller already holding a resolved
-   Plan (e.g. a database-backed one from lib/plans-server.ts) doesn't have to
-   round-trip through a PlanId lookup against the compiled PLANS. This pins
-   that the two call shapes are exactly interchangeable for every plan and
-   billing term - the whole point of the overload was to change nothing about
-   the arithmetic. */
-test("quote(Plan, ...) and quote(PlanId, ...) agree for every plan and billing term", () => {
-  const billings: Billing[] = ["monthly", "annual"];
-  for (const p of PLANS) {
-    for (const billing of billings) {
-      for (const locations of [1, 3, 7, 12]) {
-        assert.deepEqual(
-          quote(p, billing, locations),
-          quote(p.id, billing, locations),
-          `${p.id}/${billing}/${locations}`,
-        );
-      }
-    }
-  }
+/* quote() used to take a bare PlanId as well as a Plan, and the test that
+   stood here pinned the two call shapes as interchangeable. The overload is
+   gone (see quote()'s own comment), so the property it asserted no longer
+   exists to assert. What replaces it is the reason the overload went: with
+   plan ids coming from the `plans` table, an id the compiled array has never
+   heard of is ordinary, and `plan()` must say so rather than answer with the
+   cheapest plan it happens to hold. */
+test("plan() returns the compiled plan for a known id", () => {
+  const small = compiled("small");
+  assert.equal(small.id, "small");
+  assert.equal(small.monthly, 149);
+});
+
+test("plan() returns undefined for an id it does not have, not the first plan", () => {
+  /* The exact failure this guards: "arena" is a plan created in
+     /admin/products. Returning PLANS[0] here priced it at Small Venue's
+     149 kr. everywhere a compiled fallback was reached. */
+  assert.equal(plan("arena"), undefined);
+  assert.equal(plan(""), undefined);
+  assert.notEqual(plan("arena"), PLANS[0]);
 });
 
 /* Fix round 6: this test used to assert only `listPerLocation`, which is a
@@ -42,7 +44,7 @@ test("quote(Plan, ...) and quote(PlanId, ...) agree for every plan and billing t
    discount against the edited price, not just the trivial 1-location,
    no-discount case the original test happened to use. */
 test("quote(Plan, ...) prices from the object it is given, not a re-lookup (monthly, single location)", () => {
-  const small = plan("small");
+  const small = compiled("small");
   const edited = { ...small, monthly: small.monthly + 50 };
   assert.notEqual(edited.monthly, small.monthly);
 
@@ -56,7 +58,7 @@ test("quote(Plan, ...) prices from the object it is given, not a re-lookup (mont
 // Fix round 6: an annual case, so the edited price is proven to flow through
 // ANNUAL_DISCOUNT_PCT too, not only the no-discount monthly/1 case above.
 test("quote(Plan, ...) prices from the object it is given, not a re-lookup (annual, single location)", () => {
-  const small = plan("small");
+  const small = compiled("small");
   const edited = { ...small, monthly: small.monthly + 50 };
 
   const annualOne = quote(edited, "annual", 1);
@@ -68,7 +70,7 @@ test("quote(Plan, ...) prices from the object it is given, not a re-lookup (annu
 // Fix round 6: a multi-location case, so the edited price is proven to flow
 // through the volume discount tier too, not only a single location.
 test("quote(Plan, ...) prices from the object it is given, not a re-lookup (monthly, multiple locations)", () => {
-  const small = plan("small");
+  const small = compiled("small");
   const edited = { ...small, monthly: small.monthly + 50 };
 
   const monthlyFive = quote(edited, "monthly", 5);
@@ -86,8 +88,8 @@ test("quote(Plan, ...) prices from the object it is given, not a re-lookup (mont
    database-edited max_m2 (or a test double standing in for one) actually
    moves the answer. */
 test("planForM2 reads the plans array it is given, not the compiled PLANS", () => {
-  const widenedSmall = { ...plan("small"), maxM2: 500 };
-  const custom = [widenedSmall, plan("medium"), plan("main")];
+  const widenedSmall = { ...compiled("small"), maxM2: 500 };
+  const custom = [widenedSmall, compiled("medium"), compiled("main")];
 
   // 200 m² exceeds the compiled small plan's 100 m² bound, so against the
   // real PLANS this would resolve to "medium" - proving the widened bound
@@ -97,8 +99,8 @@ test("planForM2 reads the plans array it is given, not the compiled PLANS", () =
 });
 
 test("recommendPlan reads the plans array it is given, not the compiled PLANS", () => {
-  const widenedSmall = { ...plan("small"), maxM2: 500 };
-  const custom = [widenedSmall, plan("medium"), plan("main")];
+  const widenedSmall = { ...compiled("small"), maxM2: 500 };
+  const custom = [widenedSmall, compiled("medium"), compiled("main")];
 
   // "bar" is a LOUD venue type, so recommendPlan bumps one step past
   // planForM2's own answer - within `custom`, planForM2(200) is "small",

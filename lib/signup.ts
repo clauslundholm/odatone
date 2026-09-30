@@ -1,6 +1,5 @@
 import { EMAIL_RE, type FieldErrors } from "./forms.ts";
-import { PLANS, type Billing, type PlanId } from "./pricing.ts";
-import { VENUE_TYPES } from "./rates.ts";
+import type { Billing, PlanId } from "./pricing.ts";
 
 /* Pure form-parsing/validation for the public signup flow, kept apart from
    app/actions.ts (which imports "use server" and, once it persists, the
@@ -19,12 +18,16 @@ import { VENUE_TYPES } from "./rates.ts";
 
 /** One `locations` row's worth of data, keyed exactly as the table's
     columns are spelled so app/actions.ts can spread it straight into an
-    insert without a second remapping step. */
+    insert without a second remapping step.
+
+    Only a name. The signup flow used to ask every visitor for a venue
+    type, a floor area and an opening-hours band; it no longer does, and
+    inventing plausible values for columns nobody filled in would be worse
+    than leaving them empty — a made-up 150 m² goes on to drive the "Fit"
+    meter in /admin as though someone had said it. `venue_type` and `m2`
+    are nullable as of 0014, and `hours_band` keeps its own default. */
 export type SignupLocation = {
   name: string;
-  venue_type: string;
-  m2: number;
-  hours_band: string;
 };
 
 export type SignupInput = {
@@ -46,6 +49,10 @@ export type SignupInput = {
         showed "CVR —" and "Address DK" in /admin. `null`, not `""`, for
         "not given" — these are nullable text columns
         (supabase/migrations/0001_core.sql). */
+    /** Eight digits, normalised by parseCvr. Never null for a signup built
+        here — the field is required — but the type keeps null because
+        `customers.cvr` is a nullable column holding rows created before it
+        was, and lib/gdpr.ts nulls it when anonymising. */
     cvr: string | null;
     address: string | null;
     postcode: string | null;
@@ -69,8 +76,6 @@ export type BuildSignupResult =
   | { ok: true; value: SignupInput }
   | { ok: false; errors: FieldErrors };
 
-const PLAN_IDS = new Set<string>(PLANS.map((p) => p.id));
-const VENUE_TYPE_IDS = new Set<string>(VENUE_TYPES.map((v) => v.id));
 const BILLING_TERMS = new Set<string>(["monthly", "annual"]);
 
 /* `locations.m2` and the location count both land in Postgres `integer`
@@ -81,7 +86,6 @@ const BILLING_TERMS = new Set<string>(["monthly", "annual"]);
    the database. Same reject-before-coerce shape is used here: validate the
    raw string first, only then turn it into a number. */
 const DIGITS_RE = /^\d+$/;
-const MAX_M2 = 2_147_483_647;
 /** Not a database limit — the UI's own stepper stops at 99 (SignupFlow's
     `+`/`-` buttons). A raw POST could still claim more, so this is a sane
     ceiling on how many `locations` rows one signup may create in a single
@@ -97,8 +101,9 @@ const MAX_LOCATIONS = 500;
    rejected outright when too long (silently truncating a legal company name
    would create a wrong record, not a safe one).
 
-   Fix round 2 corrected the optional business fields (cvr/address/postcode/
-   city/phone) to match: they used to be silently truncated at this same
+   Fix round 2 corrected the optional business fields (address/postcode/
+   city/phone — cvr was one of them until it became required; see parseCvr)
+   to match: they used to be silently truncated at this same
    bound rather than rejected, which is the identical "wrong record, not a
    safe one" mistake — a CVR number or an invoicing address cut off mid-way
    is not a safe fallback for a real one, it's a corrupted one nobody would
@@ -108,19 +113,12 @@ const MAX_TEXT_LEN = 200;
 const MAX_EMAIL_LEN = 254; // RFC 5321 §4.5.3.1.3
 const MAX_OPTIONAL_LEN = 300;
 
-function parsePositiveInt(raw: string, max: number): number | null {
-  const trimmed = raw.trim();
-  if (!DIGITS_RE.test(trimmed)) return null;
-  const n = Number(trimmed);
-  return n > 0 && n <= max ? n : null;
-}
-
 /** "clamps locations to at least 1" per the brief: blank is the calculator's
     own default, and 0 clamps up rather than erroring — but this fix round
     found the previous version reaching that leniency through a bare
     `Number(raw)`, which parses `"0x1F4"` as 500 and `"3.7"` as 4 (rounded).
     A digit string is now required before any numeric coercion at all, the
-    same doctrine `parsePositiveInt` already applies to `m2` — genuinely
+    the same doctrine the old `m2` parser applied — genuinely
     malformed input (hex, decimals, negatives, letters) is rejected outright
     rather than silently reinterpreted as some other, arbitrary count. */
 function parseLocationCount(raw: string): { count: number } | { error: true } {
@@ -130,6 +128,26 @@ function parseLocationCount(raw: string): { count: number } | { error: true } {
   const n = Number(trimmed);
   if (n > MAX_LOCATIONS) return { error: true };
   return { count: Math.max(1, n) };
+}
+
+/** A Danish CVR number is exactly eight digits. People write it with spaces
+    ("12 34 56 78"), with a "DK" prefix off a letterhead, or with dots, so
+    those are stripped before counting rather than rejected — but what gets
+    stored is always the bare eight digits, so two customers who typed the
+    same number the same way are the same string in the database.
+ *
+ *  Returns null for anything that isn't eight digits, INCLUDING blank. CVR
+ *  used to be optional here (a `boundedOptional` alongside address and
+ *  phone, stored as null when absent), which left /admin showing "CVR —" on
+ *  real customers and, more seriously, left invoices without the one field
+ *  that identifies a Danish business on them — lib/invoice-issuer.ts prints
+ *  the customer's CVR, and a null there is a document that names no company
+ *  registration at all. The signup form now requires it, and this is what
+ *  makes that a rule rather than a decoration: a raw POST bypassing the form
+ *  is refused here too. */
+export function parseCvr(raw: string): string | null {
+  const cleaned = raw.trim().replace(/^DK/i, "").replace(/[\s.\-]/g, "");
+  return /^\d{8}$/.test(cleaned) ? cleaned : null;
 }
 
 /** Blank is a legitimate "not given" (`null`); anything else past `max` is
@@ -145,8 +163,21 @@ function boundedOptional(raw: string, max: number): { value: string | null } | {
 /** Builds a validated signup from raw form input. Pure and synchronous —
     no plan price is ever read here, because none is ever trusted from the
     form in the first place: only a `PlanId` is validated, never a monthly
-    figure. */
-export function buildSignup(formData: FormData): BuildSignupResult {
+    figure.
+ *
+ *  `validPlanIds` is the set the chosen plan must belong to, and it is a
+ *  parameter rather than a constant because the answer now lives in the
+ *  database. This used to check the compiled `PLANS` array, which meant a
+ *  plan created in /admin/products was offered to the visitor by the very
+ *  same page that would then reject their choice as `plan: "required"` — a
+ *  form error with no field to point at and nothing the visitor could do
+ *  about it. The caller passes what it actually rendered the plan cards
+ *  from (lib/plans-server.ts's `activePlans()`, whose own compiled fallback
+ *  keeps signup working when the database is unreachable), so the set that
+ *  was offered and the set that is accepted cannot drift apart. Passing it
+ *  in also keeps this function pure and unit-testable, which a read inside
+ *  it would not. */
+export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string>): BuildSignupResult {
   const get = (k: string) => String(formData.get(k) ?? "").trim();
   const errors: FieldErrors = {};
 
@@ -163,7 +194,6 @@ export function buildSignup(formData: FormData): BuildSignupResult {
      and quietly failing the other's. */
   const planRaw = get("planId") || get("plan");
   const billingRaw = get("billing");
-  const venueTypeRaw = get("venueType");
 
   if (!name) errors.name = "required";
   else if (name.length > MAX_TEXT_LEN) errors.name = "long";
@@ -175,23 +205,25 @@ export function buildSignup(formData: FormData): BuildSignupResult {
   else if (email.length > MAX_EMAIL_LEN) errors.email = "long";
   else if (!EMAIL_RE.test(email)) errors.email = "email";
 
-  if (!PLAN_IDS.has(planRaw)) errors.plan = "required";
-  if (!VENUE_TYPE_IDS.has(venueTypeRaw)) errors.venueType = "required";
-  if (billingRaw && !BILLING_TERMS.has(billingRaw)) errors.billing = "required";
+  /* Two codes, not one: a blank field and a mistyped one are different
+     mistakes, and "8 cifre" is a strange thing to say about a field nobody
+     has touched yet. */
+  const cvrRaw = get("cvr");
+  const cvr = parseCvr(cvrRaw);
+  if (!cvrRaw) errors.cvr = "required";
+  else if (cvr === null) errors.cvr = "cvr";
 
-  const m2 = parsePositiveInt(get("m2"), MAX_M2);
-  if (m2 === null) errors.m2 = "required";
+  if (!validPlanIds.has(planRaw)) errors.plan = "required";
+  if (billingRaw && !BILLING_TERMS.has(billingRaw)) errors.billing = "required";
 
   const parsedLocations = parseLocationCount(get("locations"));
   if ("error" in parsedLocations) errors.locations = "required";
   const locationCount = "count" in parsedLocations ? parsedLocations.count : 1;
 
-  const cvrField = boundedOptional(get("cvr"), MAX_OPTIONAL_LEN);
   const addressField = boundedOptional(get("address"), MAX_OPTIONAL_LEN);
   const postcodeField = boundedOptional(get("postcode"), MAX_OPTIONAL_LEN);
   const cityField = boundedOptional(get("city"), MAX_OPTIONAL_LEN);
   const phoneField = boundedOptional(get("phone"), MAX_OPTIONAL_LEN);
-  if ("error" in cvrField) errors.cvr = "long";
   if ("error" in addressField) errors.address = "long";
   if ("error" in postcodeField) errors.postcode = "long";
   if ("error" in cityField) errors.city = "long";
@@ -202,9 +234,6 @@ export function buildSignup(formData: FormData): BuildSignupResult {
   const billing: Billing = billingRaw === "annual" ? "annual" : "monthly";
   const locations: SignupLocation[] = Array.from({ length: locationCount }, (_, i) => ({
     name: locationCount > 1 ? `${company} #${i + 1}` : company,
-    venue_type: venueTypeRaw,
-    m2: m2 as number,
-    hours_band: "normal",
   }));
 
   return {
@@ -214,13 +243,13 @@ export function buildSignup(formData: FormData): BuildSignupResult {
         name: company,
         email,
         contactName: name,
-        cvr: "value" in cvrField ? cvrField.value : null,
+        cvr,
         address: "value" in addressField ? addressField.value : null,
         postcode: "value" in postcodeField ? postcodeField.value : null,
         city: "value" in cityField ? cityField.value : null,
         phone: "value" in phoneField ? phoneField.value : null,
       },
-      planId: planRaw as PlanId,
+      planId: planRaw,
       billing,
       locations,
     },

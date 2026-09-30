@@ -58,8 +58,8 @@ export const meta: Record<PageKey | "home", Meta> = {
   signup: {
     title: { da: "Kom i gang", en: "Get started" },
     description: {
-      da: "Fire trin, fem minutter, musik i højttalerne. 14 dage gratis, ingen betalingskort krævet.",
-      en: "Four steps, five minutes, music in the speakers. 14 days free, no card required.",
+      da: "Tre trin, fem minutter, musik i højttalerne. 14 dage gratis, ingen betalingskort krævet.",
+      en: "Three steps, five minutes, music in the speakers. 14 days free, no card required.",
     },
   },
   privacy: {

@@ -3,7 +3,7 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { resolveSupabaseEnv } from "@/lib/supabase/env";
-import { PLANS, plan as staticPlan, type Plan, type PlanId } from "@/lib/pricing";
+import { PLANS, type Plan } from "@/lib/pricing";
 import { rowToPlan, type PlanRow } from "@/lib/plans-row";
 
 /** Everything that invalidates the stored plans carries this tag, so one save
@@ -103,12 +103,15 @@ export const activePlans = cache(async (): Promise<Plan[]> => {
   }
 });
 
-/** Single plan lookup, falling back to the compiled-in plan of the same id
-    (lib/pricing.ts's own default) if the database doesn't have it. */
-export async function planById(id: PlanId): Promise<Plan> {
-  const plans = await activePlans();
-  return plans.find((p) => p.id === id) ?? staticPlan(id);
-}
+/* `planById(id)` used to live here: one plan by id, falling back to the
+   compiled plan of the same id. Nothing ever called it — it was written for
+   a caller that never arrived — and it is the exact shape lib/admin/plans.ts
+   warns about, so the moment /admin/products could create a plan it became a
+   dormant mispricing waiting for its first caller: an id with no compiled
+   counterpart came back as Small Venue at 149 kr. Deleted rather than
+   fixed. A caller wanting one plan by id calls activePlans() and looks it up,
+   which makes the "not found" case visible at the call site instead of
+   hiding it behind a fallback. */
 
 /* { expire: 0 } forces an immediate revalidation instead of Next's default
    stale-while-revalidate: a price change should never be served stale, so

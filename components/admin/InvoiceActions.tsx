@@ -24,6 +24,12 @@ const FORM_ERRORS: Record<string, string> = {
   "no-subscription": "This customer has no billable subscription.",
   "no-locations": "This customer has no locations to invoice.",
   "duplicate-period": "This customer already has an invoice for this period.",
+  /* Names the fix, because this one has a specific and recoverable cause:
+     the subscription points at a plan id that is not in Products, so there
+     is no price to invoice. Reactivating or recreating that plan makes the
+     invoice issuable; guessing a price would not. */
+  "unknown-plan":
+    "This customer's plan no longer exists in Products, so there is no price to invoice. Restore the plan first.",
   /* The preview below prices from the `locationCount` this page rendered
      with; the action re-reads the count at submit and refuses when the two
      disagree. Reload rather than reprice: an issued invoice cannot be

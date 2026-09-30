@@ -143,7 +143,8 @@ export default async function CustomersPage({
       locationCount: locationCounts.get(customer.id) ?? 0,
       subscription: current
         ? {
-            plan: resolvePlan(current.plan_id, planById, "admin customers list"),
+            planId: current.plan_id,
+            plan: resolvePlan(current.plan_id, planById, "admin customers list") ?? null,
             billing: current.billing as Billing,
             status: current.status as SubscriptionStatus,
           }
@@ -235,7 +236,20 @@ export default async function CustomersPage({
                   </td>
                   <td className="px-5 py-3 font-mono text-ink-2">{row.cvr ?? "—"}</td>
                   <td className="u-tabular px-5 py-3 text-ink-2">{row.locationCount}</td>
-                  <td className="px-5 py-3 text-ink-2">{row.planName ?? "—"}</td>
+                  {/* An unpriced plan shows its bare id in monospace and says
+                      so, rather than reading like any other plan name while
+                      the MRR column beside it silently shows 0 kr. */}
+                  <td className="px-5 py-3 text-ink-2">
+                    {row.planName === null ? (
+                      "—"
+                    ) : row.planUnpriced ? (
+                      <span className="text-bad">
+                        <span className="font-mono">{row.planName}</span> · unknown plan
+                      </span>
+                    ) : (
+                      row.planName
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <Badge tone={statusTone(row.status)}>{row.status}</Badge>
                   </td>

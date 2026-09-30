@@ -19,7 +19,16 @@ export type RawCustomer = {
   /** The customer's current subscription, or null if it has none yet
       (e.g. a pending signup with no plan chosen). */
   subscription: {
-    plan: Plan;
+    /** The raw `subscriptions.plan_id`. Kept alongside the resolved plan so
+        an unresolvable one can still be named in the table — see `plan`. */
+    planId: string;
+    /** The resolved plan, or null when `planId` matches neither a `plans`
+        row nor a compiled fallback (lib/admin/plans.ts's `resolvePlan`).
+        Null is not the same as having no subscription: the customer has one
+        and it is presumably being charged for, we just cannot say what it
+        costs. Collapsing the two would erase the customer's plan from this
+        table entirely and leave nothing to investigate. */
+    plan: Plan | null;
     billing: Billing;
     status: SubscriptionStatus;
   } | null;
@@ -36,8 +45,14 @@ export type CustomerRow = {
   /** This customer's contribution to MRR, in øre. Zero for a customer with
       no subscription, or one that isn't currently earning (pending,
       cancelled) — the same EARNING test lib/admin/stats.ts's mrrOre
-      already applies, reused rather than re-implemented here. */
+      already applies, reused rather than re-implemented here. Also zero
+      when the plan could not be resolved, in which case `planUnpriced` says
+      so rather than leaving a real customer looking like a free one. */
   mrrOre: number;
+  /** True when this customer has a subscription whose plan could not be
+      resolved, so `planName` is a bare id and `mrrOre` is zero for want of
+      a price rather than for want of a subscription. */
+  planUnpriced: boolean;
 };
 
 /** Shapes raw, per-customer aggregates into what the list table renders.
@@ -46,16 +61,22 @@ export type CustomerRow = {
     aggregation; this only decides how to present the result. */
 export function customerRows(raw: RawCustomer[]): CustomerRow[] {
   return raw.map((customer) => {
-    const subs: SubscriptionForMrr[] = customer.subscription
-      ? [
-          {
-            plan: customer.subscription.plan,
-            billing: customer.subscription.billing,
-            locations: customer.locationCount,
-            status: customer.subscription.status,
-          },
-        ]
-      : [];
+    const sub = customer.subscription;
+    /* No plan, no price: mrrOre needs a Plan to call quote() with, and there
+       is deliberately nothing to substitute — see RawCustomer.subscription's
+       `plan` field. An empty list here yields zero, and `planUnpriced` below
+       is what distinguishes that zero from the free-of-charge kind. */
+    const subs: SubscriptionForMrr[] =
+      sub && sub.plan
+        ? [
+            {
+              plan: sub.plan,
+              billing: sub.billing,
+              locations: customer.locationCount,
+              status: sub.status,
+            },
+          ]
+        : [];
 
     return {
       id: customer.id,
@@ -64,8 +85,12 @@ export function customerRows(raw: RawCustomer[]): CustomerRow[] {
       status: customer.status,
       createdAt: customer.createdAt,
       locationCount: customer.locationCount,
-      planName: customer.subscription?.plan.name ?? null,
+      /* Falls back to the raw id, which is the only thing known about the
+         plan at that point and the one string that makes the row
+         actionable: it is what someone would search /admin/products for. */
+      planName: sub ? (sub.plan?.name ?? sub.planId) : null,
       mrrOre: mrrOre(subs),
+      planUnpriced: Boolean(sub && !sub.plan),
     };
   });
 }
@@ -106,6 +131,13 @@ export function latestSubscription<T extends { created_at: string; status: strin
     `maxM2 === null` is the unbounded (Main Stage) plan, which nothing can
     outgrow. This is the test the detail page's per-location Meter and
     "over" Badge are both driven by. */
-export function locationFit(m2: number, maxM2: number | null): "within" | "over" {
-  return maxM2 === null || m2 <= maxM2 ? "within" : "over";
+export function locationFit(m2: number | null, maxM2: number | null): "within" | "over" | "unknown" {
+  /* "unknown" is not a hedge, it is the third real state. Signup stopped
+     asking for a floor area, so a location written after 0014 has none, and
+     an unstated area is not the same as an area that fits — reporting
+     "within" for it would put a reassuring meter next to a figure nobody
+     ever gave. */
+  if (m2 === null) return "unknown";
+  if (maxM2 === null) return "within";
+  return m2 > maxM2 ? "over" : "within";
 }

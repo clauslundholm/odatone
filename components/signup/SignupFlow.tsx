@@ -2,25 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
-import { quote, recommendPlan, type Billing, type Plan, type PlanId } from "@/lib/pricing";
-import {
-  HOURS_BANDS,
-  VENUE_TYPES,
-  calculate,
-  venueType,
-  type HoursBand,
-  type VenueTypeId,
-} from "@/lib/rates";
+import { quote, type Billing, type Plan, type PlanId } from "@/lib/pricing";
 import { DEFAULT_PROFILE, loadProfile, saveProfile, type VenueProfile } from "@/lib/profile";
 import { submitSignup } from "@/app/actions";
 import { EMAIL_RE, digits, type FieldErrors } from "@/lib/forms";
+/* The server's own CVR parser, imported rather than reimplemented. lib/signup.ts
+   is pure — it pulls in nothing but types and lib/forms — so a client
+   component can use it, and sharing it is what keeps the message this form
+   shows and the rule buildSignup enforces from ever disagreeing. */
+import { parseCvr } from "@/lib/signup";
 import { signup as tDefaults } from "@/lib/content/signup";
 import { ui as uiDefaults } from "@/lib/content/common";
 import { pricing as pricingCopyDefaults } from "@/lib/content/pricing";
 import { href, type Locale } from "@/lib/i18n";
-import { kr, m2 as fmtM2, num } from "@/lib/format";
+import { kr, num } from "@/lib/format";
 import { Button, LinkButton, Arrow } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { CheckIcon } from "@/components/player/Icons";
@@ -47,23 +44,24 @@ const EMPTY_ACCOUNT: Account = {
   city: "",
 };
 
+/* Card only. There used to be a "Faktura / EAN" alternative here — a
+   payment-method toggle, an EAN field and a requisition-number field — and
+   it is gone from signup. Note that staff choosing how an ISSUED invoice is
+   payable is a different thing entirely and still has both: see
+   `payment_method` on `invoices` (0010_invoice_lines.sql) and the selector
+   in components/admin/InvoiceActions.tsx. This is only about what a visitor
+   is offered when they sign up. */
 type Payment = {
-  method: "card" | "invoice";
   card: string;
   expiry: string;
   cvc: string;
-  ean: string;
-  po: string;
   terms: boolean;
 };
 
 const EMPTY_PAYMENT: Payment = {
-  method: "card",
   card: "",
   expiry: "",
   cvc: "",
-  ean: "",
-  po: "",
   terms: false,
 };
 
@@ -85,14 +83,10 @@ export default function SignupFlow({
   plans: Plan[];
 }) {
   const t = tDefaults;
-  const ui = uiDefaults;
-  const pricingCopy = pricingCopyDefaults;
 
   const l = locale;
-  const router = useRouter();
   const search = useSearchParams();
 
-  const [step, setStep] = useState(0);
   const [profile, setProfile] = useState<VenueProfile>(DEFAULT_PROFILE);
   const [planId, setPlanId] = useState<PlanId | null>(null);
   const [billing, setBilling] = useState<Billing>("monthly");
@@ -103,45 +97,65 @@ export default function SignupFlow({
   const [done, setDone] = useState(false);
   const [doneMessage, setDoneMessage] = useState<string | undefined>(undefined);
 
-  /* Pick up the calculator's answers and any ?plan= / ?billing= link. */
+  /* Pick up the calculator's answers and any ?plan= / ?billing= link.
+
+     `?step=` is gone with the wizard. It addressed a step, and there are no
+     steps — all three sections are on the page at once, so a link that used
+     to open the flow partway through now just opens the flow. */
   useEffect(() => {
     setProfile(loadProfile());
     const p = search.get("plan");
-    if (p && plans.some((x) => x.id === p)) setPlanId(p as PlanId);
+    if (p && plans.some((x) => x.id === p)) setPlanId(p);
     const b = search.get("billing");
     if (b === "annual" || b === "monthly") setBilling(b);
-    const s = Number(search.get("step"));
-    if (Number.isFinite(s) && s >= 1 && s <= 4) setStep(s - 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const suggested = useMemo(
-    () => recommendPlan(profile.m2, profile.type, plans),
-    [profile.m2, profile.type, plans],
-  );
-  const activePlan: Plan = useMemo(
-    () => (planId && plans.find((p) => p.id === planId)) || suggested,
-    [planId, plans, suggested],
-  );
-  const activePlanId: PlanId = activePlan.id;
-
-  const q = useMemo(
-    () => quote(activePlan, billing, profile.locations),
-    [activePlan, billing, profile.locations],
+  /* No recommendation any more. The flow used to pick a plan for the
+     visitor from the floor area they had just typed in; it no longer asks
+     for one, and guessing from the location count would be worse than not
+     guessing — a one-room café and a 900 m² hotel are both "1 location".
+     `activePlan` is null until they choose, and the submit will not go
+     without a choice. */
+  const activePlan: Plan | null = useMemo(
+    () => (planId && plans.find((p) => p.id === planId)) || null,
+    [planId, plans],
   );
 
-  const result = useMemo(
-    () =>
-      calculate({
-        type: profile.type,
-        m2: profile.m2,
-        hours: profile.hours,
-        locations: profile.locations,
-        includeStreaming: profile.includeStreaming,
-        odatonePerLocationMonth: q.perLocation,
-      }),
-    [profile, q.perLocation],
-  );
+  /* The wizard cleared every error on each step change (`goto` did it), so
+     a message never outlived the screen that produced it. One page has no
+     step change, and without this an error sits under a field the visitor
+     has already corrected while the count beside the button keeps counting
+     it — the form telling them they are wrong about something they just
+     fixed.
+
+     Cleared per field as it is edited, rather than by re-running validateAll
+     on every keystroke: re-validating would also clear an error about a
+     field the visitor has not touched (typing a company name would dismiss
+     "this email is already registered"), and it would start marking fields
+     wrong while they are still being typed into. */
+  const clearError = (field: string) =>
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
+  const changeAccount = (next: Account, field?: string) => {
+    setAccount(next);
+    if (field) clearError(field);
+  };
+
+  const changePayment = (next: Payment, field?: string) => {
+    setPayment(next);
+    if (field) clearError(field);
+  };
+
+  const choosePlan = (id: PlanId) => {
+    setPlanId(id);
+    clearError("plan");
+  };
 
   const setProfilePatch = (patch: Partial<VenueProfile>) => {
     setProfile((prev) => {
@@ -151,57 +165,53 @@ export default function SignupFlow({
     });
   };
 
-  const goto = (n: number) => {
-    setStep(n);
-    setErrors({});
-    const params = new URLSearchParams(search.toString());
-    params.set("step", String(n + 1));
-    router.replace(`?${params.toString()}`, { scroll: false });
-    if (typeof window !== "undefined") {
-      document.getElementById("flow")?.scrollIntoView({ block: "start" });
-    }
-  };
-
-  const validateAccount = (): FieldErrors => {
+  /* One validator for the whole page, where the wizard had one per step.
+     That is the substantive change behind moving to a single form: a step
+     could only ever be wrong in the handful of ways its own fields allowed,
+     and pressing "Videre" showed all of them at once because they all fit on
+     screen. Here a submit can surface a dozen at once, several of them
+     scrolled out of view, so the order below matters — it is the order the
+     fields are rendered in, which is what lets `firstInvalid` point at the
+     one nearest the top of the page rather than an arbitrary one. */
+  const validateAll = (): FieldErrors => {
     const e: FieldErrors = {};
-    if (!account.name.trim()) e.name = t.errors.required[l];
+
+    // 01 Virksomhed
     if (!account.company.trim()) e.company = t.errors.required[l];
-    if (account.cvr && digits(account.cvr).length !== 8) e.cvr = t.errors.cvr[l];
-    if (!EMAIL_RE.test(account.email)) e.email = t.errors.email[l];
+    if (!account.cvr.trim()) e.cvr = t.errors.required[l];
+    /* The same parser the server uses (lib/signup.ts), not a second copy of
+       the rule: a client check that disagreed with buildSignup would either
+       reject a CVR the server would have taken, or wave one through to a
+       server refusal the visitor cannot see the reason for. */
+    else if (parseCvr(account.cvr) === null) e.cvr = t.errors.cvr[l];
     if (!account.address.trim()) e.address = t.errors.required[l];
     if (!account.zip.trim()) e.zip = t.errors.required[l];
     if (!account.city.trim()) e.city = t.errors.required[l];
-    return e;
-  };
 
-  const validatePayment = (): FieldErrors => {
-    const e: FieldErrors = {};
-    if (payment.method === "card") {
-      if (digits(payment.card).length !== 16) e.card = t.errors.card[l];
-      if (!/^\d{2}\s*\/\s*\d{2}$/.test(payment.expiry.trim())) e.expiry = t.errors.expiry[l];
-      if (digits(payment.cvc).length !== 3) e.cvc = t.errors.cvc[l];
-    } else if (payment.ean && digits(payment.ean).length !== 13) {
-      e.ean = t.errors.ean[l];
-    }
+    // 02 Konto
+    if (!account.name.trim()) e.name = t.errors.required[l];
+    if (!EMAIL_RE.test(account.email)) e.email = t.errors.email[l];
+
+    // 03 Abonnement
+    if (!planId) e.plan = t.errors.planInvalid[l];
+    if (digits(payment.card).length !== 16) e.card = t.errors.card[l];
+    if (!/^\d{2}\s*\/\s*\d{2}$/.test(payment.expiry.trim())) e.expiry = t.errors.expiry[l];
+    if (digits(payment.cvc).length !== 3) e.cvc = t.errors.cvc[l];
     if (!payment.terms) e.terms = t.errors.terms[l];
+
     return e;
   };
 
-  const advance = () => {
-    if (step === 2) {
-      const e = validateAccount();
-      if (Object.keys(e).length) {
-        setErrors(e);
-        return;
-      }
-    }
-    goto(Math.min(3, step + 1));
-  };
-
-  const finish = async () => {
-    const e = validatePayment();
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const e = validateAll();
     if (Object.keys(e).length) {
       setErrors(e);
+      /* Scroll and focus, not just render. On a wizard step an inline error
+         was always within a screen of the button that produced it; on this
+         page the first thing wrong can be a thousand pixels up, and a button
+         that appears to do nothing is how a form loses someone. */
+      focusFirstInvalid(e);
       return;
     }
     setBusy(true);
@@ -220,19 +230,31 @@ export default function SignupFlow({
     fd.set("address", account.address);
     fd.set("postcode", account.zip);
     fd.set("city", account.city);
-    fd.set("planId", activePlanId);
+    if (!planId) {
+      /* Unreachable — validateAll above refuses a submit without a plan —
+         but finish must not post a signup with no plan on that strength. */
+      setErrors({ plan: t.errors.planInvalid[l] });
+      setBusy(false);
+      return;
+    }
+    fd.set("planId", planId);
     fd.set("billing", billing);
     fd.set("locations", String(profile.locations));
-    fd.set("venueType", profile.type);
-    fd.set("m2", String(profile.m2));
-    fd.set("paymentMethod", payment.method);
     try {
       const res = await submitSignup(fd);
       if (res.ok) {
         setDoneMessage(res.message);
         setDone(true);
       } else {
-        setErrors(res.errors);
+        /* Translated before it reaches state: the server answers in codes,
+           and every field on this page renders errors[key] straight into the
+           input's error slot, so an untranslated "exists" would print that
+           word under the email field. See localiseServerErrors. */
+        const shown = localiseServerErrors(res.errors, l);
+        setErrors(shown);
+        /* A server refusal lands on a field too — a duplicate email, or a
+           CVR a raw POST got past the client. Same treatment. */
+        focusFirstInvalid(shown);
       }
     } catch (err) {
       /* Belt and braces alongside submitSignup's own try/catch around
@@ -240,7 +262,7 @@ export default function SignupFlow({
          used to throw here uncaught, and with no catch on this call the
          button sat on "Opretter…" forever with no error and no way out. */
       console.error("[odatone] signup submission failed unexpectedly", err);
-      setErrors({ form: "server" });
+      setErrors(localiseServerErrors({ form: "server" }, l));
     } finally {
       setBusy(false);
     }
@@ -248,259 +270,277 @@ export default function SignupFlow({
 
   if (done) return <Done locale={l} email={account.email} noInvite={doneMessage === "no-invite"} />;
 
+  const problems = Object.keys(errors).filter((k) => k !== "form").length;
+  /* Every key in FIELD_ORDER is rendered beside its own input. Anything else
+     — `form`, or a key a future server check invents — has nowhere to appear,
+     and an error nobody can see is worse than no validation at all. */
+  const bannerKey = Object.keys(errors).find(
+    (k) => !(FIELD_ORDER as readonly string[]).includes(k),
+  );
+
   return (
-    <div id="flow" className="u-card grid overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div>
-        <ol className="grid grid-cols-4 border-b border-line">
-          {t.steps.map((s, i) => {
-            const state = i === step ? "current" : i < step ? "done" : "todo";
-            return (
-              <li key={s.key}>
-                <button
-                  type="button"
-                  disabled={i > step}
-                  onClick={() => goto(i)}
-                  className={`flex w-full flex-col items-start gap-2.5 px-4 py-4 text-left transition-colors sm:px-6 ${
-                    state === "todo" ? "cursor-default" : "hover:bg-surface-2"
-                  }`}
-                >
-                  <span
-                    className={`flex items-center gap-2 text-[0.8125rem] font-medium ${
-                      state === "current"
-                        ? "text-accent"
-                        : state === "done"
-                          ? "text-ink-2"
-                          : "text-ink-3"
-                    }`}
-                  >
-                    {state === "done" ? (
-                      <CheckIcon size={12} />
-                    ) : (
-                      <span>{String(i + 1).padStart(2, "0")}</span>
-                    )}
-                    <span className="hidden sm:inline">{s.label[l]}</span>
-                  </span>
-                  <span
-                    className={`h-0.5 w-full rounded-full ${
-                      state === "todo" ? "bg-surface-3" : "bg-accent"
-                    }`}
-                  />
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+    <form
+      id="flow"
+      noValidate
+      onSubmit={submit}
+      /* No `overflow-hidden` here, which the card carried until the flow
+         became one page. It was there to clip the summary's background to
+         the card's rounded corners, and it also made this element the
+         scrollport for `position: sticky` inside it — and since the form
+         itself does not scroll, the sticky summary never moved. That did not
+         show while a step was one screen tall and the summary was always
+         near the top. On a page three times that height it meant the summary
+         sat far above the Abonnement section it describes, off screen for
+         the whole of the choice it is there to price. The summary rounds its
+         own corners instead. */
+      className="u-card grid lg:grid-cols-[minmax(0,1fr)_340px]"
+    >
+      <div className="flex flex-col gap-14 p-8 sm:p-11">
+        {bannerKey && (
+          <p role="alert" className="rounded-[var(--radius-lg)] bg-bad-soft px-5 py-4 text-[0.9375rem] text-bad">
+            {errors[bannerKey]}
+          </p>
+        )}
 
-        <div className="p-8 sm:p-11">
-          {step === 0 && (
-            <StepVenue locale={l} profile={profile} onChange={setProfilePatch} saving={result.savingYear} />
-          )}
-          {step === 1 && (
-            <StepPlan
-              locale={l}
-              plans={plans}
-              activePlanId={activePlanId}
-              suggestedId={suggested.id}
-              billing={billing}
-              m2={profile.m2}
-              onPlan={setPlanId}
-              onBilling={setBilling}
-            />
-          )}
-          {step === 2 && (
-            <StepAccount locale={l} account={account} errors={errors} onChange={setAccount} />
-          )}
-          {step === 3 && (
-            <StepPayment locale={l} payment={payment} errors={errors} onChange={setPayment} />
-          )}
+        <Section index={0} locale={l} heading={t.company.heading[l]} body={t.company.body[l]}>
+          <CompanyFields locale={l} account={account} errors={errors} onChange={changeAccount} />
+        </Section>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4 border-t border-line pt-8">
-            {step > 0 && (
-              <Button variant="outline" onClick={() => goto(step - 1)}>
-                {ui.back[l]}
-              </Button>
-            )}
-            {step < 3 ? (
-              <Button variant="primary" size="lg" onClick={advance}>
-                {ui.next[l]}
-                <Arrow />
-              </Button>
-            ) : (
-              <Button variant="primary" size="lg" onClick={finish} disabled={busy}>
-                {busy ? t.payment.submitting[l] : t.payment.submit[l]}
-                <Arrow />
-              </Button>
-            )}
-            <p className="u-label ml-auto">
-              {String(step + 1)} / {t.steps.length}
+        <Section index={1} locale={l} heading={t.account.heading[l]} body={t.account.body[l]}>
+          <AccountFields locale={l} account={account} errors={errors} onChange={changeAccount} />
+        </Section>
+
+        <Section index={2} locale={l} heading={t.plan.heading[l]} body={t.plan.body[l]}>
+          <SubscriptionFields
+            locale={l}
+            plans={plans}
+            activePlanId={planId}
+            billing={billing}
+            locations={profile.locations}
+            payment={payment}
+            errors={errors}
+            onPlan={choosePlan}
+            onBilling={setBilling}
+            onLocations={(n: number) => setProfilePatch({ locations: n })}
+            onPayment={changePayment}
+          />
+        </Section>
+
+        <div className="flex flex-wrap items-center gap-4 border-t border-line pt-8">
+          <Button type="submit" variant="primary" size="lg" disabled={busy}>
+            {busy ? t.payment.submitting[l] : t.payment.submit[l]}
+            <Arrow />
+          </Button>
+          {problems > 0 && (
+            <p role="status" className="text-[0.875rem] text-warn">
+              {problems === 1
+                ? t.incomplete.one[l]
+                : t.incomplete.many[l].replace("{n}", num(problems, l))}
             </p>
-          </div>
+          )}
         </div>
       </div>
 
-      <Summary
-        locale={l}
-        profile={profile}
-        plan={activePlan}
-        billing={billing}
-        savingYear={result.savingYear}
-      />
-    </div>
+      {activePlan && (
+        <Summary locale={l} profile={profile} plan={activePlan} billing={billing} />
+      )}
+    </form>
   );
 }
 
-/* ------------------------------- steps ------------------------------- */
+/* ----------------------------- sections ------------------------------ */
 
-function StepHead({ heading, body }: { heading: string; body: string }) {
-  return (
-    <header className="mb-8 flex flex-col gap-3">
-      <h2 className="u-display text-[clamp(1.6rem,3.6vw,2.3rem)]">{heading}</h2>
-      <p className="u-lede max-w-[54ch] text-[1.0625rem]">{body}</p>
-    </header>
-  );
+/** Every field on the page, in render order. `firstInvalid` walks this, so
+    an entry missing from it is a field the page can never scroll to. */
+const FIELD_ORDER = [
+  "company", "cvr", "address", "zip", "city",
+  "name", "email",
+  "plan", "card", "expiry", "cvc", "terms",
+] as const;
+
+/** Most fields are reachable by their input's `name`. The two that are not
+    are the ones that have no text input at all: the plan is a row of
+    buttons and the terms box is visually hidden, so both carry an id on the
+    wrapper a visitor actually sees. */
+const FIELD_TARGET: Record<string, string> = {
+  plan: "#field-plan",
+  terms: "#field-terms",
+};
+
+function focusFirstInvalid(errors: FieldErrors) {
+  const key = FIELD_ORDER.find((k) => errors[k]);
+  if (!key || typeof document === "undefined") return;
+  const el = document.querySelector<HTMLElement>(FIELD_TARGET[key] ?? `[name="${key}"]`);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  /* preventScroll because scrollIntoView above is already doing it, and the
+     two together produce a visible jerk. */
+  el.focus({ preventScroll: true });
 }
 
-function StepVenue({
+/** One numbered section. These replaced the wizard's step tabs: the number
+    survives because it still tells you how much is left, but it labels a
+    heading you scroll past rather than a tab you click. */
+function Section({
+  index,
   locale: l,
-  profile,
-  onChange,
-  saving,
+  heading,
+  body,
+  children,
 }: {
+  index: number;
   locale: Locale;
-  profile: VenueProfile;
-  onChange: (p: Partial<VenueProfile>) => void;
-  saving: number;
+  heading: string;
+  body: string;
+  children: React.ReactNode;
 }) {
   const t = tDefaults;
-  const ui = uiDefaults;
-
-  const v = venueType(profile.type);
   return (
-    <div className="flex flex-col gap-9">
-      <StepHead heading={t.venue.heading[l]} body={t.venue.body[l]} />
+    <section className="flex flex-col gap-8">
+      <header className="flex flex-col gap-3">
+        <p className="u-label flex items-center gap-2 text-accent">
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <span>{t.sections[index].label[l]}</span>
+        </p>
+        <h2 className="u-display text-[clamp(1.5rem,3.2vw,2.05rem)]">{heading}</h2>
+        <p className="u-lede max-w-[54ch] text-[1.0625rem]">{body}</p>
+      </header>
+      {children}
+    </section>
+  );
+}
 
-      <fieldset>
-        <legend className="u-label mb-4 text-ink-3">{t.summary.venue[l]}</legend>
-        <div className="flex flex-wrap gap-2">
-          {VENUE_TYPES.map((x) => (
-            <button
-              key={x.id}
-              type="button"
-              onClick={() => {
-                const nv = venueType(x.id as VenueTypeId);
-                onChange({
-                  type: x.id,
-                  m2: Math.min(Math.max(profile.m2, nv.minM2), nv.maxM2),
-                });
-              }}
-              aria-pressed={profile.type === x.id}
-              className={`rounded-full px-4 py-2 text-[0.875rem] font-medium transition-colors ${
-                profile.type === x.id
-                  ? "bg-accent text-accent-ink"
-                  : "bg-surface-2 text-ink-2 hover:text-ink"
-              }`}
-            >
-              {x.label[l]}
-            </button>
-          ))}
-        </div>
-      </fieldset>
 
-      <fieldset>
-        <div className="mb-3 flex items-baseline justify-between">
-          <legend className="u-label text-ink-3">{t.summary.area[l]}</legend>
-          <span className="u-num text-2xl text-accent">{fmtM2(profile.m2, l)}</span>
-        </div>
-        <input
-          type="range"
-          className="oda-range"
-          min={v.minM2}
-          max={v.maxM2}
-          step={5}
-          value={profile.m2}
-          aria-label={t.summary.area[l]}
-          style={{ ["--fill" as string]: `${((profile.m2 - v.minM2) / (v.maxM2 - v.minM2)) * 100}%` }}
-          onChange={(e) => onChange({ m2: Number(e.target.value) })}
-        />
-      </fieldset>
 
-      <div className="grid gap-8 sm:grid-cols-2">
-        <fieldset>
-          <legend className="u-label mb-3 text-ink-3">
-            {l === "da" ? "Åbningstid" : "Opening hours"}
-          </legend>
-          <div className="flex flex-col gap-0.5 rounded-[var(--radius-lg)] bg-surface-2 p-1">
-            {HOURS_BANDS.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => onChange({ hours: b.id as HoursBand })}
-                aria-pressed={profile.hours === b.id}
-                className={`rounded-[var(--radius-md)] px-4 py-2.5 text-left text-[0.875rem] font-medium transition-colors ${
-                  profile.hours === b.id
-                    ? "bg-surface text-ink shadow-sm"
-                    : "text-ink-3 hover:text-ink"
-                }`}
-              >
-                {b.label[l]}
-              </button>
-            ))}
-          </div>
-        </fieldset>
+/** `plan` and `locations` have no text input of their own for a visitor to
+    have left blank — they come from buttons and a counter — so the only
+    way buildSignup rejects one is a raw field a legitimate browser session
+    could not produce. Routing that through the generic "required" code
+    said "Skal udfyldes" about a control where, from the visitor's point of
+    view, nothing was blank at all. These get their own copy instead, naming
+    what is actually wrong.
 
-        <fieldset>
-          <legend className="u-label mb-3 text-ink-3">{t.summary.locations[l]}</legend>
-          <div className="flex items-center gap-1 rounded-full bg-surface-2 p-1">
-            <button
-              type="button"
-              onClick={() => onChange({ locations: Math.max(1, profile.locations - 1) })}
-              disabled={profile.locations <= 1}
-              aria-label="-1"
-              className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink disabled:opacity-30"
-            >
-              −
-            </button>
-            <span className="u-num flex-1 text-center text-[1.25rem]">{num(profile.locations, l)}</span>
-            <button
-              type="button"
-              onClick={() => onChange({ locations: Math.min(99, profile.locations + 1) })}
-              aria-label="+1"
-              className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-      </div>
+    `venueType` and `m2` used to be here too. Signup no longer collects them
+    and buildSignup no longer validates them, so no server error can carry
+    those keys; their copy stays in lib/content/signup.ts unused rather than
+    being deleted, because the marketing calculator still speaks in those
+    terms. */
+const FIELD_ERROR_OVERRIDE: Record<string, string> = {
+  plan: "planInvalid",
+  locations: "locationsInvalid",
+};
 
-      <p className="rounded-[var(--radius-lg)] bg-surface-2 px-5 py-4 text-[0.9375rem] text-ink-2">
-        {t.venue.savingsNote[l]}{" "}
-        <span className="u-num text-accent">{kr(saving, l)}</span>{" "}
-        {l === "da" ? "om året." : "a year."}{" "}
-        <span className="text-ink-3">{ui.indicative[l]}</span>
-      </p>
+/** Server actions answer with short codes — "required", "exists", "server" —
+    while client-side validation writes the shown string directly. The wizard
+    got away with mixing the two because submission happened on the payment
+    step, so a server error about the email arrived on a step where the email
+    field was not rendered, and a banner translated it.
+ *
+ *  On one page that field IS rendered, and it would have printed the literal
+ *  word "exists" under the input. So codes are translated on arrival and
+ *  every error in state is displayable text from then on. A code with no copy
+ *  falls back to the generic service message rather than showing itself. */
+function localiseServerErrors(errors: FieldErrors, l: Locale): FieldErrors {
+  const table = tDefaults.errors as unknown as Record<string, Record<Locale, string> | undefined>;
+  const out: FieldErrors = {};
+  for (const [key, code] of Object.entries(errors)) {
+    const override = FIELD_ERROR_OVERRIDE[key];
+    out[key] =
+      (override ? table[override] : undefined)?.[l] ??
+      table[code]?.[l] ??
+      table.server?.[l] ??
+      code;
+  }
+  return out;
+}
+
+function CompanyFields({
+  locale: l,
+  account,
+  errors,
+  onChange,
+}: {
+  locale: Locale;
+  account: Account;
+  errors: FieldErrors;
+  /** The second argument is the field that changed, so the parent can drop
+      that field's error and leave every other one alone. */
+  onChange: (a: Account, field?: string) => void;
+}) {
+  const t = tDefaults;
+  const set = (k: keyof Account) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ ...account, [k]: e.target.value }, k);
+
+  return (
+    <div className="grid gap-5 sm:grid-cols-2">
+      <Field label={t.fields.company[l]} name="company" value={account.company} onChange={set("company")} error={errors.company} autoComplete="organization" />
+      {/* No "valgfri" hint: it is required now, and the hint is exactly what
+          a visitor reads as permission to skip it. */}
+      <Field label={t.fields.cvr[l]} name="cvr" inputMode="numeric" placeholder="12345678" value={account.cvr} onChange={set("cvr")} error={errors.cvr} />
+      <Field label={t.fields.address[l]} name="address" value={account.address} onChange={set("address")} error={errors.address} autoComplete="street-address" className="sm:col-span-2" />
+      <Field label={t.fields.zip[l]} name="zip" inputMode="numeric" value={account.zip} onChange={set("zip")} error={errors.zip} autoComplete="postal-code" />
+      <Field label={t.fields.city[l]} name="city" value={account.city} onChange={set("city")} error={errors.city} autoComplete="address-level2" />
+      <Field label={t.fields.phone[l]} name="phone" type="tel" hint={l === "da" ? "valgfri" : "optional"} value={account.phone} onChange={set("phone")} autoComplete="tel" />
     </div>
   );
 }
 
-function StepPlan({
+function AccountFields({
+  locale: l,
+  account,
+  errors,
+  onChange,
+}: {
+  locale: Locale;
+  account: Account;
+  errors: FieldErrors;
+  /** The second argument is the field that changed, so the parent can drop
+      that field's error and leave every other one alone. */
+  onChange: (a: Account, field?: string) => void;
+}) {
+  const t = tDefaults;
+  const set = (k: keyof Account) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ ...account, [k]: e.target.value }, k);
+
+  return (
+    <div className="grid gap-5 sm:grid-cols-2">
+      <Field label={t.fields.name[l]} name="name" value={account.name} onChange={set("name")} error={errors.name} autoComplete="name" />
+      <Field label={t.fields.email[l]} name="email" type="email" value={account.email} onChange={set("email")} error={errors.email} autoComplete="email" />
+    </div>
+  );
+}
+
+/** Plan, locations, billing term and payment, in one section. Payment was a
+    step of its own; it is a subsection here, because "which plan, how many
+    locations, billed how, paid how" is one decision described four ways and
+    splitting it across a page boundary only made the summary beside it
+    update in two places. */
+function SubscriptionFields({
   locale: l,
   plans,
   activePlanId,
-  suggestedId,
   billing,
-  m2,
+  locations,
+  payment,
+  errors,
   onPlan,
   onBilling,
+  onLocations,
+  onPayment,
 }: {
   locale: Locale;
   plans: Plan[];
-  activePlanId: PlanId;
-  suggestedId: PlanId;
+  /** Null until the visitor picks. Nothing is recommended for them any
+      more, so nothing is pre-selected. */
+  activePlanId: PlanId | null;
   billing: Billing;
-  m2: number;
+  locations: number;
+  payment: Payment;
+  errors: FieldErrors;
   onPlan: (id: PlanId) => void;
   onBilling: (b: Billing) => void;
+  onLocations: (n: number) => void;
+  onPayment: (p: Payment, field?: string) => void;
 }) {
   const t = tDefaults;
   const ui = uiDefaults;
@@ -508,7 +548,29 @@ function StepPlan({
 
   return (
     <div className="flex flex-col gap-8">
-      <StepHead heading={t.plan.heading[l]} body={t.plan.body[l]} />
+      <fieldset>
+        <legend className="u-label mb-3 text-ink-3">{t.summary.locations[l]}</legend>
+        <div className="flex w-full max-w-[220px] items-center gap-1 rounded-full bg-surface-2 p-1">
+          <button
+            type="button"
+            onClick={() => onLocations(Math.max(1, locations - 1))}
+            disabled={locations <= 1}
+            aria-label="-1"
+            className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink disabled:opacity-30"
+          >
+            −
+          </button>
+          <span className="u-num flex-1 text-center text-[1.25rem]">{num(locations, l)}</span>
+          <button
+            type="button"
+            onClick={() => onLocations(Math.min(99, locations + 1))}
+            aria-label="+1"
+            className="grid h-10 w-10 place-items-center rounded-full text-[1.0625rem] text-ink-2 transition-colors hover:bg-surface hover:text-ink"
+          >
+            +
+          </button>
+        </div>
+      </fieldset>
 
       <div className="inline-flex gap-0.5 self-start rounded-full bg-surface-2 p-1">
         {(["monthly", "annual"] as Billing[]).map((b) => (
@@ -526,10 +588,12 @@ function StepPlan({
         ))}
       </div>
 
-      <div className="flex flex-col gap-3">
+      {/* tabIndex so focusFirstInvalid can put focus here: there is no input
+          to focus when the thing that is missing is a choice between
+          buttons. */}
+      <div id="field-plan" tabIndex={-1} className="flex flex-col gap-3 outline-none">
         {plans.map((p) => {
           const active = p.id === activePlanId;
-          const tooSmall = p.maxM2 !== null && m2 > p.maxM2;
           const pq = quote(p, billing, 1);
           return (
             <button
@@ -537,10 +601,9 @@ function StepPlan({
               type="button"
               onClick={() => onPlan(p.id)}
               aria-pressed={active}
-              disabled={tooSmall}
               className={`flex flex-col gap-3 rounded-[var(--radius-lg)] p-5 text-left transition-colors sm:flex-row sm:items-center sm:gap-6 ${
                 active ? "bg-surface-2 ring-1 ring-accent/40" : "bg-surface-2/50 hover:bg-surface-2"
-              } ${tooSmall ? "opacity-40" : ""}`}
+              }`}
             >
               <span
                 className={`mt-1 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border ${
@@ -550,17 +613,8 @@ function StepPlan({
                 {active && <CheckIcon size={11} />}
               </span>
               <span className="flex-1">
-                <span className="u-title block text-[1.0625rem]">
-                  {p.name}
-                  {p.id === suggestedId && (
-                    <span className="u-label ml-3 align-middle text-accent">
-                      {t.plan.recommended[l]}
-                    </span>
-                  )}
-                </span>
-                <span className="mt-1 block text-sm text-ink-2">
-                  {tooSmall ? t.plan.tooSmall[l] : p.tagline[l]}
-                </span>
+                <span className="u-title block text-[1.0625rem]">{p.name}</span>
+                <span className="mt-1 block text-sm text-ink-2">{p.tagline[l]}</span>
               </span>
               <span className="text-right">
                 <span className="u-num block text-[1.375rem]">{kr(Math.round(pq.perLocation), l)}</span>
@@ -572,89 +626,14 @@ function StepPlan({
           );
         })}
       </div>
+      {errors.plan && <p className="u-label text-warn">{errors.plan}</p>}
+
+      <PaymentFields locale={l} payment={payment} errors={errors} onChange={onPayment} />
     </div>
   );
 }
 
-function StepAccount({
-  locale: l,
-  account,
-  errors,
-  onChange,
-}: {
-  locale: Locale;
-  account: Account;
-  errors: FieldErrors;
-  onChange: (a: Account) => void;
-}) {
-  const t = tDefaults;
-
-  const set = (k: keyof Account) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    onChange({ ...account, [k]: e.target.value });
-
-  return (
-    <div className="flex flex-col gap-8">
-      <StepHead heading={t.account.heading[l]} body={t.account.body[l]} />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label={t.fields.name[l]} name="name" value={account.name} onChange={set("name")} error={errors.name} autoComplete="name" />
-        <Field label={t.fields.company[l]} name="company" value={account.company} onChange={set("company")} error={errors.company} autoComplete="organization" />
-        <Field label={t.fields.email[l]} name="email" type="email" value={account.email} onChange={set("email")} error={errors.email} autoComplete="email" />
-        <Field label={t.fields.phone[l]} name="phone" type="tel" hint={l === "da" ? "valgfri" : "optional"} value={account.phone} onChange={set("phone")} autoComplete="tel" />
-        <Field label={t.fields.cvr[l]} name="cvr" inputMode="numeric" hint={l === "da" ? "valgfri" : "optional"} value={account.cvr} onChange={set("cvr")} error={errors.cvr} />
-        <Field label={t.fields.address[l]} name="address" value={account.address} onChange={set("address")} error={errors.address} autoComplete="street-address" />
-        <Field label={t.fields.zip[l]} name="zip" inputMode="numeric" value={account.zip} onChange={set("zip")} error={errors.zip} autoComplete="postal-code" />
-        <Field label={t.fields.city[l]} name="city" value={account.city} onChange={set("city")} error={errors.city} autoComplete="address-level2" />
-      </div>
-    </div>
-  );
-}
-
-/** The five field names StepPayment's own inputs write errors under. Any
-    other key in `errors` at this step — a bad plan/venue-type/m2/locations
-    claim only a raw POST could produce, a duplicate-email refusal, or a
-    generic service failure — cannot have come from this step's own client
-    validation (validatePayment only ever sets these five), so it can only
-    be a server-side rejection. Before this fix round, submission (which
-    happens on this step) surfaced errors for exactly these five keys and
-    nothing else: a bogus plan and venue type wrote nothing to the database
-    (correct) but showed zero feedback (wrong) — the visitor's own "Opretter…"
-    button just went back to "Start prøveperioden" with no explanation. */
-const PAYMENT_FIELD_KEYS = new Set(["card", "expiry", "cvc", "ean", "terms"]);
-
-/** `plan`/`venueType`/`m2`/`locations` have no text input of their own for
-    a visitor to have left blank — they're derived from earlier steps'
-    buttons and sliders — so the only way buildSignup ever rejects one is a
-    raw field a legitimate browser session couldn't produce. Routing that
-    through the generic "required" code (fix round 1's own fix) said "Skal
-    udfyldes" on a step where, from the visitor's point of view, nothing
-    was blank at all — demonstrated live in fix round 2's review. These
-    four get their own copy instead, naming what's actually wrong. */
-const FIELD_ERROR_OVERRIDE: Record<string, keyof typeof tDefaults.errors> = {
-  plan: "planInvalid",
-  venueType: "venueTypeInvalid",
-  m2: "m2Invalid",
-  locations: "locationsInvalid",
-};
-
-/** Maps a server-set error code (buildSignup/submitSignup set short codes
-    like "required"/"exists"/"server", never localised text — only
-    client-side validators like validatePayment already write the shown
-    string directly) to copy the visitor can act on, falling back to the
-    generic service message for any code this table doesn't recognise. */
-function formErrorMessage(
-  errors: FieldErrors,
-  t: typeof tDefaults,
-  l: Locale,
-): string | null {
-  const key = Object.keys(errors).find((k) => !PAYMENT_FIELD_KEYS.has(k));
-  if (!key) return null;
-  const code = errors[key];
-  const table = t.errors as unknown as Record<string, Record<Locale, string> | undefined>;
-  const override = FIELD_ERROR_OVERRIDE[key];
-  return (override ? table[override] : undefined)?.[l] ?? table[code]?.[l] ?? table.server?.[l] ?? null;
-}
-
-function StepPayment({
+function PaymentFields({
   locale: l,
   payment,
   errors,
@@ -663,58 +642,32 @@ function StepPayment({
   locale: Locale;
   payment: Payment;
   errors: FieldErrors;
-  onChange: (p: Payment) => void;
+  onChange: (p: Payment, field?: string) => void;
 }) {
   const t = tDefaults;
-  const banner = formErrorMessage(errors, t, l);
 
   const set = (k: keyof Payment) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    onChange({ ...payment, [k]: e.target.value });
+    onChange({ ...payment, [k]: e.target.value }, k);
 
   return (
-    <div className="flex flex-col gap-8">
-      <StepHead heading={t.payment.heading[l]} body={t.payment.body[l]} />
-
-      {banner && (
-        <p role="alert" className="rounded-[var(--radius-lg)] bg-bad-soft px-5 py-4 text-[0.9375rem] text-bad">
-          {banner}
-        </p>
-      )}
-
-      <div className="inline-flex gap-0.5 self-start rounded-full bg-surface-2 p-1">
-        {(["card", "invoice"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onChange({ ...payment, method: m })}
-            aria-pressed={payment.method === m}
-            className={`rounded-full px-5 py-2 text-[0.875rem] font-medium transition-colors ${
-              payment.method === m ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
-            }`}
-          >
-            {m === "card" ? t.payment.card[l] : t.payment.invoice[l]}
-          </button>
-        ))}
+    <div className="flex flex-col gap-6 border-t border-line pt-8">
+      <div className="flex flex-col gap-2">
+        <h3 className="u-title text-[1.0625rem]">{t.payment.subheading[l]}</h3>
+        <p className="text-[0.9375rem] text-ink-2">{t.payment.body[l]}</p>
       </div>
 
-      {payment.method === "card" ? (
-        <div className="grid gap-5 sm:grid-cols-[2fr_1fr_1fr]">
-          <Field label={t.payment.cardNumber[l]} name="card" inputMode="numeric" placeholder="0000 0000 0000 0000" value={payment.card} onChange={set("card")} error={errors.card} autoComplete="off" />
-          <Field label={t.payment.expiry[l]} name="expiry" placeholder="12 / 29" value={payment.expiry} onChange={set("expiry")} error={errors.expiry} autoComplete="off" />
-          <Field label={t.payment.cvc[l]} name="cvc" inputMode="numeric" placeholder="123" value={payment.cvc} onChange={set("cvc")} error={errors.cvc} autoComplete="off" />
-        </div>
-      ) : (
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label={t.payment.ean[l]} name="ean" inputMode="numeric" hint={l === "da" ? "valgfri" : "optional"} value={payment.ean} onChange={set("ean")} error={errors.ean} />
-          <Field label={t.payment.po[l]} name="po" hint={l === "da" ? "valgfri" : "optional"} value={payment.po} onChange={set("po")} />
-        </div>
-      )}
+      <div className="grid gap-5 sm:grid-cols-[2fr_1fr_1fr]">
+        <Field label={t.payment.cardNumber[l]} name="card" inputMode="numeric" placeholder="0000 0000 0000 0000" value={payment.card} onChange={set("card")} error={errors.card} autoComplete="off" />
+        <Field label={t.payment.expiry[l]} name="expiry" placeholder="12 / 29" value={payment.expiry} onChange={set("expiry")} error={errors.expiry} autoComplete="off" />
+        <Field label={t.payment.cvc[l]} name="cvc" inputMode="numeric" placeholder="123" value={payment.cvc} onChange={set("cvc")} error={errors.cvc} autoComplete="off" />
+      </div>
 
-      <label className="flex cursor-pointer items-start gap-3">
+      <label id="field-terms" tabIndex={-1} className="flex cursor-pointer items-start gap-3 outline-none">
         <input
           type="checkbox"
+          name="terms"
           checked={payment.terms}
-          onChange={(e) => onChange({ ...payment, terms: e.target.checked })}
+          onChange={(e) => onChange({ ...payment, terms: e.target.checked }, "terms")}
           className="peer sr-only"
         />
         <span
@@ -745,28 +698,22 @@ function Summary({
   profile,
   plan,
   billing,
-  savingYear,
 }: {
   locale: Locale;
   profile: VenueProfile;
   plan: Plan;
   billing: Billing;
-  savingYear: number;
 }) {
   const t = tDefaults;
   const pricingCopy = pricingCopyDefaults;
 
   const q = quote(plan, billing, profile.locations);
-  const v = venueType(profile.type);
-
   return (
-    <aside className="border-t border-line bg-surface-2/60 lg:border-l lg:border-t-0">
+    <aside className="rounded-b-[var(--radius-xl)] border-t border-line bg-surface-2/60 lg:rounded-b-none lg:rounded-r-[var(--radius-xl)] lg:border-l lg:border-t-0">
       <div className="sticky top-[64px] flex flex-col gap-6 p-7 sm:p-8">
         <h2 className="u-label text-ink-3">{t.summary.heading[l]}</h2>
 
         <dl className="flex flex-col gap-3 border-b border-line pb-6 text-[0.875rem]">
-          <Row label={t.summary.venue[l]} value={v.label[l]} />
-          <Row label={t.summary.area[l]} value={fmtM2(profile.m2, l)} />
           <Row label={t.summary.locations[l]} value={num(profile.locations, l)} />
           <Row label={t.summary.plan[l]} value={q.plan.name} />
           <Row
@@ -800,16 +747,6 @@ function Summary({
             {t.summary.thenPay[l]} {kr(Math.round(q.chargeExVat), l)}
             {billing === "annual" ? (l === "da" ? "/år" : "/yr") : l === "da" ? "/md." : "/mo"} ·{" "}
             {kr(Math.round(q.chargeIncVat), l)} {t.summary.incVat[l]}
-          </p>
-        </div>
-
-        <div className="border-t border-line pt-6">
-          <p className="u-label mb-2 text-ink-3">{t.summary.savingLine[l]}</p>
-          <p className="u-num text-[1.5rem] text-accent">
-            {kr(savingYear, l)}
-            <span className="ml-1.5 text-[0.4em] tracking-normal text-ink-2">
-              {l === "da" ? "/år" : "/yr"}
-            </span>
           </p>
         </div>
       </div>

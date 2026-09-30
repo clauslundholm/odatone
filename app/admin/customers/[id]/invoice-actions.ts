@@ -94,6 +94,13 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
   }
 
   const plan = resolvePlan(sub.plan_id, planMap((planRows ?? []) as PlanRow[]), "issue invoice");
+  /* The one place an unresolvable plan must stop the request rather than be
+     worked around. Everywhere else a missing plan degrades a number on a
+     screen that can be reloaded once the cause is fixed; here it would be
+     printed onto an invoice that is immutable the moment it is issued
+     (0010_invoice_lines.sql's allowlist trigger) and gapless in its
+     numbering, so the only remedy would be a void and a credit note. */
+  if (!plan) return { ok: false, errors: { form: "unknown-plan" } };
 
   let lines;
   try {

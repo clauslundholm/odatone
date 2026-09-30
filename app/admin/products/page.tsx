@@ -2,7 +2,7 @@ import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { BoxGlyph } from "@/components/admin/icons";
 import { TopBar } from "@/components/admin/TopBar";
-import { AddonBox, PlanBox } from "@/components/admin/ProductsBoxes";
+import { AddonBox, NewAddonBox, NewPlanBox, PlanBox } from "@/components/admin/ProductsBoxes";
 import type { PlanRow } from "@/lib/plans-row";
 import { createClient } from "@/lib/supabase/server";
 
@@ -46,7 +46,10 @@ export default async function AdminProductsPage() {
         .from("plans")
         .select("id, name, monthly_ore, max_m2, tagline, features, active")
         .order("sort", { ascending: true }),
-      supabase.from("addons").select("id, name, monthly_ore, active"),
+      /* Ordered by id: `addons` has no `sort` column, and with more than
+         one add-on now creatable an unordered select would let the grid
+         reshuffle between renders. */
+      supabase.from("addons").select("id, name, monthly_ore, active").order("id", { ascending: true }),
     ]);
 
   for (const [label, error] of [
@@ -71,18 +74,22 @@ export default async function AdminProductsPage() {
           {plans.map((plan) => (
             <PlanBox key={plan.id} plan={plan} />
           ))}
+          <NewPlanBox />
         </div>
 
-        {addons.length > 0 && (
-          <>
-            <h2 className="mt-2 text-[0.9375rem] font-medium text-ink">Add-ons</h2>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {addons.map((addon) => (
-                <AddonBox key={addon.id} addon={addon} />
-              ))}
-            </div>
-          </>
-        )}
+        {/* Rendered whether or not any add-on exists. It used to be hidden
+            behind `addons.length > 0`, which was harmless while the one
+            seeded add-on could not be removed — but deleting the last one
+            would now take the section away along with the only control that
+            could create another, and the row would be unrecoverable from
+            this page. */}
+        <h2 className="mt-2 text-[0.9375rem] font-medium text-ink">Add-ons</h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {addons.map((addon) => (
+            <AddonBox key={addon.id} addon={addon} />
+          ))}
+          <NewAddonBox />
+        </div>
       </div>
     </AppShell>
   );

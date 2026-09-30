@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { Badge } from "@/components/admin/Badge";
 import { Modal } from "@/components/admin/Modal";
-import { AddonForm, PlanForm } from "@/components/admin/ProductsForm";
+import { AddonForm, DeleteProduct, PlanForm } from "@/components/admin/ProductsForm";
 import { formatDkk } from "@/lib/money";
 import type { PlanRow } from "@/lib/plans-row";
 
@@ -86,6 +86,7 @@ export function PlanBox({ plan }: { plan: PlanRow & { active: boolean } }) {
       />
       <Modal open={open} onClose={close} title={`Edit ${plan.name}`} trigger={triggerRef}>
         <PlanForm plan={plan} onSaved={close} />
+        <DeleteProduct kind="plan" id={plan.id} name={plan.name} onDeleted={close} />
       </Modal>
     </>
   );
@@ -109,6 +110,67 @@ export function AddonBox({ addon }: { addon: AddonRow }) {
       />
       <Modal open={open} onClose={close} title={`Edit ${title}`} trigger={triggerRef}>
         <AddonForm addon={addon} onSaved={close} />
+        <DeleteProduct kind="addon" id={addon.id} name={addon.name.en} onDeleted={close} />
+      </Modal>
+    </>
+  );
+}
+
+/** The dashed tile that opens an empty form. Kept in the same grid as the
+    product boxes, and last, so "create" reads as one more card rather than a
+    button floating above a heading — and so the grid does not change shape
+    depending on whether anything exists yet.
+
+    It deliberately does not look like a product box: same footprint, no
+    price, no id, dashed border. Two boxes that differ only in their text is
+    how a misclick on a grid of near-identical cards happens. */
+function NewBox({
+  label,
+  onOpen,
+  triggerRef,
+}: {
+  label: string;
+  onOpen: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+}) {
+  return (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-line-strong bg-transparent p-5 text-ink-2 transition-colors hover:border-accent hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      <span aria-hidden className="text-[1.25rem] leading-none">+</span>
+      <span className="text-[0.9375rem] font-medium">{label}</span>
+    </button>
+  );
+}
+
+export function NewPlanBox() {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <NewBox label="New plan" onOpen={() => setOpen(true)} triggerRef={triggerRef} />
+      <Modal open={open} onClose={close} title="New plan" trigger={triggerRef}>
+        <PlanForm plan={null} onSaved={close} />
+      </Modal>
+    </>
+  );
+}
+
+export function NewAddonBox() {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <NewBox label="New add-on" onOpen={() => setOpen(true)} triggerRef={triggerRef} />
+      <Modal open={open} onClose={close} title="New add-on" trigger={triggerRef}>
+        <AddonForm addon={null} onSaved={close} />
       </Modal>
     </>
   );
