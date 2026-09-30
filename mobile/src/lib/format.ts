@@ -44,3 +44,9 @@ export function synthPeaks(id: string, n = 15): number[] {
   }
   return out;
 }
+
+/** "1.234,5 kr." in Danish, "1,234.5 kr." in English. */
+export function kr(amount: number, locale: Locale): string {
+  const formatted = new Intl.NumberFormat(locale === "da" ? "da-DK" : "en-GB", { maximumFractionDigits: 2 }).format(amount);
+  return `${formatted} kr.`;
+}

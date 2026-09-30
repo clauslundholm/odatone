@@ -54,6 +54,7 @@ function Shell() {
         <Stack.Screen name="auth/login" options={AUTH_MODAL} />
         <Stack.Screen name="auth/forgot" options={AUTH_MODAL} />
         <Stack.Screen name="auth/verify" options={AUTH_MODAL} />
+        <Stack.Screen name="auth/signup" options={AUTH_MODAL} />
       </Stack>
     </>
   );

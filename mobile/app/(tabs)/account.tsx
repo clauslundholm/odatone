@@ -114,6 +114,7 @@ function AccountCard() {
         <Txt variant="body" tone="ink2">{t("account.signedOut.body")}</Txt>
         <View style={{ gap: 10, marginTop: 8 }}>
           <Button label={t("account.logIn")} onPress={() => router.push("/auth/login")} />
+          <Button variant="secondary" label={t("account.create")} onPress={() => router.push("/auth/signup")} />
         </View>
       </Card>
     );

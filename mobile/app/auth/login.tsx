@@ -61,6 +61,7 @@ export default function LoginScreen() {
       />
       <Button label={t("auth.login.submit")} onPress={submit} busy={busy} />
       <Button variant="link" label={t("auth.login.forgot")} onPress={() => router.replace("/auth/forgot")} />
+      <Button variant="secondary" label={t("account.create")} onPress={() => router.replace("/auth/signup")} />
     </AuthScreen>
   );
 }
