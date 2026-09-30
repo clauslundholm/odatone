@@ -11,9 +11,13 @@
     gets parsed at all, not a field limit — those are buildSignup's. */
 export const MAX_BODY_CHARS = 10_000;
 
-/** The field names SignupFlow.tsx sends, minus the venue step's. A key
-    that is not on this list never reaches submitSignup. */
-const FIELDS = [
+/** The field names buildSignup (lib/signup.ts) reads, and nothing else. A
+    key that is not on this list never reaches submitSignup — including
+    payment details: the app collects none, and a card number, an EAN or a
+    purchase-order reference sent by a client is dropped here. Exported so
+    test/app-signup.test.ts can pin this list to the fields buildSignup
+    actually reads. */
+export const APP_SIGNUP_FIELDS = [
   "name",
   "company",
   "email",
@@ -25,8 +29,6 @@ const FIELDS = [
   "planId",
   "billing",
   "locations",
-  "ean",
-  "po",
 ] as const;
 
 export function parseAppSignup(raw: string): FormData | null {
@@ -42,13 +44,10 @@ export function parseAppSignup(raw: string): FormData | null {
 
   const record = body as Record<string, unknown>;
   const fd = new FormData();
-  for (const key of FIELDS) {
+  for (const key of APP_SIGNUP_FIELDS) {
     const value = record[key];
     if (typeof value === "string") fd.set(key, value);
     else if (typeof value === "number" && Number.isFinite(value)) fd.set(key, String(value));
   }
-  /* The app has no card form. Set here rather than trusted from the
-     body, so a hand-written request cannot claim otherwise. */
-  fd.set("paymentMethod", "invoice");
   return fd;
 }

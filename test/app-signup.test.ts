@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseAppSignup, MAX_BODY_CHARS } from "../lib/app-signup.ts";
+import { readFileSync } from "node:fs";
+
+import { parseAppSignup, APP_SIGNUP_FIELDS, MAX_BODY_CHARS } from "../lib/app-signup.ts";
 
 const BODY = {
   name: "Jens Hansen",
@@ -15,8 +17,6 @@ const BODY = {
   planId: "small",
   billing: "annual",
   locations: 3,
-  ean: "5790000000000",
-  po: "PO-7",
 };
 
 test("maps every field onto the names submitSignup reads", () => {
@@ -32,8 +32,6 @@ test("maps every field onto the names submitSignup reads", () => {
   assert.equal(fd.get("city"), "Aarhus");
   assert.equal(fd.get("planId"), "small");
   assert.equal(fd.get("billing"), "annual");
-  assert.equal(fd.get("ean"), "5790000000000");
-  assert.equal(fd.get("po"), "PO-7");
 });
 
 test("sends a numeric location count as a digit string", () => {
@@ -46,9 +44,36 @@ test("passes a fractional count through unrounded, for the server to reject", ()
   assert.equal(fd?.get("locations"), "3.7");
 });
 
-test("always pays by invoice, whatever the client claims", () => {
-  const fd = parseAppSignup(JSON.stringify({ ...BODY, paymentMethod: "card" }));
-  assert.equal(fd?.get("paymentMethod"), "invoice");
+test("payment details a client sends never reach the FormData", () => {
+  /* The app collects none, and the web form's own payment fields are gone
+     from buildSignup, so nothing here may be forwarded on a client's say-so. */
+  const fd = parseAppSignup(
+    JSON.stringify({
+      ...BODY,
+      paymentMethod: "card",
+      ean: "5790000000000",
+      po: "PO-7",
+      card: "4111111111111111",
+      expiry: "12/30",
+      cvc: "123",
+    }),
+  );
+  assert.ok(fd);
+  for (const key of ["paymentMethod", "ean", "po", "card", "expiry", "cvc"]) {
+    assert.equal(fd.has(key), false, key);
+  }
+});
+
+test("the allowlist is exactly the set of fields buildSignup reads", () => {
+  /* Read as text on purpose: if the website starts requiring a new field,
+     this fails here instead of the app getting a generic server error for
+     a field it has no way to send. "plan" is buildSignup's alias for
+     "planId", not a second field. */
+  const source = readFileSync(new URL("../lib/signup.ts", import.meta.url), "utf8");
+  const read = new Set(
+    [...source.matchAll(/\bget\("([^"]+)"\)/g)].map((m) => m[1]).filter((key) => key !== "plan"),
+  );
+  assert.deepEqual([...APP_SIGNUP_FIELDS].sort(), [...read].sort());
 });
 
 test("drops keys it does not know, and keys that are not text or numbers", () => {
