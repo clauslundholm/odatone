@@ -285,6 +285,12 @@ follow the invite link, so the invite and recovery emails also print a
 
 ## Environment variables
 
+Standing the backend up from scratch — credentials, the 14 migrations, the
+role model and the private invoice bucket — is `docs/supabase-setup.md`.
+Read §4.3 before anything else: the first `staff_admin` cannot be created
+through the app, so a fresh project has no way into `/admin` until one is
+inserted by hand.
+
 See `.env.example`. `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`
 and `SUPABASE_SERVICE_ROLE_KEY` come from `supabase start`'s own output
 locally, or the project's API settings against a hosted Supabase project.
