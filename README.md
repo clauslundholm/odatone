@@ -283,6 +283,19 @@ the database's active plans, exactly as for the website's form. The app cannot
 follow the invite link, so the invite and recovery emails also print a
 6-digit code; see `docs/supabase-email-templates.md`.
 
+## Running the database tests
+
+`npm run test:db` resets the local database before running pgTAP, and has
+to. Several assertions count rows — "staff see every customer" expects
+exactly its own two fixtures — so a single row left behind by a browser
+session fails them with `have: 3, want: 2`, which reads like a tenancy
+regression and is not one. The reset makes the suite depend on the
+migrations and the seed rather than on whatever you were last doing.
+
+It also means the command wipes local data, including any price you edited
+in /admin/products. That is fine locally and must never be pointed at a
+hosted project.
+
 ## Environment variables
 
 Standing the backend up from scratch — credentials, the 14 migrations, the
