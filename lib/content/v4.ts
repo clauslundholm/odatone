@@ -22,8 +22,16 @@ export const v4 = {
     home: { da: "Forside", en: "Home" } as L10n,
     search: { da: "Søg", en: "Search" } as L10n,
     build: { da: "Byg din liste", en: "Build your list" } as L10n,
-  seasons: { da: "Sæsoner", en: "Seasons" } as L10n,
+    seasons: { da: "Sæsoner", en: "Seasons" } as L10n,
     moods: { da: "Stemninger", en: "Moods" } as L10n,
+    yourLists: { da: "Dine lister", en: "Your lists" } as L10n,
+    newList: { da: "Ny liste", en: "New list" } as L10n,
+    newListNote: {
+      da: "Gemmes med en gratis profil",
+      en: "Saved with a free profile",
+    } as L10n,
+    /** "{n}" is filterTracks' own count for that mood. */
+    trackCount: { da: "{n} numre", en: "{n} tracks" } as L10n,
     /** "{price}" is the cheapest ACTIVE plan, read from the database and
         passed in — never written out here. The design shows 149 kr., which
         is Small Venue's price, and Small Venue is no longer sold. */
@@ -44,6 +52,9 @@ export const v4 = {
       en: "Everything before you sign up: no Koda, no Gramex.",
     } as L10n,
     play: { da: "Afspil", en: "Play" } as L10n,
+    /** "{list}" is the curated list the hero's play button actually
+        queues, so the button names what it is about to play. */
+    playList: { da: "Afspil {list}", en: "Play {list}" } as L10n,
     build: { da: "Byg din egen liste", en: "Build your own list" } as L10n,
     stats: {
       tracks: { da: "numre", en: "tracks" } as L10n,
@@ -58,9 +69,21 @@ export const v4 = {
     artists: { da: "Mød musikerne", en: "Meet the musicians" } as L10n,
     genres: { da: "Genrer", en: "Genres" } as L10n,
     seeAll: { da: "Se alle", en: "See all" } as L10n,
+    /** "{n}" is how many there are, so "Se alle 8" cannot promise more
+        lists than the row can lead to. */
+    seeAllN: { da: "Se alle {n}", en: "See all {n}" } as L10n,
+    allArtists: { da: "Alle musikere", en: "All musicians" } as L10n,
   },
   builder: {
     heading: { da: "Byg din egen liste", en: "Build your own list" } as L10n,
+    /** The badge on the builder card: the count below it moves as the
+        filters move, rather than after a submit. */
+    live: { da: "Live", en: "Live" } as L10n,
+    /** "{min}" is the summed duration of the matching tracks. */
+    runtime: {
+      da: "{min} min · opdaterer sig selv",
+      en: "{min} min · keeps itself current",
+    } as L10n,
     genre: { da: "Genre", en: "Genre" } as L10n,
     vocal: { da: "Vokal", en: "Vocals" } as L10n,
     vocalAny: { da: "Begge", en: "Either" } as L10n,
@@ -82,6 +105,10 @@ export const v4 = {
   },
   nowPlaying: {
     heading: { da: "Spiller nu", en: "Playing now" } as L10n,
+    /** Shown instead of the heading when the current filters are exactly
+        one of the curated lists — so the card says where the music came
+        from rather than only what is playing. */
+    from: { da: "Spiller fra {list}", en: "Playing from {list}" } as L10n,
     nothing: { da: "Intet spiller endnu", en: "Nothing playing yet" } as L10n,
     nothingNote: {
       da: "Vælg en stemning, så kører det.",

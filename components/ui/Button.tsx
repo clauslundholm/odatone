@@ -1,7 +1,15 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-type Variant = "primary" | "outline" | "ghost" | "solid" | "quiet" | "danger";
+type Variant =
+  | "primary"
+  | "outline"
+  | "ghost"
+  | "solid"
+  | "quiet"
+  | "danger"
+  | "on-photo"
+  | "on-photo-quiet";
 type Size = "sm" | "md" | "lg";
 
 const base =
@@ -26,6 +34,15 @@ const variants: Record<Variant, string> = {
      way --c-accent-ink is chosen per accent rather than assumed to always
      be white. */
   danger: "bg-bad text-bad-ink hover:opacity-85",
+  /* The pair that sits on a photograph. Both are fixed white rather than
+     theme tokens: the hero is a dark picture in either theme, so an
+     ink that flipped with the theme would go white-on-white in dark
+     mode. They are variants rather than extra classes on `primary`
+     because a class appended to a variant does not reliably beat it —
+     `text-accent` after `text-accent-ink` loses or wins on CSS source
+     order, not on where it appears in the string. */
+  "on-photo": "bg-white text-accent hover:bg-white/90",
+  "on-photo-quiet": "border border-white/35 bg-white/10 text-white hover:bg-white/20",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra = "") {

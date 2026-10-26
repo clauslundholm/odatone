@@ -3,13 +3,21 @@
 import Link from "next/link";
 import { useMemo } from "react";
 
-import Cover from "@/components/player/Cover";
 import { usePlayer } from "@/components/player/PlayerProvider";
-import { Button, LinkButton } from "@/components/ui/Button";
+import { buttonClass } from "@/components/ui/Button";
+import { PlayIcon } from "@/components/player/Icons";
+import { TilePlays } from "./Icons";
 import { v4 as t } from "@/lib/content/v4";
-import { href, type Locale } from "@/lib/i18n";
+import { href, type L10n, type Locale } from "@/lib/i18n";
 import { num } from "@/lib/format";
 import { PROOF } from "@/lib/site";
+import {
+  CURATED_PHOTO,
+  HERO_PHOTO,
+  MOOD_PHOTO,
+  artistPhoto,
+  genrePhoto,
+} from "@/lib/v4/photos";
 import {
   BPM_MAX,
   BPM_MIN,
@@ -18,6 +26,7 @@ import {
   MOODS,
   TRACKS,
   filterTracks,
+  type Filters,
   type Genre,
 } from "@/lib/tracks";
 
@@ -32,16 +41,16 @@ import {
  * is also why the counts are computed with `filterTracks` — the same
  * function that decides what actually queues.
  *
- * The catalogue underneath is still placeholder (TRACKS_ARE_PLACEHOLDER in
- * lib/tracks.ts: 24 synthesised files). Nothing here reads anything but
- * `Track`, which is the shape lib/catalogue/trax.ts already maps 1000trax
- * onto, so the real catalogue replaces the data without touching this.
+ * The photography is the Figma's own, exported to public/v4 and mapped in
+ * lib/v4/photos.ts. The catalogue underneath is still placeholder
+ * (TRACKS_ARE_PLACEHOLDER in lib/tracks.ts: 24 synthesised files).
+ * Nothing here reads anything but `Track`, which is the shape
+ * lib/catalogue/trax.ts already maps 1000trax onto, so the real catalogue
+ * replaces the data without touching this.
  */
 export default function Landing({ locale: l }: { locale: Locale }) {
-  const p = usePlayer();
-
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-11">
       <Hero locale={l} />
       <MoodRow locale={l} />
       <CuratedRow locale={l} />
@@ -50,6 +59,83 @@ export default function Landing({ locale: l }: { locale: Locale }) {
     </div>
   );
 }
+
+/* --------------------------------------------------------------- lists */
+
+/** Curated lists, defined as filters rather than as stored track ids — so
+    importing a larger catalogue fills them out on its own, exactly the way
+    the mobile app's src/data/catalog.ts already does it. */
+const CURATED: {
+  id: string;
+  label: L10n;
+  /** The hours the list is for. Shown as the badge on the tile. */
+  when: L10n;
+  blurb: L10n;
+  genres: Genre[];
+  bpm: [number, number];
+}[] = [
+  {
+    id: "morning",
+    label: { da: "Morgenåbning", en: "Opening hours" },
+    when: { da: "Hverdage 7–10", en: "Weekdays 7–10" },
+    blurb: { da: "Rolig start, før de første kunder", en: "A quiet start, before the first customers" },
+    genres: ["ambient", "acoustic"],
+    bpm: [BPM_MIN, 90],
+  },
+  {
+    id: "lunch",
+    label: { da: "Frokostpuls", en: "Lunch pulse" },
+    when: { da: "Kl. 11–14", en: "11–14" },
+    blurb: { da: "Let bossa og soul til frokost", en: "Light bossa and soul over lunch" },
+    genres: ["jazz", "acoustic"],
+    bpm: [85, 110],
+  },
+  {
+    id: "friday",
+    label: { da: "Fredag kl. 17", en: "Friday at five" },
+    when: { da: "Fredag fra 17", en: "Friday from 17" },
+    blurb: { da: "Når rummet fyldes og alle taler højere", en: "When the room fills and everyone talks louder" },
+    genres: ["pop", "rnb"],
+    bpm: [105, BPM_MAX],
+  },
+  {
+    id: "evening",
+    label: { da: "Dansk på anlægget", en: "Danish on the system" },
+    when: { da: "Hele dagen", en: "All day" },
+    blurb: { da: "Kun dansk vokal, hele dagen", en: "Danish vocals only, all day" },
+    genres: ["pop"],
+    bpm: [90, 120],
+  },
+];
+
+type Curated = (typeof CURATED)[number];
+
+const curatedFilters = (c: Curated): Filters => ({
+  ...DEFAULT_FILTERS,
+  genres: c.genres,
+  bpm: c.bpm,
+});
+
+/** The list the hero offers, and the one the right rail names as the
+    source. One constant rather than two, so the two cannot disagree. */
+const FEATURED = CURATED[2]!;
+
+/** Which curated list the current filters are, if any — so the rail can
+    say "Spiller fra Fredag kl. 17" without a second notion of a queue
+    source to keep in step with the filters. */
+function curatedFor(f: Filters): Curated | null {
+  return (
+    CURATED.find(
+      (c) =>
+        c.bpm[0] === f.bpm[0] &&
+        c.bpm[1] === f.bpm[1] &&
+        c.genres.length === f.genres.length &&
+        c.genres.every((g) => f.genres.includes(g)),
+    ) ?? null
+  );
+}
+
+/* ---------------------------------------------------------------- hero */
 
 function Hero({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
@@ -60,27 +146,56 @@ function Hero({ locale: l }: { locale: Locale }) {
     ["100 %", t.hero.stats.musicians[l]],
   ];
 
+  const featured = useMemo(() => filterTracks(curatedFilters(FEATURED)), []);
+
   return (
-    <section className="relative overflow-hidden rounded-[var(--radius-xl)] bg-ink p-8 sm:p-11">
-      <div className="relative z-[1] flex max-w-[620px] flex-col gap-5">
-        <p className="u-label text-accent">{t.hero.eyebrow[l]}</p>
-        <h1 className="u-display whitespace-pre-line text-[clamp(2rem,4.4vw,3.1rem)] text-bg">
+    <section className="relative isolate overflow-hidden rounded-[var(--radius-xl)] p-9 sm:p-11">
+      <img
+        src={HERO_PHOTO}
+        alt=""
+        className="absolute inset-0 -z-20 h-full w-full object-cover"
+      />
+      {/* Two layers rather than one flat tint: the wash keeps the whole
+          photograph dark enough for white type, and the left-to-right
+          gradient buys the extra contrast the headline needs without
+          blacking out the right-hand third of the picture. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(10,8,16,0.92)_0%,rgba(10,8,16,0.72)_46%,rgba(10,8,16,0.42)_100%)]"
+      />
+
+      <div className="relative flex max-w-[620px] flex-col items-start gap-5">
+        <p className="rounded-full bg-white/15 px-4 py-1.5 text-[0.8125rem] font-medium text-white backdrop-blur-sm">
+          {t.hero.eyebrow[l]}
+        </p>
+        <h1 className="u-display whitespace-pre-line text-[clamp(2rem,4.4vw,3.1rem)] text-white">
           {t.hero.title[l]}
         </h1>
-        <p className="text-[1.0625rem] text-bg/70">{t.hero.lede[l]}</p>
+        <p className="text-[1.0625rem] text-white/75">{t.hero.lede[l]}</p>
+
         <div className="flex flex-wrap gap-3">
-          <Button size="lg" onClick={() => p.play()}>
-            {t.hero.play[l]}
-          </Button>
-          <LinkButton href={href(l, "player")} variant="outline" size="lg">
+          <button
+            type="button"
+            onClick={() => {
+              p.setFilters(curatedFilters(FEATURED));
+              if (featured[0]) p.play(featured[0]);
+            }}
+            disabled={featured.length === 0}
+            className={buttonClass("on-photo", "md")}
+          >
+            <PlayIcon size={15} />
+            {t.hero.playList[l].replace("{list}", FEATURED.label[l])}
+          </button>
+          <Link href={href(l, "player")} className={buttonClass("on-photo-quiet", "md")}>
             {t.hero.build[l]}
-          </LinkButton>
+          </Link>
         </div>
-        <dl className="mt-3 flex flex-wrap gap-x-10 gap-y-4">
+
+        <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4">
           {stats.map(([value, label]) => (
             <div key={label}>
-              <dt className="u-num text-[1.25rem] text-bg">{value}</dt>
-              <dd className="u-label mt-1 text-bg/60">{label}</dd>
+              <dt className="u-num text-[1.25rem] text-white">{value}</dt>
+              <dd className="u-label mt-1 text-white/60">{label}</dd>
             </div>
           ))}
         </dl>
@@ -89,16 +204,40 @@ function Hero({ locale: l }: { locale: Locale }) {
   );
 }
 
-function SectionHead({ title, hrefTo, locale: l }: { title: string; hrefTo?: string; locale: Locale }) {
+/* ------------------------------------------------------------ sections */
+
+function SectionHead({
+  title,
+  link,
+  locale: l,
+}: {
+  title: string;
+  link?: { to: string; label: string };
+  locale: Locale;
+}) {
   return (
     <div className="mb-4 flex items-baseline justify-between gap-4">
-      <h2 className="u-title text-[1.125rem] text-ink">{title}</h2>
-      {hrefTo && (
-        <Link href={hrefTo} className="u-link text-[0.8125rem]">
-          {t.sections.seeAll[l]}
+      <h2 className="u-title text-[1.1875rem] text-ink">{title}</h2>
+      {link && (
+        <Link href={link.to} className="u-link text-[0.8125rem]">
+          {link.label}
         </Link>
       )}
     </div>
+  );
+}
+
+/** The equaliser mark the design lays over the bottom-left of every photo
+    that plays, with the scrim that keeps it legible on a pale picture. */
+function PlaysOverlay() {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.45)_100%)]"
+      />
+      <TilePlays className="absolute bottom-3 left-3" />
+    </>
   );
 }
 
@@ -106,7 +245,11 @@ function MoodRow({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
   return (
     <section>
-      <SectionHead title={t.sections.now[l]} locale={l} />
+      <SectionHead
+        title={t.sections.now[l]}
+        link={{ to: href(l, "player"), label: t.sections.seeAll[l] }}
+        locale={l}
+      />
       <ul className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         {MOODS.map((m) => {
           const matches = filterTracks({ ...DEFAULT_FILTERS, mood: m.id });
@@ -120,14 +263,20 @@ function MoodRow({ locale: l }: { locale: Locale }) {
                   if (matches[0]) p.play(matches[0]);
                 }}
                 aria-pressed={active}
-                className={`flex h-full w-full flex-col items-start gap-2 rounded-[var(--radius-lg)] p-5 text-left transition-colors ${
-                  active ? "bg-surface-2 ring-1 ring-accent/40" : "bg-surface-2/60 hover:bg-surface-2"
+                className={`flex h-full w-full flex-col items-start gap-3 rounded-[var(--radius-lg)] bg-surface p-3 text-left shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5 ${
+                  active ? "ring-2 ring-accent" : ""
                 }`}
               >
-                <span className="u-title text-[1rem] text-ink">{m.label[l]}</span>
-                <span className="text-[0.8125rem] leading-snug text-ink-3">{m.blurb[l]}</span>
-                <span className="u-label mt-auto pt-3 text-ink-3">
-                  {matches.length} {t.hero.stats.tracks[l]}
+                <span className="relative block aspect-square w-full overflow-hidden rounded-[var(--radius-md)]">
+                  <img src={MOOD_PHOTO[m.id]} alt="" className="h-full w-full object-cover" />
+                  <PlaysOverlay />
+                </span>
+                <span className="flex flex-col gap-1 px-1 pb-2">
+                  <span className="u-title text-[1.0625rem] text-ink">{m.label[l]}</span>
+                  <span className="text-[0.8125rem] leading-snug text-ink-3">{m.blurb[l]}</span>
+                  <span className="text-[0.8125rem] text-ink-3">
+                    {t.rail.trackCount[l].replace("{n}", String(matches.length))}
+                  </span>
                 </span>
               </button>
             </li>
@@ -138,39 +287,46 @@ function MoodRow({ locale: l }: { locale: Locale }) {
   );
 }
 
-/** Curated lists, defined as filters rather than as stored track ids — so
-    importing a larger catalogue fills them out on its own, exactly the way
-    the mobile app's src/data/catalog.ts already does it. */
-const CURATED: { id: string; label: L10nish; genres: Genre[]; bpm: [number, number] }[] = [
-  { id: "morning", label: { da: "Morgenåbning", en: "Opening hours" }, genres: ["ambient", "acoustic"], bpm: [BPM_MIN, 90] },
-  { id: "lunch", label: { da: "Frokostpuls", en: "Lunch pulse" }, genres: ["jazz", "acoustic"], bpm: [85, 110] },
-  { id: "friday", label: { da: "Fredag kl. 17", en: "Friday at five" }, genres: ["pop", "rnb"], bpm: [105, BPM_MAX] },
-  { id: "evening", label: { da: "Dansk på anlægget", en: "Danish on the system" }, genres: ["pop"], bpm: [90, 120] },
-];
-type L10nish = { da: string; en: string };
-
 function CuratedRow({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
   return (
     <section>
-      <SectionHead title={t.sections.lists[l]} hrefTo={href(l, "player")} locale={l} />
-      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <SectionHead
+        title={t.sections.lists[l]}
+        link={{
+          to: href(l, "player"),
+          label: t.sections.seeAllN[l].replace("{n}", String(CURATED.length)),
+        }}
+        locale={l}
+      />
+      <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {CURATED.map((c) => {
-          const matches = filterTracks({ ...DEFAULT_FILTERS, genres: c.genres, bpm: c.bpm });
+          const matches = filterTracks(curatedFilters(c));
           return (
             <li key={c.id}>
               <button
                 type="button"
                 disabled={matches.length === 0}
                 onClick={() => {
-                  p.setFilters({ ...DEFAULT_FILTERS, genres: c.genres, bpm: c.bpm });
+                  p.setFilters(curatedFilters(c));
                   if (matches[0]) p.play(matches[0]);
                 }}
-                className="flex h-full w-full flex-col items-start gap-2 rounded-[var(--radius-lg)] bg-surface-2/60 p-5 text-left transition-colors hover:bg-surface-2 disabled:opacity-50"
+                className="group flex h-full w-full flex-col items-start gap-3 text-left disabled:opacity-50"
               >
-                <span className="u-title text-[1rem] text-ink">{c.label[l]}</span>
-                <span className="u-label mt-auto pt-3 text-ink-3">
-                  {matches.length} {t.hero.stats.tracks[l]}
+                <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-lg)]">
+                  <img
+                    src={CURATED_PHOTO[c.id]}
+                    alt=""
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
+                  <span className="absolute left-3 top-3 rounded-full bg-surface/90 px-3 py-1 text-[0.75rem] font-semibold text-ink backdrop-blur-sm">
+                    {c.when[l]}
+                  </span>
+                  <PlaysOverlay />
+                </span>
+                <span className="flex flex-col gap-1">
+                  <span className="u-title text-[1.0625rem] text-ink">{c.label[l]}</span>
+                  <span className="text-[0.8125rem] leading-snug text-ink-3">{c.blurb[l]}</span>
                 </span>
               </button>
             </li>
@@ -185,17 +341,31 @@ function ArtistRow({ locale: l }: { locale: Locale }) {
   /* Real names off the catalogue rather than a fixed list, so this row
      cannot outlive the artists in it. 1000trax returns no artist at all
      today (docs/1000trax-api-requirements.md §2.4) — when the real
-     catalogue lands, either this fills with real names or the section goes. */
+     catalogue lands, either this fills with real names or the section goes.
+     The portraits are positional for the same reason: they belong to the
+     row, not to any one of these placeholder names. */
   const artists = useMemo(() => [...new Set(TRACKS.map((x) => x.artist))].slice(0, 8), []);
   return (
     <section>
-      <SectionHead title={t.sections.artists[l]} hrefTo={href(l, "artists")} locale={l} />
-      <ul className="flex flex-wrap gap-5">
-        {artists.map((a) => (
-          <li key={a} className="flex w-[96px] flex-col items-center gap-2 text-center">
-            <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-surface-2 text-[1.125rem] font-medium text-ink-3">
-              {a.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-            </span>
+      <SectionHead
+        title={t.sections.artists[l]}
+        link={{ to: href(l, "artists"), label: t.sections.allArtists[l] }}
+        locale={l}
+      />
+      {/* One row, spread across the column — not a wrapping grid. Eight
+          76px portraits and their names fit the column the design draws
+          them in, and a ninth on a second line would read as a different
+          section rather than as more of this one. */}
+      <ul className="flex items-start justify-between gap-3">
+        {artists.map((a, i) => (
+          <li key={a} className="flex min-w-0 flex-col items-center gap-2.5 text-center">
+            <img
+              src={artistPhoto(i)}
+              alt=""
+              width={76}
+              height={76}
+              className="h-[76px] w-[76px] rounded-full object-cover"
+            />
             <span className="text-[0.8125rem] leading-tight text-ink-2">{a}</span>
           </li>
         ))}
@@ -209,8 +379,8 @@ function GenreRow({ locale: l }: { locale: Locale }) {
   return (
     <section>
       <SectionHead title={t.sections.genres[l]} locale={l} />
-      <ul className="grid gap-4 sm:grid-cols-3 xl:grid-cols-4">
-        {GENRES.map((g) => {
+      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {GENRES.map((g, i) => {
           const matches = filterTracks({ ...DEFAULT_FILTERS, genres: [g.id] });
           return (
             <li key={g.id}>
@@ -221,10 +391,20 @@ function GenreRow({ locale: l }: { locale: Locale }) {
                   p.setFilters({ ...DEFAULT_FILTERS, genres: [g.id] });
                   if (matches[0]) p.play(matches[0]);
                 }}
-                className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-lg)] bg-surface-2/60 px-5 py-4 text-left transition-colors hover:bg-surface-2 disabled:opacity-50"
+                className="group relative block h-[100px] w-full overflow-hidden rounded-[var(--radius-lg)] text-left disabled:opacity-50"
               >
-                <span className="text-[0.9375rem] text-ink">{g.label[l]}</span>
-                <span className="u-label text-ink-3">{matches.length}</span>
+                <img
+                  src={genrePhoto(i)}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.05)_30%,rgba(0,0,0,0.68)_100%)]"
+                />
+                <span className="absolute bottom-3 left-4 text-[1.0625rem] font-semibold text-white">
+                  {g.label[l]}
+                </span>
               </button>
             </li>
           );
@@ -233,6 +413,8 @@ function GenreRow({ locale: l }: { locale: Locale }) {
     </section>
   );
 }
+
+/* ---------------------------------------------------------------- rail */
 
 /** The right rail: what is playing, and the list builder.
  *
@@ -244,6 +426,7 @@ function GenreRow({ locale: l }: { locale: Locale }) {
 export function Rail({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
   const matches = useMemo(() => filterTracks(p.filters), [p.filters]);
+  const source = useMemo(() => curatedFor(p.filters), [p.filters]);
 
   const countLabel =
     matches.length === 0
@@ -252,37 +435,62 @@ export function Rail({ locale: l }: { locale: Locale }) {
         ? t.builder.matchesOne[l]
         : t.builder.matches[l].replace("{n}", String(matches.length));
 
+  /* Rounded up: a list that runs 51.4 minutes is a 52-minute list, and
+     rounding down would advertise less music than it plays. */
+  const minutes = Math.ceil(matches.reduce((s, x) => s + x.duration, 0) / 60);
+
   return (
-    <div className="sticky top-[76px] flex flex-col gap-4">
-      <section className="rounded-[var(--radius-lg)] bg-surface-2/60 p-5">
-        <p className="u-label mb-3 text-ink-3">{t.nowPlaying.heading[l]}</p>
+    <div className="sticky top-[84px] flex flex-col gap-5">
+      <section className="rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-card)]">
+        <p className="text-[0.8125rem] text-ink-3">
+          {source ? t.nowPlaying.from[l].replace("{list}", source.label[l]) : t.nowPlaying.heading[l]}
+        </p>
         {p.current ? (
-          <div className="flex items-center gap-3">
-            <Cover track={p.current} size={48} />
-            <div className="min-w-0">
-              <p className="truncate text-[0.9375rem] font-medium text-ink">{p.current.title[l]}</p>
-              <p className="truncate text-[0.8125rem] text-ink-3">{p.current.artist}</p>
-            </div>
-          </div>
+          <>
+            <span className="relative mt-3 block aspect-square w-full overflow-hidden rounded-[var(--radius-lg)]">
+              <img
+                src={MOOD_PHOTO[p.current.mood]}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+              <PlaysOverlay />
+            </span>
+            <p className="u-title mt-4 text-[1.3125rem] text-ink">{p.current.title[l]}</p>
+            <p className="mt-0.5 text-[0.9375rem] text-ink-3">{p.current.artist}</p>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {[
+                GENRES.find((g) => g.id === p.current!.genre)?.label[l] ?? p.current.genre,
+                `${p.current.bpm} BPM`,
+                p.current.vox ? t.builder.vocalYes[l] : t.builder.vocalNo[l],
+              ].map((chip) => (
+                <li
+                  key={chip}
+                  className="rounded-full border border-line px-3 py-1 text-[0.8125rem] text-ink-2"
+                >
+                  {chip}
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
           <>
-            <p className="text-[0.9375rem] text-ink-2">{t.nowPlaying.nothing[l]}</p>
+            <p className="mt-2 text-[0.9375rem] text-ink-2">{t.nowPlaying.nothing[l]}</p>
             <p className="mt-1 text-[0.8125rem] text-ink-3">{t.nowPlaying.nothingNote[l]}</p>
           </>
         )}
       </section>
 
-      <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] bg-surface-2/60 p-5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="u-title text-[1rem] text-ink">{t.builder.heading[l]}</h2>
-          <button type="button" onClick={() => p.resetFilters()} className="u-link text-[0.75rem]">
-            {t.builder.reset[l]}
-          </button>
+      <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-card)]">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="u-title text-[1.1875rem] text-ink">{t.builder.heading[l]}</h2>
+          <span className="rounded-full bg-accent-soft px-3 py-1 text-[0.75rem] font-semibold text-accent">
+            {t.builder.live[l]}
+          </span>
         </div>
 
         <div>
           <p className="u-label mb-2 text-ink-3">{t.builder.genre[l]}</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {GENRES.map((g) => {
               const on = p.filters.genres.includes(g.id);
               return (
@@ -296,8 +504,10 @@ export function Rail({ locale: l }: { locale: Locale }) {
                       genres: on ? f.genres.filter((x) => x !== g.id) : [...f.genres, g.id],
                     }))
                   }
-                  className={`rounded-full px-3 py-1.5 text-[0.75rem] transition-colors ${
-                    on ? "bg-accent text-accent-ink" : "bg-surface text-ink-2 hover:text-ink"
+                  className={`rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium transition-colors ${
+                    on
+                      ? "bg-accent text-accent-ink"
+                      : "border border-line text-ink hover:bg-surface-2"
                   }`}
                 >
                   {g.label[l]}
@@ -309,7 +519,7 @@ export function Rail({ locale: l }: { locale: Locale }) {
 
         <div>
           <p className="u-label mb-2 text-ink-3">{t.builder.vocal[l]}</p>
-          <div className="inline-flex gap-0.5 rounded-full bg-surface p-1">
+          <div className="flex gap-0.5 rounded-full bg-surface-2 p-1">
             {([
               [null, t.builder.vocalAny[l]],
               [true, t.builder.vocalYes[l]],
@@ -320,8 +530,10 @@ export function Rail({ locale: l }: { locale: Locale }) {
                 type="button"
                 aria-pressed={p.filters.vox === value}
                 onClick={() => p.setFilters({ vox: value })}
-                className={`rounded-full px-3 py-1.5 text-[0.75rem] transition-colors ${
-                  p.filters.vox === value ? "bg-surface-2 font-medium text-ink" : "text-ink-3 hover:text-ink"
+                className={`flex-1 whitespace-nowrap rounded-full px-2 py-1.5 text-[0.8125rem] transition-colors ${
+                  p.filters.vox === value
+                    ? "bg-surface font-semibold text-ink shadow-sm"
+                    : "text-ink-3 hover:text-ink"
                 }`}
               >
                 {label}
@@ -333,7 +545,7 @@ export function Rail({ locale: l }: { locale: Locale }) {
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <p className="u-label text-ink-3">{t.builder.tempo[l]}</p>
-            <p className="u-label text-accent">
+            <p className="u-num text-[0.8125rem] text-accent">
               {p.filters.bpm[0]}–{p.filters.bpm[1]} BPM
             </p>
           </div>
@@ -344,28 +556,57 @@ export function Rail({ locale: l }: { locale: Locale }) {
             value={p.filters.bpm[1]}
             onChange={(e) => p.setFilters({ bpm: [p.filters.bpm[0], Number(e.target.value)] })}
             aria-label={t.builder.tempo[l]}
-            className="w-full accent-[var(--c-accent)]"
+            className="oda-range w-full"
+            style={{
+              ["--fill" as string]: `${Math.round(
+                ((p.filters.bpm[1] - BPM_MIN) / (BPM_MAX - BPM_MIN)) * 100,
+              )}%`,
+            }}
           />
         </div>
 
-        <p role="status" className="text-[0.875rem] text-ink">
-          {countLabel}
-        </p>
+        <div className="flex items-center gap-3">
+          <img
+            src={MOOD_PHOTO[matches[0]?.mood ?? "calm"]}
+            alt=""
+            width={44}
+            height={44}
+            className="h-11 w-11 shrink-0 rounded-[var(--radius-sm)] object-cover"
+          />
+          <div className="min-w-0">
+            <p role="status" className="text-[0.9375rem] font-semibold text-ink">
+              {countLabel}
+            </p>
+            {matches.length > 0 && (
+              <p className="text-[0.8125rem] text-ink-3">
+                {t.builder.runtime[l].replace("{min}", String(minutes))}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => p.resetFilters()}
+            className="u-link ml-auto shrink-0 text-[0.75rem]"
+          >
+            {t.builder.reset[l]}
+          </button>
+        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
+        <div className="flex gap-2">
+          <button
+            type="button"
             disabled={matches.length === 0}
             onClick={() => matches[0] && p.play(matches[0])}
+            className={buttonClass("outline", "md", "shrink-0")}
           >
+            <PlayIcon size={14} />
             {t.builder.play[l]}
-          </Button>
-          <LinkButton href={href(l, "signup")} size="sm">
+          </button>
+          <Link href={href(l, "signup")} className={buttonClass("primary", "md", "flex-1")}>
             {t.builder.save[l]}
-          </LinkButton>
+          </Link>
         </div>
-        <p className="u-label text-ink-3">{t.builder.saveNote[l]}</p>
+        <p className="text-[0.75rem] leading-relaxed text-ink-3">{t.builder.saveNote[l]}</p>
       </section>
     </div>
   );
