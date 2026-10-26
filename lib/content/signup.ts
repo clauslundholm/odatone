@@ -35,6 +35,71 @@ export const signup = {
     { key: "subscription", label: { da: "Abonnement", en: "Subscription" } as L10n },
   ],
 
+  /* The v4 signup: a three-step modal over the landing page, replacing the
+     one-page form. Steps are Profil, Betaling, Spil i butikken.
+
+     The design's step-one heading is "Gem listen, og brug den i butikken",
+     written for a visitor who has just built a playlist. List building does
+     not exist yet, so promising to save one would be a lie told at the
+     moment someone hands over their details. Neutral heading until the
+     feature lands. */
+  modal: {
+    steps: [
+      { da: "Profil", en: "Profile" } as L10n,
+      { da: "Betaling", en: "Payment" } as L10n,
+      { da: "Spil i butikken", en: "Play in store" } as L10n,
+    ],
+    profile: {
+      heading: { da: "Opret din profil", en: "Create your profile" } as L10n,
+      lede: {
+        da: "Musikken spiller videre, mens du opretter dig.",
+        en: "The music keeps playing while you sign up.",
+      } as L10n,
+      nameLabel: { da: "Dit navn", en: "Your name" } as L10n,
+      companyLabel: { da: "Virksomhed", en: "Company" } as L10n,
+      emailLabel: { da: "E-mail", en: "Email" } as L10n,
+      passwordLabel: { da: "Adgangskode", en: "Password" } as L10n,
+      passwordHint: { da: "Mindst 8 tegn", en: "At least 8 characters" } as L10n,
+      submit: { da: `Opret profil · ${PROOF.trialDays} dage gratis`, en: `Create profile · ${PROOF.trialDays} days free` } as L10n,
+      submitPending: { da: "Opretter…", en: "Creating…" } as L10n,
+      note: {
+        da: `Intet kort nu. Du tilføjer betaling, når du vil, senest på dag ${PROOF.trialDays}.`,
+        en: `No card now. Add payment whenever you like, by day ${PROOF.trialDays} at the latest.`,
+      } as L10n,
+    },
+    payment: {
+      heading: { da: "Start abonnementet", en: "Start the subscription" } as L10n,
+      lede: {
+        da: "Hele biblioteket på alle jeres hylder. Opsig når som helst.",
+        en: "The whole library on every shelf. Cancel whenever you like.",
+      } as L10n,
+      /* "{plan}" and "{n}" are filled from the plan the account was created
+         on and its location count — never from a figure typed here. */
+      linePlan: { da: "{plan}, {n} lokation", en: "{plan}, {n} location" } as L10n,
+      linePlanPlural: { da: "{plan}, {n} lokationer", en: "{plan}, {n} locations" } as L10n,
+      lineRights: { da: "Koda og Gramex", en: "Koda and Gramex" } as L10n,
+      lineToday: { da: "I dag", en: "Today" } as L10n,
+      todayValue: { da: `0 kr. · prøve i ${PROOF.trialDays} dage`, en: `0 kr. · ${PROOF.trialDays}-day trial` } as L10n,
+      submit: { da: "Start og spil i butikken", en: "Start and play in store" } as L10n,
+      skip: { da: "Spring over, og betal senere", en: "Skip, and pay later" } as L10n,
+    },
+    play: {
+      heading: { da: "Så er der lyd.", en: "You're live." } as L10n,
+      lede: {
+        da: "Kontoen er klar. Log ind med {email} og den adgangskode, du lige valgte.",
+        en: "Your account is ready. Sign in with {email} and the password you just chose.",
+      } as L10n,
+      openPlayer: { da: "Åbn afspilleren", en: "Open the player" } as L10n,
+      openPortal: { da: "Gå til Mit Odatone", en: "Go to My Odatone" } as L10n,
+      /* Said plainly, because the invoice cannot be issued without it and
+         the customer is the only one who can supply it. */
+      cvrNote: {
+        da: "Husk at udfylde jeres CVR-nummer under Indstillinger — vi kan ikke sende en faktura uden.",
+        en: "Remember to add your CVR number under Settings — we cannot issue an invoice without it.",
+      } as L10n,
+    },
+  },
+
   company: {
     heading: { da: "Din virksomhed", en: "Your company" } as L10n,
     body: {
