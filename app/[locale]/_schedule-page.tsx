@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import Planner, { type PlannerLocation } from "@/components/v4/schedule/Planner";
+import DemoPlanner from "@/components/v4/schedule/DemoPlanner";
+import LivePlanner from "@/components/v4/schedule/LivePlanner";
+import type { PlannerLocation } from "@/components/v4/schedule/Planner";
 import type { WeekList } from "@/components/v4/schedule/Week";
 import Shell from "@/components/v4/Shell";
 import { v4 as t } from "@/lib/content/v4";
@@ -10,6 +11,7 @@ import { kr } from "@/lib/format";
 import { activePlans } from "@/lib/plans-server";
 import { quote } from "@/lib/pricing";
 import { isFallback, type ScheduleBlock } from "@/lib/schedule";
+import { DEMO_LISTS } from "@/lib/v4/demo-week";
 import { createClient } from "@/lib/supabase/server";
 
 type BlockRow = { id: string; playlist_id: string; weekday: number; from_min: number; to_min: number };
@@ -102,14 +104,20 @@ export async function renderSchedule(
     }
   }
 
+  /* Signed out, the rail still offers something to drag in: the
+     curated lists the demo week is built from. */
+  const railLists = signedIn
+    ? lists
+    : DEMO_LISTS.map((x) => ({ id: x.id, name: x.name[locale], basedOn: x.basedOn }));
+
   return (
-    <Shell locale={locale} priceFrom={priceFrom} active="schedule" lists={lists}>
+    <Shell locale={locale} priceFrom={priceFrom} active="schedule" lists={railLists}>
       {!signedIn ? (
-        <SignedOut locale={locale} />
+        <DemoPlanner locale={locale} />
       ) : !locationId ? (
         <Notice>{t.planner.noLocations[locale]}</Notice>
       ) : (
-        <Planner
+        <LivePlanner
           locale={locale}
           locations={locations}
           locationId={locationId}
@@ -125,21 +133,6 @@ function Notice({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-[var(--radius-xl)] border border-line bg-surface p-8">
       <p className="text-[0.9375rem] text-ink-2">{children}</p>
-    </div>
-  );
-}
-
-function SignedOut({ locale }: { locale: Locale }) {
-  return (
-    <div className="flex flex-col items-start gap-4 rounded-[var(--radius-xl)] border border-line bg-surface p-8">
-      <h1 className="u-title text-[1.125rem] text-ink">{t.planner.heading[locale]}</h1>
-      <p className="text-[0.9375rem] text-ink-2">{t.schedule.signedOut[locale]}</p>
-      <Link
-        href="/my-odatone"
-        className="rounded-full bg-accent px-5 py-2.5 text-[0.875rem] font-medium text-accent-ink"
-      >
-        {t.schedule.signIn[locale]}
-      </Link>
     </div>
   );
 }

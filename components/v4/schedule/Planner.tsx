@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
-import {
-  copyBlockToDays,
-  copyWeekToLocations,
-  createBlock,
-  deleteBlock,
-  moveBlock,
-  setBlockPlaylist,
-  setFallback,
-} from "@/app/[locale]/_schedule-actions";
 import { v4 as t } from "@/lib/content/v4";
 import type { Locale } from "@/lib/i18n";
 import {
@@ -27,6 +17,40 @@ import BlockPanel from "./BlockPanel";
 import Week, { type WeekList } from "./Week";
 
 export type PlannerLocation = { id: string; name: string; fallback: Fallback };
+
+export type Outcome = { ok: boolean; error?: string; replaced?: number; copied?: number; id?: string };
+
+/**
+ * Where an edit goes.
+ *
+ * Two implementations, and the grid cannot tell them apart: one posts
+ * to the server actions as the signed-in customer, the other keeps the
+ * week in this browser for a visitor who has no account yet. Putting
+ * the seam here rather than branching inside the handlers is what keeps
+ * the demo honestly identical to the real thing — there is no second
+ * code path to drift.
+ */
+export type PlannerBackend = {
+  create(input: {
+    locationId: string;
+    playlistId: string;
+    weekday: number;
+    from: number;
+    to: number;
+  }): Promise<Outcome>;
+  move(input: { id: string; weekday: number; from: number; to: number }): Promise<Outcome>;
+  setPlaylist(id: string, playlistId: string): Promise<Outcome>;
+  remove(id: string): Promise<Outcome>;
+  copyToDays(id: string, weekdays: number[]): Promise<Outcome>;
+  setFallback(locationId: string, fallback: Fallback): Promise<Outcome>;
+  copyToLocations(from: string, targets: string[]): Promise<Outcome>;
+  /** Run after every settled edit. The live backend re-reads the page;
+      the demo one has nothing to re-read. */
+  settle(): void;
+  /** The location picker. Live, this is a URL the reader can bookmark;
+      in the demo there is only ever one location, so it does nothing. */
+  goToLocation(id: string): void;
+};
 
 /**
  * The Ugeplan screen.
@@ -46,14 +70,19 @@ export default function Planner({
   locationId,
   blocks: serverBlocks,
   lists,
+  backend,
+  banner,
 }: {
   locale: Locale;
   locations: PlannerLocation[];
   locationId: string;
   blocks: ScheduleBlock[];
   lists: WeekList[];
+  backend: PlannerBackend;
+  /** Shown above the grid. The demo uses it to say where the week is
+      being kept; signed in there is nothing to say. */
+  banner?: React.ReactNode;
 }) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
   const [blocks, applyOptimistic] = useOptimistic(
     serverBlocks,
@@ -91,7 +120,7 @@ export default function Planner({
       if (res && !res.ok) {
         say(res.error === "overlap" ? t.planner.overlap[l] : t.planner.denied[l]);
       }
-      router.refresh();
+      backend.settle();
     });
   }
 
@@ -108,7 +137,7 @@ export default function Planner({
         setSelectedId(temp.id);
       },
       async () => {
-        const res = await createBlock({ locationId, playlistId: listId, weekday, from, to });
+        const res = await backend.create({ locationId, playlistId: listId, weekday, from, to });
         if (res.ok && res.id) setSelectedId(res.id);
         return res;
       },
@@ -120,7 +149,7 @@ export default function Planner({
     if (!before) return;
     run(
       () => applyOptimistic({ type: "put", block: { ...before, weekday, from, to } }),
-      () => moveBlock({ id, weekday, from, to }),
+      () => backend.move({ id, weekday, from, to }),
     );
   }
 
@@ -135,8 +164,8 @@ export default function Planner({
       () => applyOptimistic({ type: "put", block: next }),
       () =>
         patch.playlistId && patch.playlistId !== selected.playlistId
-          ? setBlockPlaylist(selected.id, patch.playlistId)
-          : moveBlock({ id: selected.id, weekday: next.weekday, from: next.from, to: next.to }),
+          ? backend.setPlaylist(selected.id, patch.playlistId)
+          : backend.move({ id: selected.id, weekday: next.weekday, from: next.from, to: next.to }),
     );
   }
 
@@ -148,7 +177,7 @@ export default function Planner({
         applyOptimistic({ type: "drop", id });
         setSelectedId(null);
       },
-      () => deleteBlock(id),
+      () => backend.remove(id),
     );
   }
 
@@ -156,7 +185,7 @@ export default function Planner({
     if (!selected || !copyDays.length) return;
     const days = [...copyDays];
     startTransition(async () => {
-      const res = await copyBlockToDays(selected.id, days);
+      const res = await backend.copyToDays(selected.id, days);
       if (!res.ok) {
         say(res.error === "overlap" ? t.planner.overlap[l] : t.planner.denied[l]);
       } else {
@@ -169,7 +198,7 @@ export default function Planner({
         );
         setCopyDays([]);
       }
-      router.refresh();
+      backend.settle();
     });
   }
 
@@ -207,11 +236,7 @@ export default function Planner({
             <span className="sr-only">{t.planner.location[l]}</span>
             <select
               value={locationId}
-              onChange={(e) => {
-                const next = new URLSearchParams(window.location.search);
-                next.set("sted", e.target.value);
-                router.push(`?${next}`);
-              }}
+              onChange={(e) => backend.goToLocation(e.target.value)}
               className="cursor-pointer border-0 bg-transparent pr-1 font-semibold text-ink outline-none"
             >
               {locations.map((loc) => (
@@ -256,9 +281,9 @@ export default function Planner({
               onChange={(e) => {
                 const value = e.target.value as Fallback;
                 startTransition(async () => {
-                  const res = await setFallback(locationId, value);
+                  const res = await backend.setFallback(locationId, value);
                   if (!res.ok) say(t.planner.denied[l]);
-                  router.refresh();
+                  backend.settle();
                 });
               }}
               className="h-[30px] cursor-pointer rounded-full border border-line-strong bg-surface px-2.5 font-semibold text-ink outline-none"
@@ -272,6 +297,8 @@ export default function Planner({
           </label>
         </div>
       </div>
+
+      {banner}
 
       <div className="flex min-h-0 gap-3.5">
         <Week
@@ -312,10 +339,10 @@ export default function Planner({
           onCopy={(ids) => {
             setCopyOpen(false);
             startTransition(async () => {
-              const res = await copyWeekToLocations(locationId, ids);
+              const res = await backend.copyToLocations(locationId, ids);
               if (!res.ok) say(t.planner.denied[l]);
               else say(t.planner.copiedLocations[l].replace("{n}", String(res.copied ?? ids.length)));
-              router.refresh();
+              backend.settle();
             });
           }}
         />

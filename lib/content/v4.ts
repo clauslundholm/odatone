@@ -187,6 +187,17 @@ export const v4 = {
       } as L10n,
     },
 
+    /* Says what is true and no more. The week is kept, but it is kept
+       HERE — it does not follow anyone to an account yet, and a banner
+       that implied it did would be found out the first time someone
+       signed up expecting their Friday back. */
+    demoNote: {
+      da: "Du prøver ugeplanen. Alt virker, og ugen huskes i denne browser — men den følger ikke med over i en konto endnu.",
+      en: "You are trying the weekly plan. Everything works and the week is remembered in this browser — but it does not follow you to an account yet.",
+    } as L10n,
+    demoReset: { da: "Nulstil ugen", en: "Reset the week" } as L10n,
+    demoSave: { da: "Opret gratis profil", en: "Create a free profile" } as L10n,
+
     noLocations: {
       da: "Opret en lokation i Mit Odatone, før I lægger en ugeplan.",
       en: "Add a location in My Odatone before planning a week.",
