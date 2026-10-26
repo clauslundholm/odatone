@@ -89,6 +89,8 @@
   --c-accent: #7a3aff;
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(122, 58, 255, 0.1);
+  --c-grid-hour: rgba(0, 0, 0, 0.08);
+  --c-grid-half: rgba(0, 0, 0, 0.035);
   --c-warn: #c2410c;
   --c-ok: #1d8448;
   --c-ok-soft: rgba(29, 132, 72, 0.1);
@@ -113,6 +115,8 @@
   --c-accent: #8f4dff;
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(143, 77, 255, 0.16);
+  --c-grid-hour: rgba(255, 255, 255, 0.07);
+  --c-grid-half: rgba(255, 255, 255, 0.028);
   /* Lifted on dark, like --c-accent is: the light-mode hues sit too close
      to the background to read as four distinct washes. */
   --c-brand-magenta: #e64dff;
@@ -146,6 +150,8 @@
   --c-accent: #8f4dff;
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(143, 77, 255, 0.16);
+  --c-grid-hour: rgba(255, 255, 255, 0.07);
+  --c-grid-half: rgba(255, 255, 255, 0.028);
   /* Lifted on dark, like --c-accent is: the light-mode hues sit too close
      to the background to read as four distinct washes. */
   --c-brand-magenta: #e64dff;
@@ -467,4 +473,49 @@ input[type="range"].oda-range:active::-webkit-slider-thumb {
 }
 .oda-scroll::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* The Ugeplan's hour rules, drawn as a background rather than as 18
+   elements per column × 7 columns. The half-hour rule is the fainter of
+   the two and is what makes a 07:30 start readable at 38px an hour. */
+.oda-hours {
+  background-image:
+    linear-gradient(var(--c-grid-hour) 1px, transparent 1px),
+    linear-gradient(var(--c-grid-half) 1px, transparent 1px);
+  background-size: 100% 38px, 100% 38px;
+  background-position: 0 0, 0 19px;
+}
+
+/* Form controls on the planner's panels. Written once here rather than
+   as a class string repeated at fifteen call sites. */
+.oda-input {
+  height: 42px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--c-line);
+  background: var(--c-surface-2);
+  padding: 0 12px;
+  color: var(--c-ink);
+  outline: 0;
+}
+.oda-input:focus {
+  border-color: var(--c-accent);
+}
+.oda-btn-ghost {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--c-line-strong);
+  background: var(--c-surface);
+  padding: 0 1.125rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+.oda-btn-ghost:hover {
+  background: var(--c-surface-2);
 }

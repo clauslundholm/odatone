@@ -82,3 +82,50 @@ export const TilePlays = ({ className = "" }: { className?: string }) => (
     ))}
   </svg>
 );
+
+/* ------------------------------------------------------- the planner */
+
+export const GripIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
+    {[6, 12, 18].flatMap((cy) => [9, 15].map((cx) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.3" />))}
+  </svg>
+);
+
+export const MoveIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M12 3v18M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3M9 6l3-3 3 3M9 18l3 3 3-3" />
+  </svg>
+);
+
+export const KeyIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <rect x="2.6" y="6" width="18.8" height="12" rx="2.4" />
+    <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8.5 14h7" />
+  </svg>
+);
+
+export const TrashIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M3.5 6h17M8.5 6V4h7v2M18.5 6l-1 14h-11l-1-14" />
+  </svg>
+);
+
+export const PinIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+export const CopyIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <rect x="9" y="9" width="12.4" height="12.4" rx="2.4" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4.6A2 2 0 0 1 4 2.6h8.4a2 2 0 0 1 2 2V5.6" />
+  </svg>
+);
+
+export const CheckIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);

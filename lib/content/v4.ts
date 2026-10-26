@@ -29,6 +29,10 @@ export const v4 = {
       da: "Gemmes med en gratis profil",
       en: "Saved with a free profile",
     } as L10n,
+    dragHint: {
+      da: "Træk ind i ugeplanen",
+      en: "Drag into the week",
+    } as L10n,
     /** "{n}" is filterTracks' own count for that mood. */
     trackCount: { da: "{n} numre", en: "{n} tracks" } as L10n,
     /** "{price}" is the cheapest ACTIVE plan, read from the database and
@@ -126,6 +130,104 @@ export const v4 = {
       en: "Sign in to see and edit your schedule.",
     } as L10n,
     signIn: { da: "Log ind", en: "Sign in" } as L10n,
+  },
+
+  /* The Ugeplan editor. Separate from `schedule` above, which is the
+     read-only copy the page used before it could be edited. */
+  planner: {
+    heading: { da: "Ugeplan", en: "Weekly plan" } as L10n,
+    lede: {
+      da: "Design hvad der spiller i højttalerne – time for time, hele ugen.",
+      en: "Design what plays in the speakers — hour by hour, all week.",
+    } as L10n,
+    location: { da: "Lokation", en: "Location" } as L10n,
+    copyToLocations: { da: "Kopiér til lokationer", en: "Copy to locations" } as L10n,
+    showSpots: { da: "Vis lydindslag", en: "Show audio spots" } as L10n,
+    offPlan: { da: "Uden for planen", en: "Outside the plan" } as L10n,
+    fallback: {
+      silence: { da: "Stilhed", en: "Silence" } as L10n,
+      calm: { da: "Spil “Rolig”", en: "Play “Calm”" } as L10n,
+      continue: { da: "Fortsæt sidste liste", en: "Keep the last list" } as L10n,
+    },
+    /** "{hours}" is the week's planned music, summed from the blocks. */
+    statMusic: { da: "{hours} musik planlagt", en: "{hours} of music planned" } as L10n,
+    statLists: { da: "{n} lister i brug", en: "{n} lists in use" } as L10n,
+    plannedTotal: { da: "{hours} i alt", en: "{hours} in total" } as L10n,
+
+    list: { da: "Playliste", en: "Playlist" } as L10n,
+    day: { da: "Dag", en: "Day" } as L10n,
+    from: { da: "Fra", en: "From" } as L10n,
+    to: { da: "Til", en: "To" } as L10n,
+    copyTo: { da: "Kopiér blokken til", en: "Copy the block to" } as L10n,
+    copyGo: { da: "Kopiér til valgte dage", en: "Copy to the chosen days" } as L10n,
+    deleteBlock: { da: "Slet blok", en: "Delete block" } as L10n,
+    distribution: { da: "Ugens fordeling", en: "The week's spread" } as L10n,
+
+    emptyHeading: { da: "Design jeres uge", en: "Design your week" } as L10n,
+    emptyLede: {
+      da: "Vælg en blok for at redigere den, eller opret en ny.",
+      en: "Pick a block to edit it, or make a new one.",
+    } as L10n,
+    tips: {
+      create: {
+        da: "Træk i en tom dag for at oprette en blok.",
+        en: "Drag on an empty day to make a block.",
+      } as L10n,
+      drag: {
+        da: "Træk en liste fra menuen til venstre ind på en dag.",
+        en: "Drag a list from the rail onto a day.",
+      } as L10n,
+      move: {
+        da: "Flyt og forlæng ved at trække i blokken eller i dens bund.",
+        en: "Move and stretch by dragging the block, or its foot.",
+      } as L10n,
+      keys: {
+        da: "Delete sletter den valgte blok. Esc fravælger.",
+        en: "Delete removes the chosen block. Esc deselects.",
+      } as L10n,
+    },
+
+    noLocations: {
+      da: "Opret en lokation i Mit Odatone, før I lægger en ugeplan.",
+      en: "Add a location in My Odatone before planning a week.",
+    } as L10n,
+    noLists: {
+      da: "I har ingen gemte lister endnu. Byg en på forsiden, så kan den lægges ind i ugen.",
+      en: "You have no saved lists yet. Build one on the front page and it can go into the week.",
+    } as L10n,
+
+    /* Said rather than swallowed: every one of these is a write that did
+       not happen, and a grid that silently snapped back would be read as
+       a bug in the dragging. */
+    savedNothing: { da: "Der er ikke plads til en blok her", en: "No room for a block here" } as L10n,
+    overlap: { da: "Der spiller allerede musik på det tidspunkt", en: "Music is already playing then" } as L10n,
+    denied: { da: "Ændringen blev ikke gemt", en: "That change was not saved" } as L10n,
+    copied: {
+      da: "Kopieret til {n} dage",
+      en: "Copied to {n} days",
+    } as L10n,
+    copiedReplaced: {
+      da: "Kopieret til {n} dage · {r} blokke erstattet",
+      en: "Copied to {n} days · {r} blocks replaced",
+    } as L10n,
+    copiedLocations: {
+      da: "Ugeplanen er kopieret til {n} lokationer",
+      en: "The week was copied to {n} locations",
+    } as L10n,
+    copyLocHeading: { da: "Kopiér til andre lokationer", en: "Copy to other locations" } as L10n,
+    copyLocLede: {
+      da: "Kopiér ugeplanen fra {name} til jeres andre lokationer.",
+      en: "Copy the week from {name} to your other locations.",
+    } as L10n,
+    copyLocWarning: {
+      da: "Den eksisterende plan på de valgte lokationer bliver erstattet.",
+      en: "The existing plan on the chosen locations is replaced.",
+    } as L10n,
+    copyLocOnly: {
+      da: "I har kun én lokation.",
+      en: "You only have one location.",
+    } as L10n,
+    cancel: { da: "Annullér", en: "Cancel" } as L10n,
   },
 
   seasons: {

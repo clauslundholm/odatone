@@ -12,8 +12,10 @@ import { BUILDER_ID } from "@/lib/v4/anchors";
 import { href, type Locale } from "@/lib/i18n";
 import { v4 as t } from "@/lib/content/v4";
 import ThemeToggle from "@/components/ThemeToggle";
+import { listLook, listTile } from "@/lib/v4/list-look";
 import {
   CalendarIcon,
+  GripIcon,
   HomeIcon,
   PlusIcon,
   SearchIcon,
@@ -42,6 +44,7 @@ export default function Shell({
   rail,
   priceFrom,
   active = "home",
+  lists = [],
 }: {
   locale: Locale;
   children: ReactNode;
@@ -51,6 +54,9 @@ export default function Shell({
   /** The cheapest active plan, already formatted. Passed in because this
       is a client component and the plans come from the database. */
   priceFrom: string;
+  /** The customer's saved lists, shown under "Dine lister" and draggable
+      into the Ugeplan. Empty on every page that does not pass them. */
+  lists?: { id: string; name: string; basedOn: string | null }[];
 }) {
   const p = usePlayer();
   const [query, setQuery] = useState("");
@@ -202,10 +208,38 @@ export default function Shell({
 
           <div className="flex flex-col gap-1">
             <p className="u-label px-4 pb-1 text-ink-3">{t.rail.yourLists[l]}</p>
-            {/* There are no saved lists to list yet — the table landed in
-                0015_playlists_and_schedule.sql but nothing writes to it,
-                so the rail offers the one action that exists rather than
-                an empty heading. */}
+
+            {/* Drag sources for the Ugeplan, and nothing more: the item
+                carries its id on the drag and the page that cares reads
+                it off `dataTransfer`. No callback crosses into the rail,
+                so the shell stays a server-rendered prop away from every
+                page that does not schedule anything. */}
+            {lists.map((list) => (
+              <div
+                key={list.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", list.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+                title={t.rail.dragHint[l]}
+                className="flex cursor-grab items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2 active:cursor-grabbing"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-11 w-11 shrink-0 rounded-[var(--radius-sm)]"
+                  style={{ background: listTile(listLook(list)) }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[0.9375rem] font-semibold text-ink">
+                    {list.name}
+                  </span>
+                  <span className="block text-[0.8125rem] text-ink-3">{t.rail.dragHint[l]}</span>
+                </span>
+                <GripIcon size={14} className="shrink-0 text-ink-3" />
+              </div>
+            ))}
+
             <Link
               href={href(l, "signup")}
               className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2"
