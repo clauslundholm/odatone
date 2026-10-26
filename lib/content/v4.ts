@@ -22,6 +22,7 @@ export const v4 = {
     home: { da: "Forside", en: "Home" } as L10n,
     search: { da: "Søg", en: "Search" } as L10n,
     build: { da: "Byg din liste", en: "Build your list" } as L10n,
+    seasons: { da: "Sæsoner", en: "Seasons" } as L10n,
     moods: { da: "Stemninger", en: "Moods" } as L10n,
     /** "{price}" is the cheapest ACTIVE plan, read from the database and
         passed in — never written out here. The design shows 149 kr., which
@@ -87,6 +88,25 @@ export const v4 = {
       en: "Pick a mood and it runs.",
     } as L10n,
   },
+  seasons: {
+    heading: { da: "Sæsoner", en: "Seasons" } as L10n,
+    lede: {
+      da: "Tryk på en sæson, så skifter rummet. Hver sæson er en måde at spille på, ikke en fast liste.",
+      en: "Tap a season and the room changes. Each one is a way of playing, not a fixed list.",
+    } as L10n,
+    inSeason: { da: "Lige nu", en: "Right now" } as L10n,
+    play: { da: "Afspil", en: "Play" } as L10n,
+    count: { da: "{n} numre", en: "{n} tracks" } as L10n,
+    /* Said rather than hidden: with a placeholder catalogue most seasons
+       match nothing, and a play button that does nothing is worse than an
+       empty state that admits it. */
+    empty: { da: "Ingen numre endnu", en: "No tracks yet" } as L10n,
+    note: {
+      da: "Sæsonerne her er Odatones egne. Hver genre hos 1000TRAX har allerede seasonStart og seasonEnd — udfylder de dem, kommer sæsonerne fra kataloget i stedet.",
+      en: "These seasons are Odatone's own. Every 1000TRAX genre already carries seasonStart and seasonEnd — if they fill those in, seasons come from the catalogue instead.",
+    } as L10n,
+  },
+
   footer: {
     copyright: { da: "© 2026 Odatone", en: "© 2026 Odatone" } as L10n,
     about: { da: "Om os", en: "About" } as L10n,

@@ -31,10 +31,13 @@ export default function Shell({
   children,
   rail,
   priceFrom,
+  active = "home",
 }: {
   locale: Locale;
   children: ReactNode;
   rail?: ReactNode;
+  /** Which rail item is the current page. */
+  active?: "home" | "search" | "build" | "seasons";
   /** The cheapest active plan, already formatted. Passed in because this
       is a client component and the plans come from the database. */
   priceFrom: string;
@@ -85,18 +88,26 @@ export default function Shell({
         <aside className="hidden w-[232px] shrink-0 flex-col gap-7 lg:flex">
           <nav className="flex flex-col gap-1">
             {[
-              { key: "home", label: t.rail.home[l], active: true },
-              { key: "search", label: t.rail.search[l], active: false },
-              { key: "build", label: t.rail.build[l], active: false },
+              { key: "home", label: t.rail.home[l], to: `/${l}` },
+              { key: "search", label: t.rail.search[l], to: href(l, "player") },
+              { key: "build", label: t.rail.build[l], to: href(l, "player") },
+              /* The season slug is localised and has no PageKey — it is a
+                 product route, not a marketing page, so it lives outside
+                 the (site) group and outside SLUGS. */
+              { key: "seasons", label: t.rail.seasons[l], to: `/${l}/${l === "da" ? "saesoner" : "seasons"}` },
             ].map((item) => (
-              <span
+              <Link
                 key={item.key}
-                className={`rounded-[var(--radius-md)] px-4 py-2.5 text-[0.875rem] ${
-                  item.active ? "bg-accent-soft font-medium text-accent" : "text-ink-2"
+                href={item.to}
+                aria-current={item.key === active ? "page" : undefined}
+                className={`rounded-[var(--radius-md)] px-4 py-2.5 text-[0.875rem] transition-colors ${
+                  item.key === active
+                    ? "bg-accent-soft font-medium text-accent"
+                    : "text-ink-2 hover:bg-surface-2 hover:text-ink"
                 }`}
               >
                 {item.label}
-              </span>
+              </Link>
             ))}
           </nav>
 
