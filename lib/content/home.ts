@@ -1,4 +1,5 @@
 import type { L10n } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const home = {
   hero: {
@@ -68,7 +69,7 @@ export const home = {
       "8 genrer",
       "Musikere får ordentlig betaling",
       "Fra 149 kr./md.",
-      "14 dage gratis",
+      `${PROOF.trialDays} dage gratis`,
     ],
     en: [
       "No Koda",
@@ -79,7 +80,7 @@ export const home = {
       "8 genres",
       "Musicians paid properly",
       "From 149 kr./mo",
-      "14 days free",
+      `${PROOF.trialDays} days free`,
     ],
   } as Record<"da" | "en", string[]>,
 
@@ -292,8 +293,8 @@ export const home = {
       en: "Set the tone.\nKeep the money.",
     } as L10n,
     lede: {
-      da: "14 dage gratis. Ingen binding. Fem minutter til musik i højttalerne.",
-      en: "14 days free. No commitment. Five minutes to music in the speakers.",
+      da: `${PROOF.trialDays} dage gratis. Ingen binding. Fem minutter til musik i højttalerne.`,
+      en: `${PROOF.trialDays} days free. No commitment. Five minutes to music in the speakers.`,
     } as L10n,
   },
 };

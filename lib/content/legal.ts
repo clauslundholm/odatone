@@ -1,4 +1,5 @@
 import type { L10n } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const legal = {
   note: {
@@ -80,7 +81,7 @@ export const legal = {
         ],
         [
           "Prøveperiode",
-          "De første 14 dage er gratis. Opsiger du inden periodens udløb, opkræves der ingenting.",
+          `De første ${PROOF.trialDays} dage er gratis. Opsiger du inden periodens udløb, opkræves der ingenting.`,
         ],
         [
           "Betaling og opsigelse",
@@ -110,7 +111,7 @@ export const legal = {
         ],
         [
           "Trial",
-          "The first 14 days are free. Cancel before the period ends and nothing is charged.",
+          `The first ${PROOF.trialDays} days are free. Cancel before the period ends and nothing is charged.`,
         ],
         [
           "Payment and cancellation",

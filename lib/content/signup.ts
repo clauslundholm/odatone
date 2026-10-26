@@ -1,4 +1,5 @@
 import type { L10n } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const signup = {
 /* "Intet betalingskort" was true while signup offered Faktura / EAN as an
@@ -57,8 +58,8 @@ export const signup = {
   plan: {
     heading: { da: "Vælg din plan", en: "Choose your plan" } as L10n,
     body: {
-      da: "Alle planer starter med 14 dage gratis, og du kan skifte når som helst.",
-      en: "Every plan starts with 14 days free and you can switch whenever.",
+      da: `Alle planer starter med ${PROOF.trialDays} dage gratis, og du kan skifte når som helst.`,
+      en: `Every plan starts with ${PROOF.trialDays} days free and you can switch whenever.`,
     } as L10n,
     recommended: { da: "Anbefalet til dig", en: "Recommended for you" } as L10n,
     tooSmall: {
@@ -82,8 +83,8 @@ export const signup = {
        the section heading they used to be. */
     subheading: { da: "Sådan betaler du", en: "How you pay" } as L10n,
     body: {
-      da: "Vi trækker ingenting nu. De første 14 dage er gratis, og du får en påmindelse tre dage før perioden slutter.",
-      en: "Nothing is charged now. The first 14 days are free and you get a reminder three days before the period ends.",
+      da: `Vi trækker ingenting nu. De første ${PROOF.trialDays} dage er gratis, og du får en påmindelse tre dage før perioden slutter.`,
+      en: `Nothing is charged now. The first ${PROOF.trialDays} days are free and you get a reminder three days before the period ends.`,
     } as L10n,
     /* `card`, `invoice`, `ean` and `po` lived here for the payment-method
        toggle signup used to show. Signup takes a card and nothing else now,
@@ -108,8 +109,8 @@ export const signup = {
   done: {
     heading: { da: "Så er der lyd.", en: "You're live." } as L10n,
     body: {
-      da: "Vi har sendt en bekræftelse til {email}. Du kan åbne afspilleren nu — abonnementet er aktivt fra i dag, og de første 14 dage er gratis.",
-      en: "We have sent a confirmation to {email}. You can open the player now — the subscription is active from today and the first 14 days are free.",
+      da: `Vi har sendt en bekræftelse til {email}. Du kan åbne afspilleren nu — abonnementet er aktivt fra i dag, og de første ${PROOF.trialDays} dage er gratis.`,
+      en: `We have sent a confirmation to {email}. You can open the player now — the subscription is active from today and the first ${PROOF.trialDays} days are free.`,
     } as L10n,
     /** Shown instead of `body` when the account was created but the invite
         email itself could not be sent (a rate limit, a mail transport
@@ -149,7 +150,7 @@ export const signup = {
     volumeDiscount: { da: "Mængderabat", en: "Volume discount" } as L10n,
     annualDiscount: { da: "Årsrabat", en: "Annual discount" } as L10n,
     dueToday: { da: "Betales i dag", en: "Due today" } as L10n,
-    freeTrial: { da: "0 kr. — 14 dage gratis", en: "0 kr. — 14 days free" } as L10n,
+    freeTrial: { da: `0 kr. — ${PROOF.trialDays} dage gratis`, en: `0 kr. — ${PROOF.trialDays} days free` } as L10n,
     thenPay: { da: "Derefter", en: "Then" } as L10n,
     incVat: { da: "inkl. moms", en: "incl. VAT" } as L10n,
     savingLine: { da: "Sparet mod Koda + Gramex", en: "Saved against Koda + Gramex" } as L10n,

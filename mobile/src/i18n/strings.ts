@@ -1,5 +1,12 @@
 import type { L10n } from "../types";
 
+/* The free trial, in days. The website holds the same number in
+   lib/site.ts's PROOF.trialDays; the two packages share no code, so a
+   change has to be made in both — and a customer who reads one figure on
+   the site and another in the app has caught us contradicting ourselves
+   about a commercial term. */
+export const TRIAL_DAYS = 8;
+
 /* Every string in the app lives here, in both languages. Components hold
    no copy of their own — same rule as the website's lib/content. */
 export const STRINGS = {
@@ -143,8 +150,8 @@ export const STRINGS = {
 
   "account.signedOut.title": { da: "Log ind for at spille", en: "Log in to play" },
   "account.signedOut.body": {
-    da: "Musikken er for Odatone-kunder. Log ind, eller opret en konto med 14 dage gratis.",
-    en: "The music is for Odatone customers. Log in, or create an account with 14 days free.",
+    da: `Musikken er for Odatone-kunder. Log ind, eller opret en konto med ${TRIAL_DAYS} dage gratis.`,
+    en: `The music is for Odatone customers. Log in, or create an account with ${TRIAL_DAYS} days free.`,
   },
   "account.logIn": { da: "Log ind", en: "Log in" },
   "account.logOut": { da: "Log ud", en: "Log out" },
@@ -173,8 +180,8 @@ export const STRINGS = {
 
   "signup.plan.heading": { da: "Vælg din plan", en: "Choose your plan" },
   "signup.plan.body": {
-    da: "Alle planer starter med 14 dage gratis, og du kan skifte når som helst.",
-    en: "Every plan starts with 14 days free and you can switch whenever.",
+    da: `Alle planer starter med ${TRIAL_DAYS} dage gratis, og du kan skifte når som helst.`,
+    en: `Every plan starts with ${TRIAL_DAYS} days free and you can switch whenever.`,
   },
   "signup.billing.monthly": { da: "Måned", en: "Monthly" },
   "signup.billing.annual": { da: "År", en: "Annual" },
@@ -187,7 +194,7 @@ export const STRINGS = {
   "signup.volumeDiscount": { da: "Mængderabat", en: "Volume discount" },
   "signup.annualDiscount": { da: "Årsrabat", en: "Annual discount" },
   "signup.dueToday": { da: "Betales i dag", en: "Due today" },
-  "signup.freeTrial": { da: "0 kr. — 14 dage gratis", en: "0 kr. — 14 days free" },
+  "signup.freeTrial": { da: `0 kr. — ${TRIAL_DAYS} dage gratis`, en: `0 kr. — ${TRIAL_DAYS} days free` },
   "signup.then": { da: "Derefter", en: "Then" },
   "signup.exVat": { da: "ekskl. moms", en: "excl. VAT" },
 
@@ -207,8 +214,8 @@ export const STRINGS = {
 
   "signup.payment.subheading": { da: "Sådan betaler du", en: "How you pay" },
   "signup.payment.body": {
-    da: "Vi trækker ingenting nu. De første 14 dage er gratis, og du får en påmindelse tre dage før perioden slutter.",
-    en: "Nothing is charged now. The first 14 days are free and you get a reminder three days before the period ends.",
+    da: `Vi trækker ingenting nu. De første ${TRIAL_DAYS} dage er gratis, og du får en påmindelse tre dage før perioden slutter.`,
+    en: `Nothing is charged now. The first ${TRIAL_DAYS} days are free and you get a reminder three days before the period ends.`,
   },
   "signup.terms": {
     da: "Jeg accepterer handelsbetingelserne og privatlivspolitikken.",
@@ -253,8 +260,8 @@ export const STRINGS = {
 
   "gate.login.title": { da: "Log ind for at spille", en: "Log in to play" },
   "gate.login.body": {
-    da: "Musikken er for Odatone-kunder. Log ind, eller opret en konto — de første 14 dage er gratis.",
-    en: "The music is for Odatone customers. Log in, or create an account — the first 14 days are free.",
+    da: `Musikken er for Odatone-kunder. Log ind, eller opret en konto — de første ${TRIAL_DAYS} dage er gratis.`,
+    en: `The music is for Odatone customers. Log in, or create an account — the first ${TRIAL_DAYS} days are free.`,
   },
   "gate.ended.title": { da: "Dit abonnement er ikke aktivt", en: "Your subscription isn't active" },
   "gate.ended.body": {

@@ -20,7 +20,12 @@ export const SITE = {
 export const PROOF = {
   tracks: 4000, // "over 4.000 licensfrie numre" — current odatone.com
   customers: 1100, // "1.100+ danske kunder" — current odatone.com
-  trialDays: 14, // current odatone.com/priser: "14 day free trial"
+  /* The v4 web design prints this in the nav, the hero and the signup CTA.
+     Every piece of copy that states the trial now interpolates it — it used
+     to be written out by hand in 22 places across eight content files,
+     including the terms (lib/content/legal.ts), where it is a contractual
+     term rather than marketing. */
+  trialDays: 8,
   playerTrialDays: 7, // the free web player demo window in this build
   setupMinutes: 5,
 } as const;

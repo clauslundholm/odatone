@@ -1,4 +1,5 @@
 import type { L10n } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const player = {
   eyebrow: { da: "Afspilleren", en: "The player" } as L10n,
@@ -59,8 +60,8 @@ export const player = {
     en: "The demo is over.",
   } as L10n,
   expiredBody: {
-    da: "Du har hørt {days} dage af biblioteket. Hele kataloget — over 4.000 numre — åbner i det øjeblik du starter en prøveperiode. 14 dage gratis, ingen binding.",
-    en: "You have had {days} days of the library. The whole catalogue — over 4,000 tracks — opens the moment you start a trial. 14 days free, no commitment.",
+    da: `Du har hørt {days} dage af biblioteket. Hele kataloget — over 4.000 numre — åbner i det øjeblik du starter en prøveperiode. ${PROOF.trialDays} dage gratis, ingen binding.`,
+    en: `You have had {days} days of the library. The whole catalogue — over 4,000 tracks — opens the moment you start a trial. ${PROOF.trialDays} days free, no commitment.`,
   } as L10n,
 
   placeholderNote: {
@@ -105,7 +106,7 @@ export const dock = {
   library: { da: "Bibliotek", en: "Library" } as L10n,
   nowPlayingPanel: { da: "Spiller nu", en: "Now playing" } as L10n,
   lockedTitle: { da: "Demoen er slut", en: "The demo is over" } as L10n,
-  lockedCta: { da: "Få 14 dage gratis", en: "Get 14 days free" } as L10n,
+  lockedCta: { da: `Få ${PROOF.trialDays} dage gratis`, en: `Get ${PROOF.trialDays} days free` } as L10n,
   bpmVox: { da: "BPM · med vokal", en: "BPM · with vocals" } as L10n,
   bpmInst: { da: "BPM · instrumental", en: "BPM · instrumental" } as L10n,
   dismissHint: {

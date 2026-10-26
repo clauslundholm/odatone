@@ -1,4 +1,5 @@
 import type { L10n } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const contact = {
   eyebrow: { da: "Kontakt salg", en: "Talk to sales" } as L10n,
@@ -40,13 +41,13 @@ export const contact = {
   quickFacts: {
     da: [
       ["Svartid", "Én arbejdsdag"],
-      ["Prøveperiode", "14 dage, intet kort"],
+      ["Prøveperiode", `${PROOF.trialDays} dage, intet kort`],
       ["Opsætning", "Fem minutter pr. lokation"],
       ["Sprog", "Dansk og engelsk"],
     ],
     en: [
       ["Response time", "One working day"],
-      ["Trial", "14 days, no commitment"],
+      ["Trial", `${PROOF.trialDays} days, no commitment`],
       ["Setup", "Five minutes per location"],
       ["Languages", "Danish and English"],
     ],

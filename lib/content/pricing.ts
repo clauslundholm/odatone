@@ -1,4 +1,5 @@
 import type { L10n } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const pricing = {
   eyebrow: { da: "Priser", en: "Pricing" } as L10n,
@@ -31,7 +32,7 @@ export const pricing = {
       "Browser, iOS og Android",
       "Nye numre hver måned",
       "Support på dansk og engelsk",
-      "14 dages gratis prøveperiode",
+      `${PROOF.trialDays} dages gratis prøveperiode`,
       "Ingen binding på månedsabonnement",
     ],
     en: [

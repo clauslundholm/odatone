@@ -1,4 +1,5 @@
 import type { L10n, PageKey } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 type Meta = { title: L10n; description: L10n };
 
@@ -58,8 +59,8 @@ export const meta: Record<PageKey | "home", Meta> = {
   signup: {
     title: { da: "Kom i gang", en: "Get started" },
     description: {
-      da: "Én side, fem minutter, musik i højttalerne. 14 dage gratis, ingen binding.",
-      en: "One page, five minutes, music in the speakers. 14 days free, no commitment.",
+      da: `Én side, fem minutter, musik i højttalerne. ${PROOF.trialDays} dage gratis, ingen binding.`,
+      en: `One page, five minutes, music in the speakers. ${PROOF.trialDays} days free, no commitment.`,
     },
   },
   privacy: {

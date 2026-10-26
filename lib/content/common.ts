@@ -1,10 +1,11 @@
 import type { L10n, PageKey } from "@/lib/i18n";
+import { PROOF } from "../site";
 
 export const ui = {
   tryPlayer: { da: "Prøv afspilleren gratis", en: "Try the player free" } as L10n,
   seeSavings: { da: "Se hvad du sparer", en: "See what you save" } as L10n,
   getStarted: { da: "Kom i gang", en: "Get started" } as L10n,
-  startTrial: { da: "Start 14 dage gratis", en: "Start 14 days free" } as L10n,
+  startTrial: { da: `Start ${PROOF.trialDays} dage gratis`, en: `Start ${PROOF.trialDays} days free` } as L10n,
   talkToSales: { da: "Tal med salg", en: "Talk to sales" } as L10n,
   seePricing: { da: "Se priser", en: "See pricing" } as L10n,
   logIn: { da: "Log ind", en: "Log in" } as L10n,
