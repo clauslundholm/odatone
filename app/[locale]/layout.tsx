@@ -7,8 +7,6 @@ import "../globals.css";
 import { HTML_LANG, LOCALES, isLocale, type Locale } from "@/lib/i18n";
 import { SITE } from "@/lib/site";
 import { meta } from "@/lib/content/meta";
-import SiteHeader from "@/components/SiteHeader";
-import SiteFooter from "@/components/SiteFooter";
 import PlayerProvider from "@/components/player/PlayerProvider";
 import PlayerDock, { DockSpacer } from "@/components/player/PlayerDock";
 
@@ -101,10 +99,12 @@ export default async function LocaleLayout({
               once here, so playback survives every navigation and the dock
               at the bottom of the page is always looking at the same
               player state. */}
+          {/* Header and footer live in (site)/layout.tsx, not here: the v4
+              landing page brings its own chrome and would otherwise render
+              beneath a second one. The provider and the dock stay, because
+              playback has to survive navigation between the two. */}
           <PlayerProvider locale={locale}>
-            <SiteHeader locale={locale} />
-            <main id="main">{children}</main>
-            <SiteFooter locale={locale} />
+            {children}
             <DockSpacer />
             <PlayerDock />
           </PlayerProvider>
