@@ -37,7 +37,7 @@ export default function Shell({
   children: ReactNode;
   rail?: ReactNode;
   /** Which rail item is the current page. */
-  active?: "home" | "search" | "build" | "seasons";
+  active?: "home" | "search" | "build" | "schedule" | "seasons";
   /** The cheapest active plan, already formatted. Passed in because this
       is a client component and the plans come from the database. */
   priceFrom: string;
@@ -94,6 +94,7 @@ export default function Shell({
               /* The season slug is localised and has no PageKey — it is a
                  product route, not a marketing page, so it lives outside
                  the (site) group and outside SLUGS. */
+              { key: "schedule", label: t.schedule.heading[l], to: `/${l}/${l === "da" ? "spilleplan" : "schedule"}` },
               { key: "seasons", label: t.rail.seasons[l], to: `/${l}/${l === "da" ? "saesoner" : "seasons"}` },
             ].map((item) => (
               <Link

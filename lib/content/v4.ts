@@ -22,7 +22,7 @@ export const v4 = {
     home: { da: "Forside", en: "Home" } as L10n,
     search: { da: "Søg", en: "Search" } as L10n,
     build: { da: "Byg din liste", en: "Build your list" } as L10n,
-    seasons: { da: "Sæsoner", en: "Seasons" } as L10n,
+  seasons: { da: "Sæsoner", en: "Seasons" } as L10n,
     moods: { da: "Stemninger", en: "Moods" } as L10n,
     /** "{price}" is the cheapest ACTIVE plan, read from the database and
         passed in — never written out here. The design shows 149 kr., which
@@ -88,6 +88,25 @@ export const v4 = {
       en: "Pick a mood and it runs.",
     } as L10n,
   },
+  schedule: {
+    heading: { da: "Spilleplan", en: "Schedule" } as L10n,
+    lede: {
+      da: "Træk en liste ind på ugen. Musikken skifter af sig selv.",
+      en: "Drop a list onto the week. The music changes by itself.",
+    } as L10n,
+    add: { da: "Tilføj blok", en: "Add block" } as L10n,
+    save: { da: "Gem ugen", en: "Save the week" } as L10n,
+    empty: {
+      da: "Ingen blokke endnu. Tilføj én, så kører ugen af sig selv.",
+      en: "No blocks yet. Add one and the week runs itself.",
+    } as L10n,
+    signedOut: {
+      da: "Log ind for at se og redigere jeres spilleplan.",
+      en: "Sign in to see and edit your schedule.",
+    } as L10n,
+    signIn: { da: "Log ind", en: "Sign in" } as L10n,
+  },
+
   seasons: {
     heading: { da: "Sæsoner", en: "Seasons" } as L10n,
     lede: {

@@ -53,6 +53,19 @@
   --dock-h: 64px;
   /* The logo's own gradient. The only saturated colour on the site. */
   --g-brand: linear-gradient(100deg, #db00ff 0%, #7a3aff 46%, #3d7aff 100%);
+
+  /* The gradient's three stops, named so one thing can address them: the
+     weekly schedule, where each playlist needs a hue a reader can tell
+     apart at a glance across seven columns.
+
+     This does not reopen saturated colour generally. The blocks are a 14 %
+     wash of these with a 35 % border — the rule above is about saturated
+     FILLS, and a wash is how you get four distinguishable but quiet
+     surfaces. Only the small block labels use the hue at full strength,
+     and they are text on their own wash. */
+  --c-brand-magenta: #db00ff;
+  --c-brand-violet: #7a3aff;
+  --c-brand-blue: #3d7aff;
 }
 
 @media (min-width: 768px) {
@@ -100,6 +113,11 @@
   --c-accent: #8f4dff;
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(143, 77, 255, 0.16);
+  /* Lifted on dark, like --c-accent is: the light-mode hues sit too close
+     to the background to read as four distinct washes. */
+  --c-brand-magenta: #e64dff;
+  --c-brand-violet: #8f4dff;
+  --c-brand-blue: #5e90ff;
   --c-warn: #ff8a4c;
   --c-ok: #56c587;
   --c-ok-soft: rgba(86, 197, 135, 0.13);
@@ -128,6 +146,11 @@
   --c-accent: #8f4dff;
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(143, 77, 255, 0.16);
+  /* Lifted on dark, like --c-accent is: the light-mode hues sit too close
+     to the background to read as four distinct washes. */
+  --c-brand-magenta: #e64dff;
+  --c-brand-violet: #8f4dff;
+  --c-brand-blue: #5e90ff;
   --c-warn: #ff8a4c;
   --c-ok: #56c587;
   --c-ok-soft: rgba(86, 197, 135, 0.13);
