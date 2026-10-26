@@ -24,12 +24,13 @@ export const HTML_LANG: Record<Locale, string> = { da: "da-DK", en: "en-GB" };
  *  why nothing anywhere hard-codes a path.
  * ------------------------------------------------------------------ */
 
+/* Afspil, Besparelse, Priser, Artister and Om os are gone. They argued
+   for the product; the v4 landing page is the product, and the arguments
+   they made now live there — the library is playable on the front page,
+   the price is in the rail, and the musicians have a row of their own.
+   Their old URLs redirect to the front page from next.config.ts rather
+   than 404ing, because they have been indexed and linked for months. */
 export const PAGE_KEYS = [
-  "player",
-  "savings",
-  "pricing",
-  "artists",
-  "about",
   "contact",
   "signup",
   "privacy",
@@ -39,11 +40,6 @@ export const PAGE_KEYS = [
 export type PageKey = (typeof PAGE_KEYS)[number];
 
 export const SLUGS: Record<PageKey, L10n> = {
-  player: { da: "afspiller", en: "player" },
-  savings: { da: "besparelse", en: "savings" },
-  pricing: { da: "priser", en: "pricing" },
-  artists: { da: "artister", en: "artists" },
-  about: { da: "om-odatone", en: "about" },
   contact: { da: "kontakt", en: "contact" },
   signup: { da: "kom-i-gang", en: "get-started" },
   privacy: { da: "privatliv", en: "privacy" },

@@ -14,7 +14,6 @@ export const v4 = {
     } as L10n,
   },
   nav: {
-    pricing: { da: "Priser", en: "Pricing" } as L10n,
     login: { da: "Log ind", en: "Log in" } as L10n,
     cta: { da: `Prøv ${PROOF.trialDays} dage gratis`, en: `Try ${PROOF.trialDays} days free` } as L10n,
   },
@@ -68,11 +67,6 @@ export const v4 = {
     lists: { da: "Kuraterede lister", en: "Curated lists" } as L10n,
     artists: { da: "Mød musikerne", en: "Meet the musicians" } as L10n,
     genres: { da: "Genrer", en: "Genres" } as L10n,
-    seeAll: { da: "Se alle", en: "See all" } as L10n,
-    /** "{n}" is how many there are, so "Se alle 8" cannot promise more
-        lists than the row can lead to. */
-    seeAllN: { da: "Se alle {n}", en: "See all {n}" } as L10n,
-    allArtists: { da: "Alle musikere", en: "All musicians" } as L10n,
   },
   builder: {
     heading: { da: "Byg din egen liste", en: "Build your own list" } as L10n,
@@ -155,7 +149,7 @@ export const v4 = {
 
   footer: {
     copyright: { da: "© 2026 Odatone", en: "© 2026 Odatone" } as L10n,
-    about: { da: "Om os", en: "About" } as L10n,
+    getStarted: { da: "Kom i gang", en: "Get started" } as L10n,
     terms: { da: "Vilkår", en: "Terms" } as L10n,
     privacy: { da: "Privatliv", en: "Privacy" } as L10n,
     contact: { da: "Kontakt", en: "Contact" } as L10n,

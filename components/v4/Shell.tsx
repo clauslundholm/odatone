@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 
 import Wordmark from "@/components/ui/Wordmark";
 import { LinkButton } from "@/components/ui/Button";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { MOODS, filterTracks, type Mood } from "@/lib/tracks";
 import { MOOD_PHOTO } from "@/lib/v4/photos";
+import { BUILDER_ID } from "@/lib/v4/anchors";
 import { href, type Locale } from "@/lib/i18n";
 import { v4 as t } from "@/lib/content/v4";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -53,6 +54,7 @@ export default function Shell({
 }) {
   const p = usePlayer();
   const [query, setQuery] = useState("");
+  const search = useRef<HTMLInputElement>(null);
 
   const moodCounts = useMemo(() => {
     const out = {} as Record<Mood, number>;
@@ -63,10 +65,21 @@ export default function Shell({
   }, [p.filters]);
 
   /* The season and schedule slugs are localised and have no PageKey —
-     they are product routes, outside the (site) group and outside SLUGS. */
-  const nav = [
+     they are product routes, outside the (site) group and outside SLUGS.
+
+     Søg has no `to` at all. It used to point at /afspiller, and with that
+     page gone the search field it would have sent you to is the one in
+     this very header — so the item focuses it instead of navigating
+     somewhere to find another. */
+  const nav: {
+    key: string;
+    label: string;
+    Icon: typeof HomeIcon;
+    to?: string;
+    onClick?: () => void;
+  }[] = [
     { key: "home", label: t.rail.home[l], to: `/${l}`, Icon: HomeIcon },
-    { key: "search", label: t.rail.search[l], to: href(l, "player"), Icon: SearchIcon },
+    { key: "search", label: t.rail.search[l], onClick: () => search.current?.focus(), Icon: SearchIcon },
     {
       key: "schedule",
       label: t.schedule.heading[l],
@@ -79,7 +92,10 @@ export default function Shell({
       to: `/${l}/${l === "da" ? "saesoner" : "seasons"}`,
       Icon: SeasonIcon,
     },
-    { key: "build", label: t.rail.build[l], to: href(l, "player"), Icon: SlidersIcon },
+    /* The builder lives in the front page's right rail (BUILDER_ID in
+       components/v4/Landing.tsx), so from anywhere else this is a
+       navigation and from the front page itself an anchor jump. */
+    { key: "build", label: t.rail.build[l], to: `/${l}#${BUILDER_ID}`, Icon: SlidersIcon },
   ];
 
   return (
@@ -98,6 +114,7 @@ export default function Shell({
           <span className="sr-only">{t.search.label[l]}</span>
           <SearchIcon size={16} className="pointer-events-none absolute left-5 text-ink-3" />
           <input
+            ref={search}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.search.placeholder[l]}
@@ -107,9 +124,9 @@ export default function Shell({
 
         <nav className="ml-auto flex shrink-0 items-center gap-4">
           <ThemeToggle locale={l} />
-          <Link href={href(l, "pricing")} className="text-[0.875rem] font-medium text-ink transition-opacity hover:opacity-70">
-            {t.nav.pricing[l]}
-          </Link>
+          {/* The design has a "Priser" link here. There is no pricing
+              page any more; the price lives in the rail's own block and
+              in Kom i gang, so a link to a deleted page is not kept. */}
           <Link href="/my-odatone" className="text-[0.875rem] font-medium text-ink transition-opacity hover:opacity-70">
             {t.nav.login[l]}
           </Link>
@@ -126,21 +143,27 @@ export default function Shell({
             under its last link. */}
         <aside className="hidden w-[232px] shrink-0 flex-col gap-6 rounded-[var(--radius-xl)] bg-surface p-4 lg:flex">
           <nav className="flex flex-col gap-0.5">
-            {nav.map(({ key, label, to, Icon }) => (
-              <Link
-                key={key}
-                href={to}
-                aria-current={key === active ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2.5 text-[0.9375rem] transition-colors ${
-                  key === active
-                    ? "bg-accent-soft font-semibold text-accent"
-                    : "font-medium text-ink hover:bg-surface-2"
-                }`}
-              >
-                <Icon size={18} className={key === active ? "text-accent" : "text-ink-2"} />
-                {label}
-              </Link>
-            ))}
+            {nav.map(({ key, label, to, Icon, onClick }) => {
+              const on = key === active;
+              const cls = `flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2.5 text-left text-[0.9375rem] transition-colors ${
+                on ? "bg-accent-soft font-semibold text-accent" : "font-medium text-ink hover:bg-surface-2"
+              }`;
+              const inner = (
+                <>
+                  <Icon size={18} className={on ? "text-accent" : "text-ink-2"} />
+                  {label}
+                </>
+              );
+              return to ? (
+                <Link key={key} href={to} aria-current={on ? "page" : undefined} className={cls}>
+                  {inner}
+                </Link>
+              ) : (
+                <button key={key} type="button" onClick={onClick} className={cls}>
+                  {inner}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="flex flex-col gap-1">
@@ -222,8 +245,7 @@ export default function Shell({
           <footer className="mt-auto pt-10">
             <p className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[0.8125rem] text-ink-3">
               <span>{t.footer.copyright[l]}</span>
-              <Link href={href(l, "pricing")} className="hover:text-ink">{t.nav.pricing[l]}</Link>
-              <Link href={href(l, "about")} className="hover:text-ink">{t.footer.about[l]}</Link>
+              <Link href={href(l, "signup")} className="hover:text-ink">{t.footer.getStarted[l]}</Link>
               <Link href={href(l, "terms")} className="hover:text-ink">{t.footer.terms[l]}</Link>
               <Link href={href(l, "privacy")} className="hover:text-ink">{t.footer.privacy[l]}</Link>
               <Link href={href(l, "contact")} className="hover:text-ink">{t.footer.contact[l]}</Link>

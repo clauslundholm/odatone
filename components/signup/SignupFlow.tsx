@@ -264,7 +264,9 @@ function PlayStep({ locale: l, email }: { locale: Locale; email: string }) {
         {t.lede[l].replace("{email}", email || "—")}
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-        <LinkButton href={href(l, "player")} size="lg">
+        {/* The front page is the player now — there is no separate
+            /afspiller to send them to. */}
+        <LinkButton href={href(l, null)} size="lg">
           {t.openPlayer[l]}
         </LinkButton>
         <LinkButton href="/my-odatone" variant="outline" size="lg">

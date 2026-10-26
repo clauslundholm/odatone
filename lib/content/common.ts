@@ -32,29 +32,18 @@ export const ui = {
   } as L10n,
 } as const;
 
-export const NAV: { key: PageKey; label: L10n }[] = [
-  { key: "player", label: { da: "Afspil", en: "Player" } },
-  { key: "savings", label: { da: "Besparelse", en: "Savings" } },
-  { key: "pricing", label: { da: "Priser", en: "Pricing" } },
-  { key: "artists", label: { da: "Artister", en: "Artists" } },
-  { key: "about", label: { da: "Om os", en: "About" } },
-];
+/* There is no primary nav any more. Afspil, Besparelse, Priser, Artister
+   and Om os were the whole of it, and the four pages still under this
+   chrome — Kom i gang, Kontakt, Privatliv, Betingelser — are a call to
+   action and three support pages, not a menu. SiteHeader therefore
+   carries the wordmark, the language, the login and the CTA, and nothing
+   between them. */
 
 export const FOOTER_NAV: { heading: L10n; items: { key: PageKey; label: L10n }[] }[] = [
   {
-    heading: { da: "Produkt", en: "Product" },
-    items: [
-      { key: "player", label: { da: "Afspil", en: "Player" } },
-      { key: "pricing", label: { da: "Priser", en: "Pricing" } },
-      { key: "savings", label: { da: "Besparelsesberegner", en: "Savings calculator" } },
-      { key: "signup", label: { da: "Kom i gang", en: "Get started" } },
-    ],
-  },
-  {
     heading: { da: "Odatone", en: "Odatone" },
     items: [
-      { key: "about", label: { da: "Om os", en: "About us" } },
-      { key: "artists", label: { da: "Artister", en: "Artists" } },
+      { key: "signup", label: { da: "Kom i gang", en: "Get started" } },
       { key: "contact", label: { da: "Kontakt salg", en: "Talk to sales" } },
     ],
   },

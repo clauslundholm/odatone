@@ -22,7 +22,30 @@ const nextConfig: NextConfig = {
      all, so this has no bearing on production behaviour either way. */
   allowedDevOrigins: ["127.0.0.1"],
   async redirects() {
-    return [{ source: "/", destination: "/da", permanent: false }];
+    return [
+      { source: "/", destination: "/da", permanent: false },
+      /* Afspil, Besparelse, Priser, Artister and Om os were removed; the
+         v4 front page carries what they argued for. They have been
+         indexed and linked for months, so their URLs land on the front
+         page in the reader's own language rather than on a 404.
+
+         Permanent (308), because they are not coming back and a 307
+         would have search engines keep asking. Listed by hand rather
+         than generated from a slug table: the point of the list is to
+         outlive the table, which no longer has these keys in it. */
+      ...(
+        [
+          ["da", ["afspiller", "besparelse", "priser", "artister", "om-odatone"]],
+          ["en", ["player", "savings", "pricing", "artists", "about"]],
+        ] as const
+      ).flatMap(([locale, slugs]) =>
+        slugs.map((slug) => ({
+          source: `/${locale}/${slug}`,
+          destination: `/${locale}`,
+          permanent: true,
+        })),
+      ),
+    ];
   },
 };
 

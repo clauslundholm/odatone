@@ -8,7 +8,7 @@ import Wordmark from "@/components/ui/Wordmark";
 import ThemeToggle from "@/components/ThemeToggle";
 import LocaleSwitch from "@/components/LocaleSwitch";
 import { LinkButton } from "@/components/ui/Button";
-import { NAV, ui } from "@/lib/content/common";
+import { ui } from "@/lib/content/common";
 import { href, keyFromSlug, type Locale, type PageKey } from "@/lib/i18n";
 
 /**
@@ -43,25 +43,11 @@ export default function SiteHeader({ locale }: { locale: Locale }) {
             <Wordmark height={17} />
           </Link>
 
-          <nav className="hidden flex-1 items-center justify-center gap-8 lg:flex" aria-label="Primary">
-            {NAV.map((item) => {
-              const active = pageKey === item.key;
-              return (
-                <Link
-                  key={item.key}
-                  href={href(locale, item.key)}
-                  aria-current={active ? "page" : undefined}
-                  className={`text-[0.8125rem] font-normal tracking-[-0.005em] transition-opacity hover:opacity-100 ${
-                    active ? "text-ink opacity-100" : "text-ink opacity-70"
-                  }`}
-                >
-                  {item.label[locale]}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* No primary nav: the five pages it listed are gone, and the
+              four left under this chrome are a CTA and three support
+              pages. See the note on FOOTER_NAV in lib/content/common.ts. */}
 
-          <div className="ml-auto flex items-center gap-2.5 lg:ml-0">
+          <div className="ml-auto flex items-center gap-2.5">
             <div className="hidden sm:block">
               <LocaleSwitch locale={locale} pageKey={pageKey} />
             </div>
@@ -112,15 +98,6 @@ export default function SiteHeader({ locale }: { locale: Locale }) {
       {open && (
         <div className="border-b border-line bg-bg/95 backdrop-blur-2xl lg:hidden">
           <nav className="mx-auto flex max-w-[1320px] flex-col px-6 py-3 sm:px-8" aria-label="Mobile">
-            {NAV.map((item) => (
-              <Link
-                key={item.key}
-                href={href(locale, item.key)}
-                className="border-b border-line py-3.5 text-[1.4rem] font-medium tracking-[-0.02em] text-ink transition-opacity hover:opacity-60"
-              >
-                {item.label[locale]}
-              </Link>
-            ))}
             <Link
               href={href(locale, "contact")}
               className="border-b border-line py-3.5 text-[1.4rem] font-medium tracking-[-0.02em] text-ink transition-opacity hover:opacity-60"

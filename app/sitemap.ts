@@ -21,7 +21,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
         url: `${SITE.url}/${locale}/${SLUGS[key][locale]}`,
         lastModified: now,
         changeFrequency: "monthly",
-        priority: key === "pricing" || key === "player" ? 0.9 : 0.6,
+        /* Kom i gang is the one page here that converts; the rest are
+           support and legal. The product pages that used to rank 0.9
+           are gone, and what they ranked for is the front page now. */
+        priority: key === "signup" ? 0.9 : 0.6,
         alternates: {
           languages: Object.fromEntries(
             LOCALES.map((x) => [x, `${SITE.url}/${x}/${SLUGS[key][x]}`]),

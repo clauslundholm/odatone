@@ -14,41 +14,6 @@ export const meta: Record<PageKey | "home", Meta> = {
       en: "Legal background music for business. Over 4,000 tracks recorded by professional musicians. No Koda. No Gramex. From DKK 149 a month.",
     },
   },
-  player: {
-    title: { da: "Afspiller", en: "Player" },
-    description: {
-      da: "Prøv Odatone-afspilleren gratis. Vælg genre, tempo og vokal, og hør hvordan din forretning kommer til at lyde.",
-      en: "Try the Odatone player for free. Pick genre, tempo and vocals, and hear how your business will sound.",
-    },
-  },
-  savings: {
-    title: { da: "Hvad sparer du?", en: "What do you save?" },
-    description: {
-      da: "Regn din musikregning ud. Koda, Gramex og streaming mod ét abonnement hos Odatone.",
-      en: "Work out your music bill. Koda, Gramex and streaming against one Odatone subscription.",
-    },
-  },
-  pricing: {
-    title: { da: "Priser", en: "Pricing" },
-    description: {
-      da: "Tre planer, én pris pr. lokation. Ingen licenser oveni, ingen efterregning, ingen binding.",
-      en: "Three plans, one price per location. No licences on top, no surprise bill, no lock-in.",
-    },
-  },
-  artists: {
-    title: { da: "Artister", en: "Artists" },
-    description: {
-      da: "Musikken er skrevet og indspillet af navngivne musikere, der får ordentligt betalt for arbejdet.",
-      en: "The music is written and recorded by named musicians who are paid properly for the work.",
-    },
-  },
-  about: {
-    title: { da: "Om Odatone", en: "About Odatone" },
-    description: {
-      da: "En Grammy-vindende producer og manden bag Billy byggede den musiktjeneste, erhvervslivet manglede.",
-      en: "A Grammy-winning producer and the man behind Billy built the music service business needed.",
-    },
-  },
   contact: {
     title: { da: "Kontakt salg", en: "Talk to sales" },
     description: {

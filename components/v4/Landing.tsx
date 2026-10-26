@@ -18,6 +18,7 @@ import {
   artistPhoto,
   genrePhoto,
 } from "@/lib/v4/photos";
+import { BUILDER_ID } from "@/lib/v4/anchors";
 import {
   BPM_MAX,
   BPM_MIN,
@@ -186,9 +187,9 @@ function Hero({ locale: l }: { locale: Locale }) {
             <PlayIcon size={15} />
             {t.hero.playList[l].replace("{list}", FEATURED.label[l])}
           </button>
-          <Link href={href(l, "player")} className={buttonClass("on-photo-quiet", "md")}>
+          <a href={`#${BUILDER_ID}`} className={buttonClass("on-photo-quiet", "md")}>
             {t.hero.build[l]}
-          </Link>
+          </a>
         </div>
 
         <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4">
@@ -206,23 +207,15 @@ function Hero({ locale: l }: { locale: Locale }) {
 
 /* ------------------------------------------------------------ sections */
 
-function SectionHead({
-  title,
-  link,
-  locale: l,
-}: {
-  title: string;
-  link?: { to: string; label: string };
-  locale: Locale;
-}) {
+/* No "Se alle" any more. Every one of them pointed at /afspiller or
+   /artister, and both pages are gone; each row here shows its whole set
+   anyway — five moods, four lists, eight genres — so the link had
+   nothing left to lead to. The musicians row is the one that does
+   truncate, at eight of fifteen, and that is noted in ArtistRow. */
+function SectionHead({ title }: { title: string }) {
   return (
     <div className="mb-4 flex items-baseline justify-between gap-4">
       <h2 className="u-title text-[1.1875rem] text-ink">{title}</h2>
-      {link && (
-        <Link href={link.to} className="u-link text-[0.8125rem]">
-          {link.label}
-        </Link>
-      )}
     </div>
   );
 }
@@ -245,11 +238,7 @@ function MoodRow({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
   return (
     <section>
-      <SectionHead
-        title={t.sections.now[l]}
-        link={{ to: href(l, "player"), label: t.sections.seeAll[l] }}
-        locale={l}
-      />
+      <SectionHead title={t.sections.now[l]} />
       <ul className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         {MOODS.map((m) => {
           const matches = filterTracks({ ...DEFAULT_FILTERS, mood: m.id });
@@ -291,14 +280,7 @@ function CuratedRow({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
   return (
     <section>
-      <SectionHead
-        title={t.sections.lists[l]}
-        link={{
-          to: href(l, "player"),
-          label: t.sections.seeAllN[l].replace("{n}", String(CURATED.length)),
-        }}
-        locale={l}
-      />
+      <SectionHead title={t.sections.lists[l]} />
       <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {CURATED.map((c) => {
           const matches = filterTracks(curatedFilters(c));
@@ -343,15 +325,16 @@ function ArtistRow({ locale: l }: { locale: Locale }) {
      today (docs/1000trax-api-requirements.md §2.4) — when the real
      catalogue lands, either this fills with real names or the section goes.
      The portraits are positional for the same reason: they belong to the
-     row, not to any one of these placeholder names. */
+     row, not to any one of these placeholder names.
+
+     This shows eight of fifteen and no longer offers "Alle musikere" —
+     /artister is gone. Those seven are reachable by playing; a dedicated
+     page for them is a decision to take with the real catalogue, not with
+     placeholder names. */
   const artists = useMemo(() => [...new Set(TRACKS.map((x) => x.artist))].slice(0, 8), []);
   return (
     <section>
-      <SectionHead
-        title={t.sections.artists[l]}
-        link={{ to: href(l, "artists"), label: t.sections.allArtists[l] }}
-        locale={l}
-      />
+      <SectionHead title={t.sections.artists[l]} />
       {/* One row, spread across the column — not a wrapping grid. Eight
           76px portraits and their names fit the column the design draws
           them in, and a ninth on a second line would read as a different
@@ -378,7 +361,7 @@ function GenreRow({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
   return (
     <section>
-      <SectionHead title={t.sections.genres[l]} locale={l} />
+      <SectionHead title={t.sections.genres[l]} />
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {GENRES.map((g, i) => {
           const matches = filterTracks({ ...DEFAULT_FILTERS, genres: [g.id] });
@@ -480,7 +463,12 @@ export function Rail({ locale: l }: { locale: Locale }) {
         )}
       </section>
 
-      <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-card)]">
+      {/* The rail's "Byg din liste" and the hero's second button both
+          jump here — scroll-mt clears the sticky header. */}
+      <section
+        id={BUILDER_ID}
+        className="flex scroll-mt-24 flex-col gap-4 rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-card)]"
+      >
         <div className="flex items-center justify-between gap-3">
           <h2 className="u-title text-[1.1875rem] text-ink">{t.builder.heading[l]}</h2>
           <span className="rounded-full bg-accent-soft px-3 py-1 text-[0.75rem] font-semibold text-accent">
