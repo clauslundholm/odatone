@@ -28,6 +28,12 @@ const FORM_ERRORS: Record<string, string> = {
      the subscription points at a plan id that is not in Products, so there
      is no price to invoice. Reactivating or recreating that plan makes the
      invoice issuable; guessing a price would not. */
+  /* Reachable since the v4 signup stopped asking for a CVR: it is
+     collected at the payment step, and a customer who never reached it has
+     none. Names the fix, because the invoice simply cannot be issued until
+     someone fills it in. */
+  "no-cvr":
+    "This customer has no CVR number, which a Danish invoice must carry. Add it on the customer before issuing.",
   "unknown-plan":
     "This customer's plan no longer exists in Products, so there is no price to invoice. Restore the plan first.",
   /* The preview below prices from the `locationCount` this page rendered

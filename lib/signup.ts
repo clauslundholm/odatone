@@ -70,6 +70,10 @@ export type SignupInput = {
   planId: PlanId;
   billing: Billing;
   locations: SignupLocation[];
+  /** Set when the visitor chose their own password (the v4 web signup).
+      Null when they did not (the mobile app), in which case submitSignup
+      mails an invite instead of creating the account outright. */
+  password: string | null;
 };
 
 export type BuildSignupResult =
@@ -112,6 +116,10 @@ const MAX_LOCATIONS = 500;
 const MAX_TEXT_LEN = 200;
 const MAX_EMAIL_LEN = 254; // RFC 5321 §4.5.3.1.3
 const MAX_OPTIONAL_LEN = 300;
+const MIN_PASSWORD_LEN = 8;
+/* bcrypt hashes at most 72 bytes; anything past that is silently dropped,
+   so a longer "password" is not the password the visitor thinks it is. */
+const MAX_PASSWORD_LEN = 72;
 
 /** "clamps locations to at least 1" per the brief: blank is the calculator's
     own default, and 0 clamps up rather than erroring — but this fix round
@@ -205,13 +213,33 @@ export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string
   else if (email.length > MAX_EMAIL_LEN) errors.email = "long";
   else if (!EMAIL_RE.test(email)) errors.email = "email";
 
-  /* Two codes, not one: a blank field and a mistyped one are different
-     mistakes, and "8 cifre" is a strange thing to say about a field nobody
-     has touched yet. */
+  /* Optional here, required before an invoice. The v4 signup does not ask
+     for a CVR — it asks for a name, a company, an email and a password, and
+     nothing else — so demanding one at this point would block the flow the
+     design describes. It has not become unnecessary: lib/invoice-issuer.ts
+     prints the customer's registration number, and a Danish B2B invoice
+     without one is not much of an invoice. It is collected at the payment
+     step instead, and issuing an invoice without it must fail there rather
+     than silently produce a document naming no company.
+
+     A CVR that IS given is still validated. An optional field is not a
+     field where any eight characters will do. */
   const cvrRaw = get("cvr");
-  const cvr = parseCvr(cvrRaw);
-  if (!cvrRaw) errors.cvr = "required";
-  else if (cvr === null) errors.cvr = "cvr";
+  const cvr = cvrRaw ? parseCvr(cvrRaw) : null;
+  if (cvrRaw && cvr === null) errors.cvr = "cvr";
+
+  /* The v4 signup sets a password inline instead of mailing an invite.
+     Optional, because the mobile app still signs up without one and takes
+     the emailed 6-digit code route — submitSignup picks the path from
+     whether this is present, so one validator serves both.
+
+     Supabase enforces its own minimum; 8 is what the form promises
+     ("Mindst 8 tegn"), and the ceiling is bcrypt's 72-byte input limit,
+     past which characters are silently ignored rather than rejected. */
+  const password = get("password");
+  if (password && (password.length < MIN_PASSWORD_LEN || password.length > MAX_PASSWORD_LEN)) {
+    errors.password = "password";
+  }
 
   if (!validPlanIds.has(planRaw)) errors.plan = "required";
   if (billingRaw && !BILLING_TERMS.has(billingRaw)) errors.billing = "required";
@@ -252,6 +280,9 @@ export function buildSignup(formData: FormData, validPlanIds: ReadonlySet<string
       planId: planRaw,
       billing,
       locations,
+      /* null, not "", so submitSignup can branch on presence rather than
+         on truthiness of a string it might have trimmed to nothing. */
+      password: password || null,
     },
   };
 }

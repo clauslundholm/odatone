@@ -268,7 +268,15 @@ export default function SignupFlow({
     }
   };
 
-  if (done) return <Done locale={l} email={account.email} noInvite={doneMessage === "no-invite"} />;
+  if (done)
+    return (
+      <Done
+        locale={l}
+        email={account.email}
+        noInvite={doneMessage === "no-invite"}
+        passwordSet={doneMessage === "password-set"}
+      />
+    );
 
   const problems = Object.keys(errors).filter((k) => k !== "form").length;
   /* Every key in FIELD_ORDER is rendered beside its own input. Anything else
@@ -769,6 +777,7 @@ function Done({
   locale: l,
   email,
   noInvite,
+  passwordSet,
 }: {
   locale: Locale;
   email: string;
@@ -777,9 +786,13 @@ function Done({
       sent. Fix round 1's finding: this screen used to say "we've sent a
       confirmation" regardless, which is simply false in that case. */
   noInvite?: boolean;
+  /** The visitor set their own password, so no email was sent. */
+  passwordSet?: boolean;
 }) {
   const t = tDefaults;
-  const body = (noInvite ? t.done.bodyNoInvite[l] : t.done.body[l]).replace("{email}", email || "—");
+  const body = (
+    noInvite ? t.done.bodyNoInvite[l] : passwordSet ? t.done.bodyPassword[l] : t.done.body[l]
+  ).replace("{email}", email || "—");
 
   return (
     <div className="u-card p-9 sm:p-14">

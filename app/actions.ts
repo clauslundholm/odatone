@@ -458,10 +458,36 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
     );
   }
   const inviteStartedAt = Date.now();
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-    built.value.customer.email,
-    { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/my-odatone` },
-  );
+
+  /* Two ways in, chosen by whether the visitor set a password.
+   *
+   * The v4 web signup does: it asks for one in step 1, so the account is
+   * created outright and they are done — no inbox round trip between
+   * "Opret profil" and listening. The mobile app does not, and takes the
+   * invite it has always taken (the emailed 6-digit code). Both go through
+   * this one function because both go through buildSignup; splitting them
+   * earlier would mean two places that know how to create a customer.
+   *
+   * `email_confirm: true` because the address has not been proved, and
+   * demanding they prove it is exactly the inbox trip the password is
+   * there to avoid. The dedupe checks above are what stop someone signing
+   * up as an address that is already an account; what this does not stop
+   * is someone signing up as an address that is not theirs, which is the
+   * same exposure every password-at-signup flow carries and the reason the
+   * invite route still exists for the app.
+   *
+   * Both calls answer an existing address the same way — GoTrue returns
+   * `email_exists` — so the handling below is shared untouched. */
+  const { data: invited, error: inviteError } = built.value.password
+    ? await admin.auth.admin.createUser({
+        email: built.value.customer.email,
+        password: built.value.password,
+        email_confirm: true,
+      })
+    : await admin.auth.admin.inviteUserByEmail(
+        built.value.customer.email,
+        { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/my-odatone` },
+      );
 
   if (inviteError || !invited?.user) {
     if (isAlreadyRegisteredError(inviteError)) {
@@ -567,5 +593,7 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
     return { ok: true, message: "no-invite" };
   }
 
-  return { ok: true };
+  /* No email goes out on the password path — `email_confirm: true` means
+     GoTrue sends nothing — so the Done screen must not promise one. */
+  return built.value.password ? { ok: true, message: "password-set" } : { ok: true };
 }

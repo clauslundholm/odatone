@@ -112,6 +112,14 @@ export const signup = {
       da: `Vi har sendt en bekræftelse til {email}. Du kan åbne afspilleren nu — abonnementet er aktivt fra i dag, og de første ${PROOF.trialDays} dage er gratis.`,
       en: `We have sent a confirmation to {email}. You can open the player now — the subscription is active from today and the first ${PROOF.trialDays} days are free.`,
     } as L10n,
+    /** Shown instead of `body` when the visitor set their own password, so
+        no email was sent at all. Promising a confirmation that GoTrue was
+        explicitly told not to send is the same class of lie as the
+        no-invite case below, just in the opposite direction. */
+    bodyPassword: {
+      da: `Kontoen er klar. Log ind med {email} og den adgangskode, du lige valgte — abonnementet er aktivt fra i dag, og de første ${PROOF.trialDays} dage er gratis.`,
+      en: `Your account is ready. Sign in with {email} and the password you just chose — the subscription is active from today and the first ${PROOF.trialDays} days are free.`,
+    } as L10n,
     /** Shown instead of `body` when the account was created but the invite
         email itself could not be sent (a rate limit, a mail transport
         outage, ...) — `submitSignup` (app/actions.ts) returns

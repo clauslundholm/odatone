@@ -82,6 +82,18 @@ export async function issueInvoice(_prev: unknown, formData: FormData): Promise<
   ]);
 
   if (!customer) return { ok: false, errors: { form: "invalid" } };
+  /* The CVR stopped being compulsory at signup when the v4 design dropped
+     it from step one — it is asked for at the payment step instead. That
+     makes it possible, for the first time, to reach this point with a
+     customer that has none, and an invoice is the one document where that
+     is not survivable: lib/invoice-issuer.ts prints the buyer's
+     registration number, a Danish B2B invoice is expected to carry it, and
+     an issued invoice cannot be amended afterwards (0010_invoice_lines.sql
+     makes it immutable). Refused here, before a number is burned from the
+     gapless sequence. */
+  if (!(customer as { cvr?: string | null }).cvr) {
+    return { ok: false, errors: { form: "no-cvr" } };
+  }
   const sub = latestSubscription((subs ?? []) as { plan_id: string; billing: string; status: string; created_at: string }[]);
   if (!sub) return { ok: false, errors: { form: "no-subscription" } };
   const locations = locs?.length ?? 0;

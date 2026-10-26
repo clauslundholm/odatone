@@ -29,6 +29,13 @@ export const APP_SIGNUP_FIELDS = [
   "planId",
   "billing",
   "locations",
+  /* The app does not send one today — it signs up and then takes the
+     emailed 6-digit code. It is on the allowlist because buildSignup reads
+     it, and this list is pinned to exactly that set (see
+     test/app-signup.test.ts); leaving it off would make the pin fail and
+     would quietly bar the app from ever adopting the web's inline
+     password without a second change here. */
+  "password",
 ] as const;
 
 export function parseAppSignup(raw: string): FormData | null {

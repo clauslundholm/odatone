@@ -410,11 +410,18 @@ test("parseCvr rejects anything that is not eight digits", () => {
   }
 });
 
-test("buildSignup requires a CVR, and tells a blank one apart from a wrong one", () => {
-  const blank = build(form({ ...VALID, cvr: "" }));
-  assert.equal(blank.ok, false);
-  if (!blank.ok) assert.equal(blank.errors.cvr, "required");
+/* CVR stopped being required at signup when the v4 design dropped it from
+   step one. It did NOT stop mattering: lib/invoice-issuer.ts prints the
+   customer's registration number, so it is collected at the payment step
+   and an invoice cannot be issued without it. Optional here, validated
+   when given — an optional field is not a field where anything goes. */
+test("buildSignup accepts a signup with no CVR", () => {
+  const r = build(form({ ...VALID, cvr: "" }));
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.value.customer.cvr, null);
+});
 
+test("buildSignup still rejects a CVR that is given but malformed", () => {
   const short = build(form({ ...VALID, cvr: "1234567" }));
   assert.equal(short.ok, false);
   if (!short.ok) assert.equal(short.errors.cvr, "cvr");
@@ -430,4 +437,36 @@ test("buildSignup stores the CVR as bare digits, whatever separators were typed"
   /* Normalised, not echoed: two customers who typed the same number
      differently must be the same string in the database. */
   if (r.ok) assert.equal(r.value.customer.cvr, "12345678");
+});
+
+
+/* The v4 web signup sets a password in step one instead of mailing an
+   invite; the mobile app still sends none and takes the emailed 6-digit
+   code. One validator serves both, so the field is optional — and
+   submitSignup branches on whether it is there. */
+test("buildSignup accepts a signup with no password, which is the app's route", () => {
+  const r = build(form(VALID));
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.value.password, null);
+});
+
+test("buildSignup carries a password through when one is given", () => {
+  const r = build(form({ ...VALID, password: "hemmeligt123" }));
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.value.password, "hemmeligt123");
+});
+
+test("buildSignup rejects a password that is too short or past bcrypt's limit", () => {
+  const short = build(form({ ...VALID, password: "kort123" })); // 7
+  assert.equal(short.ok, false);
+  if (!short.ok) assert.equal(short.errors.password, "password");
+
+  /* bcrypt hashes at most 72 bytes and silently ignores the rest, so a
+     longer value is not the password the visitor thinks they chose. */
+  const long = build(form({ ...VALID, password: "x".repeat(73) }));
+  assert.equal(long.ok, false);
+  if (!long.ok) assert.equal(long.errors.password, "password");
+
+  const atCap = build(form({ ...VALID, password: "x".repeat(72) }));
+  assert.equal(atCap.ok, true);
 });
