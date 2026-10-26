@@ -1,16 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  LOGIN_PATH,
-  isCustomerRole,
-  isPublicPath,
-  isStaffRole,
-  landingFor,
-  mayEnter,
-  parseRole,
-  portalFor,
-} from "../lib/tenancy.ts";
+import { LOGIN_PATH, RESET_PATH, isCustomerRole, isPublicPath, isStaffRole, landingFor, mayEnter, parseRole, portalFor } from "../lib/tenancy.ts";
 
 test("staff roles are staff", () => {
   assert.equal(isStaffRole("staff_admin"), true);
@@ -159,4 +150,40 @@ test("LOGIN_PATH is the single source isPublicPath agrees with", () => {
   // consider public, and the redirect would loop forever.
   assert.equal(isPublicPath(LOGIN_PATH.admin), true);
   assert.equal(isPublicPath(LOGIN_PATH.portal), true);
+});
+
+/* Password reset is reachable without a session, because the person who
+   needs it is by definition the one who cannot sign in. It is matched
+   exactly, like the roots — the danger with any new public path is that a
+   prefix rule unlocks everything beneath it. */
+test("the password-reset page is public for both portals", () => {
+  assert.equal(isPublicPath("/my-odatone/nulstil"), true);
+  assert.equal(isPublicPath("/admin/nulstil"), true);
+  assert.equal(isPublicPath("/MY-ODATONE/Nulstil"), true, "matching is case-insensitive");
+  assert.equal(isPublicPath("/my-odatone/nulstil/"), true, "a trailing slash is the same page");
+});
+
+test("nothing BELOW the reset page is public", () => {
+  for (const p of [
+    "/my-odatone/nulstil/confirm",
+    "/my-odatone/nulstil/../billing",
+    "/admin/nulstil/users",
+  ]) {
+    assert.equal(isPublicPath(p), false, p);
+  }
+});
+
+test("a route that merely starts with the reset path is still gated", () => {
+  /* The exact trap the roots are matched exactly to avoid: `startsWith`
+     would make every one of these public. */
+  for (const p of ["/my-odatone/nulstilling", "/my-odatone/nulstil-alt", "/admin/nulstilx"]) {
+    assert.equal(isPublicPath(p), false, p);
+  }
+});
+
+test("RESET_PATH is the single source the gate agrees with", () => {
+  /* Same invariant LOGIN_PATH has below: a proxy that redirects to a path
+     the gate does not consider public is an infinite redirect loop. */
+  assert.equal(isPublicPath(RESET_PATH.portal), true);
+  assert.equal(isPublicPath(RESET_PATH.admin), true);
 });

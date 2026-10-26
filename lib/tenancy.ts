@@ -65,6 +65,17 @@ const LEGACY_LOGIN_PATH: Record<PortalName, string> = {
   portal: `${PORTAL}/login`,
 };
 
+/** The password-reset request page, one per portal.
+ *
+ *  Public for the same reason the root is: the person who needs it is by
+ *  definition the person who cannot sign in. Matched EXACTLY, like the
+ *  root and for the same reason — a prefix rule here would unlock
+ *  everything beneath it. */
+export const RESET_PATH: Record<PortalName, string> = {
+  admin: `${ADMIN}/nulstil`,
+  portal: `${PORTAL}/nulstil`,
+};
+
 /** Which paths a visitor with no session may reach.
  *
  *  Exactly two per portal: the root, which renders the sign-in form when
@@ -85,7 +96,11 @@ export const isPublicPath = (path: string): boolean => {
   const portal = portalFor(path);
   if (portal === null) return false;
   const p = path.toLowerCase().replace(/\/+$/, "");
-  return p === LOGIN_PATH[portal].toLowerCase() || hasSegment(path, LEGACY_LOGIN_PATH[portal]);
+  return (
+    p === LOGIN_PATH[portal].toLowerCase() ||
+    p === RESET_PATH[portal].toLowerCase() ||
+    hasSegment(path, LEGACY_LOGIN_PATH[portal])
+  );
 };
 
 /** Whether `role` may enter the portal that owns `path`. A path outside

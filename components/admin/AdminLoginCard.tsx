@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import Wordmark from "@/components/ui/Wordmark";
@@ -121,6 +122,11 @@ export function AdminLoginCard() {
           <Button type="submit" size="md" className="mt-2 w-full" disabled={passwordPending}>
             {passwordPending ? "Saving…" : "Save password"}
           </Button>
+        {/* Staff forget passwords too, and /admin/nulstil is public for the
+            same reason /admin is — see lib/tenancy.ts's RESET_PATH. */}
+        <Link href="/admin/nulstil" className="u-link mt-1 text-center text-[0.875rem]">
+          Forgot your password?
+        </Link>
         </form>
       </Card>
     );

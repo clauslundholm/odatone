@@ -7,9 +7,8 @@ import { Meter } from "@/components/admin/Meter";
 import { HouseGlyph } from "@/components/admin/icons";
 import { TableCard } from "@/components/admin/TableCard";
 import { TopBar } from "@/components/admin/TopBar";
-import { LocaleSwitch } from "@/components/portal/LocaleSwitch";
+import { AuthCard } from "@/components/portal/AuthCard";
 import { PortalShell } from "@/components/portal/PortalShell";
-import Wordmark from "@/components/ui/Wordmark";
 import LoginForm from "./login/LoginForm";
 import { fetchAllRows } from "@/lib/admin/paginate";
 import { planMap, resolvePlan } from "@/lib/admin/plans";
@@ -124,25 +123,11 @@ export default async function PortalSummaryPage() {
      with one, it has already refused anyone who is not a customer. */
   if (typeof claims?.claims?.sub !== "string") {
     return (
-      <div
-        className="flex min-h-dvh items-center justify-center p-6"
-        style={{
-          backgroundImage: "radial-gradient(var(--c-line-strong) 1px, transparent 0)",
-          backgroundSize: "16px 16px",
-        }}
-      >
-        <div className="flex w-full max-w-sm flex-col gap-4">
-          <LocaleSwitch locale={locale} className="justify-center" />
-          <div className="rounded-[var(--radius-md)] border border-line bg-surface p-8 shadow-[var(--shadow-card)]">
-            <div className="mb-6 flex justify-center">
-              <Wordmark height={22} />
-            </div>
-            {/* LoginForm owns its own heading: which of its four modes it is
-                in depends on the URL fragment, which only the browser sees. */}
-            <LoginForm locale={locale} />
-          </div>
-        </div>
-      </div>
+      <AuthCard locale={locale}>
+        {/* LoginForm owns its own heading: which of its four modes it is
+            in depends on the URL fragment, which only the browser sees. */}
+        <LoginForm locale={locale} />
+      </AuthCard>
     );
   }
 

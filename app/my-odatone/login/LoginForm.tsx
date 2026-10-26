@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -101,6 +102,12 @@ export default function LoginForm({ locale }: { locale: Locale }) {
         <Button type="submit" size="md" className="mt-2 w-full" disabled={pending}>
           {pending ? portal.login.submitPending[locale] : portal.login.submit[locale]}
         </Button>
+        {/* Only on the ordinary sign-in. Someone who arrived on an invite or
+            a recovery link is already holding the token this would mail
+            them, and offering it there sends them round a loop. */}
+        <Link href="/my-odatone/nulstil" className="u-link mt-1 text-center text-[0.875rem]">
+          {portal.reset.forgot[locale]}
+        </Link>
       </form>
     </>
   );

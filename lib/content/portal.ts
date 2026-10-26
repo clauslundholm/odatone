@@ -12,6 +12,36 @@ export const portal = {
     } as L10n,
   },
 
+  reset: {
+    heading: { da: "Nulstil adgangskode", en: "Reset password" } as L10n,
+    subtitle: { da: "Mit Odatone", en: "My Odatone" } as L10n,
+    lede: {
+      da: "Skriv din e-mail, så sender vi et link til at vælge en ny.",
+      en: "Enter your email and we will send a link to choose a new one.",
+    } as L10n,
+    submit: { da: "Send link", en: "Send link" } as L10n,
+    submitPending: { da: "Sender…", en: "Sending…" } as L10n,
+    back: { da: "Tilbage til log ind", en: "Back to sign in" } as L10n,
+    forgot: { da: "Glemt din adgangskode?", en: "Forgot your password?" } as L10n,
+    /* Said whether or not the address has an account, and worded so that
+       it stays true either way. Confirming that an email IS registered is
+       the enumeration hole login/actions.ts already closes by refusing to
+       distinguish a wrong password from an unknown address; a reset page
+       that answers "no such user" would reopen it on an unauthenticated
+       endpoint anyone can poll. */
+    sent: {
+      da: "Hvis der findes en konto med {email}, er linket på vej. Linket gælder i én time. Kig også i spam.",
+      en: "If an account exists for {email}, the link is on its way. It is valid for one hour. Check your spam folder too.",
+    } as L10n,
+    errors: {
+      email: { da: "Ugyldig e-mail", en: "Invalid email" } as L10n,
+      service: {
+        da: "Der opstod en fejl. Prøv igen om lidt.",
+        en: "Something went wrong. Please try again in a moment.",
+      } as L10n,
+    } as Record<string, L10n>,
+  },
+
   login: {
     heading: { da: "Log ind", en: "Sign in" } as L10n,
     subtitle: { da: "Mit Odatone", en: "My Odatone" } as L10n,
