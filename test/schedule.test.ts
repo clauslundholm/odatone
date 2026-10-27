@@ -17,6 +17,7 @@ import {
   quarterHours,
   rangeLabel,
   snapTo,
+  spotMarks,
   spotTimes,
   spotsPerWeek,
   weekdaysLabel,
@@ -199,6 +200,34 @@ test("the weekly count ignores spots that are switched off", () => {
   const on = { ...base, weekdays: [0, 1, 2, 3, 4], active: true };
   const off = { ...base, id: "s2", weekdays: [0, 1, 2, 3, 4], active: false };
   assert.equal(spotsPerWeek([on, off]), 5 * 4);
+});
+
+test("an interval spot is marked at both ends of its window, dotted between", () => {
+  const sp = {
+    id: "s", name: "Velkomst", fileName: "", path: null, seconds: 10,
+    duck: false, duckLevel: 25, volume: 100, weekdays: [0], active: true,
+    ...spot({ from: H(10), to: H(12), everyMin: 30 }),
+  };
+  const marks = spotMarks(sp);
+  const edges = marks.filter((m) => m.kind === "edge").map((m) => m.minute);
+  const ticks = marks.filter((m) => m.kind === "tick").map((m) => m.minute);
+  /* Both ends, because "from 10:00" alone leaves the reader counting
+     dots to find where it stops. */
+  assert.deepEqual(edges.sort((a, b) => a - b), [H(10), H(12)]);
+  /* 10:00 is an occurrence AND the window start; it gets one mark, not
+     a dot underneath a pill. */
+  assert.deepEqual(ticks.sort((a, b) => a - b), [H(10, 30), H(11), H(11, 30)]);
+});
+
+test("a fixed spot is one pill and no dots", () => {
+  const sp = {
+    id: "s", name: "Frokost", fileName: "", path: null, seconds: 10,
+    duck: true, duckLevel: 25, volume: 100, weekdays: [0], active: true,
+    ...spot({ mode: "fixed" as const, at: H(11, 45) }),
+  };
+  assert.deepEqual(spotMarks(sp), [
+    { spotId: "s", kind: "edge", minute: H(11, 45), label: "Frokost" },
+  ]);
 });
 
 test("the day summary says the thing people mean", () => {

@@ -6,11 +6,13 @@ import { v4 as t } from "@/lib/content/v4";
 import type { Locale } from "@/lib/i18n";
 import {
   FALLBACKS,
+  type AudioSpot,
   type Fallback,
   type ScheduleBlock,
   distribution,
   hoursLabel,
   plannedMinutes,
+  spotsPerWeek,
 } from "@/lib/schedule";
 import { CopyIcon, PinIcon } from "../Icons";
 import BlockPanel from "./BlockPanel";
@@ -69,6 +71,7 @@ export default function Planner({
   locations,
   locationId,
   blocks: serverBlocks,
+  spots = [],
   lists,
   backend,
   banner,
@@ -77,6 +80,7 @@ export default function Planner({
   locations: PlannerLocation[];
   locationId: string;
   blocks: ScheduleBlock[];
+  spots?: AudioSpot[];
   lists: WeekList[];
   backend: PlannerBackend;
   /** Shown above the grid. The demo uses it to say where the week is
@@ -259,7 +263,14 @@ export default function Planner({
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Stat text={t.planner.statMusic[l]} value={hoursLabel(plannedMinutes(blocks), l)} token="{hours}" />
         <span className="hidden sm:contents">
-          <Stat text={t.planner.statLists[l]} value={String(listsUsed)} token="{n}" />
+          <Stat
+            text={t.planner.statSpots[l]}
+            value={String(spots.filter((sp) => sp.active).length)}
+            token="{n}"
+          />
+        </span>
+        <span className="hidden lg:contents">
+          <Stat text={t.planner.statPerWeek[l]} value={String(spotsPerWeek(spots))} token="{n}" />
         </span>
         <div className="ml-auto flex items-center gap-4 text-[0.8125rem] text-ink-2">
           <label className="flex cursor-pointer items-center gap-2.5">
@@ -304,7 +315,7 @@ export default function Planner({
           locale={l}
           blocks={blocks}
           lists={lists}
-          spots={[]}
+          spots={spots}
           showSpots={showSpots}
           selectedId={selectedId}
           onSelect={setSelectedId}

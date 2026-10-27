@@ -22,8 +22,10 @@ import {
   overlaps,
   rangeLabel,
   snapTo,
-  spotTimes,
+  spotMarks,
+  type SpotMark as Mark,
 } from "@/lib/schedule";
+import { MegaphoneIcon } from "../Icons";
 
 export type WeekList = { id: string; name: string; basedOn: string | null };
 
@@ -354,31 +356,12 @@ export default function Week({
 
                 {showSpots &&
                   spots
-                    .filter((s) => s.active && s.weekdays.includes(d))
-                    .flatMap((s) =>
-                      spotTimes(s)
-                        .filter((m) => m >= START && m < END)
-                        .map((m) => ({ s, m })),
-                    )
-                    .map(({ s, m }) =>
-                      s.mode === "fixed" ? (
-                        <span
-                          key={`${s.id}-${m}`}
-                          className="pointer-events-none absolute inset-x-0 z-[4] border-t border-dashed border-warn/70"
-                          style={{ top: ((m - START) / 60) * ROW_H }}
-                        >
-                          <span className="u-tabular absolute right-[3px] top-[-9px] rounded-full bg-warn px-[6px] py-px text-[0.59rem] font-bold text-bg">
-                            {hhmm(m)}
-                          </span>
-                        </span>
-                      ) : (
-                        <span
-                          key={`${s.id}-${m}`}
-                          className="pointer-events-none absolute right-[3px] z-[4] h-1 w-1 -translate-y-0.5 rounded-full bg-warn opacity-60"
-                          style={{ top: ((m - START) / 60) * ROW_H }}
-                        />
-                      ),
-                    )}
+                    .filter((sp) => sp.active && sp.weekdays.includes(d))
+                    .flatMap((sp) => spotMarks(sp))
+                    .filter((mark) => mark.minute >= START && mark.minute <= END)
+                    .map((mark) => (
+                      <SpotMark key={`${mark.spotId}-${mark.kind}-${mark.minute}`} mark={mark} />
+                    ))}
 
                 {draft?.weekday === d && (
                   <div
@@ -406,5 +389,49 @@ export default function Week({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One amber mark on the week.
+ *
+ * A dot for each time an interval spot comes round — there can be
+ * sixteen of them in a day, so they are the quietest thing the grid
+ * draws. A pill for the two times worth reading: when the spot starts
+ * running and when it stops, or, for one at a fixed time, the single
+ * moment it plays. The pill carries the clock time rather than the
+ * spot's name, because what a schedule is asked at a glance is "when",
+ * and three names stacked at 11:45 would answer nothing.
+ */
+function SpotMark({ mark }: { mark: Mark }) {
+  const top = ((mark.minute - START) / 60) * ROW_H;
+
+  if (mark.kind === "tick") {
+    return (
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[4px] z-[4] h-[5px] w-[5px] -translate-y-1/2 rounded-full"
+        style={{ top, background: "var(--c-spot)", opacity: 0.6 }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="pointer-events-none absolute inset-x-0 z-[5] border-t border-dashed"
+      /* Softer than the pill on purpose. The rule crosses whatever
+         block is playing at that minute, and at full strength it reads
+         as a line struck through the block's own times. */
+      style={{ top, borderColor: "color-mix(in srgb, var(--c-spot) 48%, transparent)" }}
+      title={mark.label}
+    >
+      <span
+        className="u-tabular absolute right-[3px] top-[-9px] inline-flex items-center gap-1 rounded-full px-[6px] py-px text-[0.59rem] font-bold"
+        style={{ background: "var(--c-spot)", color: "var(--c-spot-ink)" }}
+      >
+        <MegaphoneIcon size={9} />
+        {hhmm(mark.minute)}
+      </span>
+    </span>
   );
 }

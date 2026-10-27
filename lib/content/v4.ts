@@ -152,6 +152,8 @@ export const v4 = {
     /** "{hours}" is the week's planned music, summed from the blocks. */
     statMusic: { da: "{hours} musik planlagt", en: "{hours} of music planned" } as L10n,
     statLists: { da: "{n} lister i brug", en: "{n} lists in use" } as L10n,
+    statSpots: { da: "{n} aktive lydindslag", en: "{n} active audio spots" } as L10n,
+    statPerWeek: { da: "≈ {n} indslag om ugen", en: "≈ {n} spots a week" } as L10n,
     plannedTotal: { da: "{hours} i alt", en: "{hours} in total" } as L10n,
 
     list: { da: "Playliste", en: "Playlist" } as L10n,

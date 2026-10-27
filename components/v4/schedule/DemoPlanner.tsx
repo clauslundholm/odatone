@@ -13,9 +13,10 @@ import {
   clearDemoWeek,
   loadDemoWeek,
   saveDemoWeek,
+  starterSpots,
   starterWeek,
 } from "@/lib/v4/demo-week";
-import { overlaps, type Fallback, type ScheduleBlock } from "@/lib/schedule";
+import { overlaps, type AudioSpot, type Fallback, type ScheduleBlock } from "@/lib/schedule";
 import Planner, { type PlannerBackend } from "./Planner";
 
 /**
@@ -35,6 +36,7 @@ import Planner, { type PlannerBackend } from "./Planner";
  */
 export default function DemoPlanner({ locale: l }: { locale: Locale }) {
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(starterWeek);
+  const [spots, setSpots] = useState<AudioSpot[]>(starterSpots);
   const [fallback, setFallbackState] = useState<Fallback>(DEMO_FALLBACK);
   const [loaded, setLoaded] = useState(false);
   const nextId = useRef(0);
@@ -46,14 +48,15 @@ export default function DemoPlanner({ locale: l }: { locale: Locale }) {
     const saved = loadDemoWeek();
     if (saved) {
       setBlocks(saved.blocks);
+      setSpots(saved.spots);
       setFallbackState(saved.fallback);
     }
     setLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (loaded) saveDemoWeek({ blocks, fallback });
-  }, [loaded, blocks, fallback]);
+    if (loaded) saveDemoWeek({ blocks, spots, fallback });
+  }, [loaded, blocks, spots, fallback]);
 
   const lists = useMemo(
     () => DEMO_LISTS.map((x) => ({ id: x.id, name: x.name[l], basedOn: x.basedOn })),
@@ -125,6 +128,7 @@ export default function DemoPlanner({ locale: l }: { locale: Locale }) {
       locations={[{ id: DEMO_LOCATION_ID, name: DEMO_LOCATION_NAME[l], fallback }]}
       locationId={DEMO_LOCATION_ID}
       blocks={blocks}
+      spots={spots}
       lists={lists}
       backend={backend}
       banner={
@@ -137,6 +141,7 @@ export default function DemoPlanner({ locale: l }: { locale: Locale }) {
             onClick={() => {
               clearDemoWeek();
               setBlocks(starterWeek());
+              setSpots(starterSpots());
               setFallbackState(DEMO_FALLBACK);
             }}
             className="text-[0.8125rem] font-semibold text-ink-3 underline-offset-4 hover:text-ink hover:underline"

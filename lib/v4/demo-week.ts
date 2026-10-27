@@ -1,5 +1,5 @@
 import type { L10n } from "../i18n";
-import { type Fallback, type ScheduleBlock } from "../schedule";
+import { type AudioSpot, type Fallback, type ScheduleBlock } from "../schedule";
 
 /* ==================================================================== *
  *  A week to play with, before there is an account
@@ -57,13 +57,72 @@ export function starterWeek(): ScheduleBlock[] {
   return out;
 }
 
+/* Three announcements, the shapes the screen has to draw: one that
+   comes round all afternoon, one at a fixed minute, and one switched
+   off — so the overlay shows dots, a pill and nothing at all without
+   anybody having to build a week to see them. */
+export function starterSpots(): AudioSpot[] {
+  const base = {
+    path: null,
+    duckLevel: 25,
+    volume: 100,
+  };
+  return [
+    {
+      ...base,
+      id: "demo-spot-1",
+      name: "Velkommen & åbningstider",
+      fileName: "velkomst.mp3",
+      seconds: 18,
+      mode: "interval",
+      everyMin: 30,
+      from: H(10),
+      to: H(18),
+      at: H(12),
+      weekdays: [0, 1, 2, 3, 4, 5],
+      duck: false,
+      active: true,
+    },
+    {
+      ...base,
+      id: "demo-spot-2",
+      name: "Frokosttilbud",
+      fileName: "frokosttilbud.mp3",
+      seconds: 22,
+      mode: "fixed",
+      everyMin: 30,
+      from: H(10),
+      to: H(18),
+      at: H(11, 45),
+      weekdays: [0, 1, 2, 3, 4],
+      duck: true,
+      active: true,
+    },
+    {
+      ...base,
+      id: "demo-spot-3",
+      name: "Vi lukker om 15 minutter",
+      fileName: "lukketid.mp3",
+      seconds: 12,
+      mode: "fixed",
+      everyMin: 30,
+      from: H(10),
+      to: H(18),
+      at: H(20, 45),
+      weekdays: [0, 1, 2, 3],
+      duck: true,
+      active: false,
+    },
+  ];
+}
+
 export const DEMO_FALLBACK: Fallback = "silence";
 
 /* ------------------------------------------------------------ storage */
 
 const KEY = "odatone-demo-week-v1";
 
-type Saved = { blocks: ScheduleBlock[]; fallback: Fallback };
+type Saved = { blocks: ScheduleBlock[]; spots: AudioSpot[]; fallback: Fallback };
 
 /** Read the week back, or null for "never edited here".
  *
@@ -89,7 +148,11 @@ export function loadDemoWeek(): Saved | null {
         Number.isInteger(b.to) &&
         b.from < b.to,
     );
-    return { blocks, fallback: (parsed.fallback ?? DEMO_FALLBACK) as Fallback };
+    return {
+      blocks,
+      spots: Array.isArray(parsed.spots) ? parsed.spots : starterSpots(),
+      fallback: (parsed.fallback ?? DEMO_FALLBACK) as Fallback,
+    };
   } catch {
     return null;
   }

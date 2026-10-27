@@ -204,6 +204,42 @@ export function spotTimes(spot: Pick<AudioSpot, "mode" | "at" | "from" | "to" | 
   return out;
 }
 
+/** One thing to draw on the grid for a spot, on one day.
+ *
+ *  `tick` is a single occurrence of a spot that comes round on an
+ *  interval; there can be sixteen in a day, so they are drawn as dots.
+ *  `edge` is a time worth reading — the start and end of an interval
+ *  spot's window, or the one moment a fixed spot plays — and gets a
+ *  dashed rule and a pill with the clock time on it.
+ *
+ *  Both ends of a window are marked rather than just the start: "from
+ *  10:00" alone leaves the reader counting dots to find where it stops,
+ *  which is the question the overlay exists to answer. */
+export type SpotMark = {
+  spotId: string;
+  kind: "tick" | "edge";
+  minute: number;
+  label: string;
+};
+
+export function spotMarks(spot: AudioSpot): SpotMark[] {
+  if (spot.mode === "fixed") {
+    return [{ spotId: spot.id, kind: "edge", minute: spot.at, label: spot.name }];
+  }
+  const out: SpotMark[] = [
+    { spotId: spot.id, kind: "edge", minute: spot.from, label: spot.name },
+    { spotId: spot.id, kind: "edge", minute: spot.to, label: spot.name },
+  ];
+  /* The window's own ends already carry a pill, so a dot on top of one
+     would draw two marks for one moment. */
+  for (const m of spotTimes(spot)) {
+    if (m !== spot.from && m !== spot.to) {
+      out.push({ spotId: spot.id, kind: "tick", minute: m, label: spot.name });
+    }
+  }
+  return out;
+}
+
 /** How many times a week the spot plays — the figure the stats row
     quotes, and the one that tells a shopkeeper they have set it to run
     every five minutes by accident. */

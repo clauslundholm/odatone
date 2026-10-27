@@ -90,6 +90,10 @@
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(122, 58, 255, 0.1);
   --c-grid-hour: rgba(0, 0, 0, 0.08);
+  /* The announcement amber. Darker on a white page so the dots read
+     against it, and the pill's own text flips with it. */
+  --c-spot: #d98b06;
+  --c-spot-ink: #ffffff;
   --c-grid-half: rgba(0, 0, 0, 0.035);
   --c-warn: #c2410c;
   --c-ok: #1d8448;
@@ -116,6 +120,8 @@
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(143, 77, 255, 0.16);
   --c-grid-hour: rgba(255, 255, 255, 0.07);
+  --c-spot: #f5b942;
+  --c-spot-ink: #1a1405;
   --c-grid-half: rgba(255, 255, 255, 0.028);
   /* Lifted on dark, like --c-accent is: the light-mode hues sit too close
      to the background to read as four distinct washes. */
@@ -151,6 +157,8 @@
   --c-accent-ink: #ffffff;
   --c-accent-soft: rgba(143, 77, 255, 0.16);
   --c-grid-hour: rgba(255, 255, 255, 0.07);
+  --c-spot: #f5b942;
+  --c-spot-ink: #1a1405;
   --c-grid-half: rgba(255, 255, 255, 0.028);
   /* Lifted on dark, like --c-accent is: the light-mode hues sit too close
      to the background to read as four distinct washes. */

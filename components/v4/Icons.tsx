@@ -129,3 +129,13 @@ export const CheckIcon = ({ size = 18, className = "" }: P) => (
     <path d="M20 6 9 17l-5-5" />
   </svg>
 );
+
+/** The mark on a scheduled announcement. Stroked rather than filled:
+    at the 9px it is drawn at inside a pill, a solid horn collapses into
+    an arrowhead and reads as "next" instead of "announcement". */
+export const MegaphoneIcon = ({ size = 12, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="m3 11 18-5v12L3 14v-3Z" />
+    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+  </svg>
+);
