@@ -1,3 +1,4 @@
+import type { SeasonId } from "@/lib/seasons";
 import type { Genre, Mood } from "@/lib/tracks";
 
 /* ==================================================================== *
@@ -95,3 +96,21 @@ export function trackPhoto(mood: Mood): string {
 /* Re-exported so a caller can type the genre argument without importing
    lib/tracks twice. */
 export type { Genre, Mood };
+
+/* ------------------------------------------------------------ seasons
+   One photograph per season, generated for this page rather than taken
+   from the pool above: the pool is cafés and musicians, and a season is
+   the one thing on the site that has to look like a time of year. The
+   brief for Efterår was "a cup of coffee and a yellow leaf", and that
+   is what it is.
+
+   Keyed by SeasonId so a season added to lib/seasons.ts without a
+   picture is a type error rather than a grey rectangle in production. */
+export const SEASON_PHOTO: Record<SeasonId, string> = {
+  efteraar: `${P}/seasons/efteraar.jpg`,
+  jul: `${P}/seasons/jul.jpg`,
+  nytaar: `${P}/seasons/nytaar.jpg`,
+  vinter: `${P}/seasons/vinter.jpg`,
+  foraar: `${P}/seasons/foraar.jpg`,
+  sommer: `${P}/seasons/sommer.jpg`,
+};

@@ -8,6 +8,7 @@ import { v4 as t } from "@/lib/content/v4";
 import type { Locale } from "@/lib/i18n";
 import { SEASONS, currentSeason, seasonFilters, type Season } from "@/lib/seasons";
 import { filterTracks } from "@/lib/tracks";
+import { SEASON_PHOTO } from "@/lib/v4/photos";
 
 /**
  * Seasons: six date ranges, each a way of playing rather than a stored
@@ -67,20 +68,28 @@ function SeasonCard({
         inSeason ? "ring-2 ring-accent/45" : "ring-1 ring-line"
       }`}
     >
-      {/* A flat wash until there is real photography. Efterår is meant to
-          be a cup of coffee and a yellow leaf; a stock gradient pretending
-          to be that is worse than an obvious placeholder. */}
-      <div className="h-[132px] bg-surface-2" aria-hidden />
+      {/* The season's own photograph. Decorative, so no alt text: the
+          heading underneath already names the season, and "Efterår" read
+          out twice is worse than once. */}
+      <div className="relative h-[132px] overflow-hidden">
+        <img
+          src={SEASON_PHOTO[season.id]}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-1/3 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.28))]"
+        />
+        {inSeason && (
+          <span className="absolute left-3 top-3 rounded-full bg-surface/90 px-3 py-1 text-[0.72rem] font-semibold text-accent backdrop-blur-sm">
+            {t.seasons.inSeason[l]}
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-1 flex-col gap-2 p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="u-title text-[1.0625rem] text-ink">{season.label[l]}</h2>
-          {inSeason && (
-            <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[0.6875rem] font-medium text-accent">
-              {t.seasons.inSeason[l]}
-            </span>
-          )}
-        </div>
+        <h2 className="u-title text-[1.0625rem] text-ink">{season.label[l]}</h2>
         <p className="u-label text-ink-3">{range}</p>
         <p className="text-[0.875rem] text-ink-2">{season.character[l]}</p>
 

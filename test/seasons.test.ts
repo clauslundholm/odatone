@@ -9,6 +9,7 @@ import {
   seasonFilters,
 } from "../lib/seasons.ts";
 import { BPM_MAX, BPM_MIN, GENRES, filterTracks } from "../lib/tracks.ts";
+import { SEASON_PHOTO } from "../lib/v4/photos.ts";
 
 const on = (month: number, day: number) => new Date(2026, month - 1, day);
 
@@ -89,6 +90,19 @@ test("seasonFilters clears mood, so a season plays the whole room", () => {
   assert.equal(f.mood, null);
   assert.deepEqual(f.genres, s.rule.genres);
   assert.deepEqual(f.bpm, s.rule.bpm);
+});
+
+test("every season has its own photograph, and no two share one", () => {
+  /* A season is the one thing on the site that has to look like a time
+     of year, so a missing picture is a grey rectangle where the whole
+     point was. Reusing one would be worse: two cards showing the same
+     café says the seasons are a label on the same thing. */
+  const paths = SEASONS.map((s) => SEASON_PHOTO[s.id]);
+  for (const [i, path] of paths.entries()) {
+    assert.ok(path, `${SEASONS[i]!.id} has no photograph`);
+    assert.match(path, /^\/v4\/seasons\/.+\.jpg$/);
+  }
+  assert.equal(new Set(paths).size, SEASONS.length, "two seasons share a photograph");
 });
 
 test("a season that matches nothing in the catalogue is reported, not hidden", () => {
