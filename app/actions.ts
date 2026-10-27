@@ -9,6 +9,7 @@ import {
   type ExistingProfile,
   type SignupInput,
   isAlreadyRegisteredError,
+  isWeakPasswordError,
 } from "@/lib/signup";
 import { activePlans } from "@/lib/plans-server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -502,6 +503,21 @@ export async function submitSignup(formData: FormData): Promise<ActionResult> {
         customer: customerId,
       });
       return { ok: false, errors: { email: "exists" } };
+    }
+
+    /* The project refused the password. Nothing was created, so this is
+       recoverable by the visitor — but only if they are told. Falling
+       through to "no-invite" below would show them the Done screen and
+       an account that does not exist. The customer this request made is
+       removed: they are about to submit the form again, and a second
+       customer row for the same email would be left behind. */
+    if (isWeakPasswordError(inviteError)) {
+      if (createdCustomerThisRequest) await deleteCustomer(admin, customerId, "password refused by the auth policy");
+      console.error("[odatone] signup: the password was refused by the project policy", {
+        customer: customerId,
+        code: (inviteError as { code?: string } | null)?.code,
+      });
+      return { ok: false, errors: { password: "weak" } };
     }
 
     /* Any other invite failure (rate limit, mail transport down, ...): no

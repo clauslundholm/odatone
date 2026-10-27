@@ -186,7 +186,7 @@ function ProfileStep({
         minLength={8}
         required
         hint={t.passwordHint[l]}
-        error={errors.password && t.passwordHint[l]}
+        error={errors.password ? errorText(errors.password, l) : undefined}
       />
 
       {formError && (

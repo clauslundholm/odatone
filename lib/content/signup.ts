@@ -264,6 +264,17 @@ export const signup = {
     /** A signup-only server-side error: the email already has a completed
         account (an owner profile exists), or the invite call turned out to
         target one mid-request. Never produced by client-side validation. */
+    /** buildSignup's own length check (lib/signup.ts). Kept identical to
+        the field's hint, so failing it does not read as a new rule. */
+    password: { da: "Mindst 8 tegn", en: "At least 8 characters" } as L10n,
+    /** The project's password policy refused it — which can be stricter
+        than this app's 8 characters, and can demand character classes the
+        form never mentions. Said as a rule to follow rather than as the
+        length we happen to ask for. */
+    weak: {
+      da: "Adgangskoden blev afvist. Vælg en længere kode med både store og små bogstaver og tal.",
+      en: "That password was refused. Choose a longer one with upper and lower case letters and digits.",
+    } as L10n,
     exists: {
       da: "Der findes allerede en konto med denne e-mail. Tjek din indbakke for invitationen, eller log ind.",
       en: "An account with this email already exists. Check your inbox for the invite, or log in.",

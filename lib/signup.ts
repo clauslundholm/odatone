@@ -420,13 +420,51 @@ export function inviteCreatedNewUser(createdAt: string, requestStartedAtMs: numb
   return created >= requestStartedAtMs;
 }
 
+type AuthFailure = { code?: string; status?: number; message?: string } | null | undefined;
+
 /** Whether an invite failed because the address already has a fully
-    registered auth user. GoTrue reports this as `email_exists`; older
-    versions only as HTTP 422, so both are accepted. Shared by the public
-    signup (app/actions.ts) and the staff invite (app/admin/users/actions.ts)
-    — two copies of this predicate would drift the next time GoTrue changes
-    how it spells the error. */
+    registered auth user. Shared by the public signup (app/actions.ts) and
+    the staff invite (app/admin/users/actions.ts) — two copies of this
+    predicate would drift the next time GoTrue changes how it spells the
+    error.
+
+    This used to accept ANY HTTP 422, reaching for older GoTrue builds
+    that sent no error code. 422 is not that specific: it is the status
+    for a whole family of refusals, and the one that actually bit was
+    `weak_password`. A project whose password policy is stricter than
+    this app's own 8-character minimum refused every signup, and every
+    visitor — on a brand-new address — was told the address was already
+    taken, while the customer the request had just created was deleted
+    underneath them as an "invite target already registered".
+
+    It looked like every address was taken because the address was never
+    the problem: the password was, and the password is the constant
+    across attempts.
+
+    The old-GoTrue case is still covered, but pinned to the sentence it
+    sends rather than to a status it shares with everything else. */
 export function isAlreadyRegisteredError(error: unknown): boolean {
-  const e = error as { code?: string; status?: number } | null | undefined;
-  return e?.code === "email_exists" || e?.status === 422;
+  const e = error as AuthFailure;
+  if (!e) return false;
+  if (e.code === "email_exists" || e.code === "user_already_exists") return true;
+  return /already (been )?registered|already exists/i.test(e.message ?? "");
+}
+
+/** Whether the project's own password policy refused the password.
+ *
+ *  Needed because the alternative is worse than a wrong message: an
+ *  unclassified invite failure returns `message: "no-invite"`, which
+ *  shows the visitor the Done screen. Being told the account exists and
+ *  only the email failed to send — when in fact nothing was created and
+ *  the password is the thing to change — is a dead end they cannot get
+ *  out of by trying again.
+ *
+ *  A hosted project can demand more than this app's MIN_PASSWORD_LEN,
+ *  and can require character classes the form never mentions, so the
+ *  visitor is shown GoTrue's own sentence rather than our hint. */
+export function isWeakPasswordError(error: unknown): boolean {
+  const e = error as AuthFailure;
+  if (!e) return false;
+  if (e.code === "weak_password") return true;
+  return e.status === 422 && /password/i.test(e.message ?? "");
 }

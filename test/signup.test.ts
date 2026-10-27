@@ -4,7 +4,14 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { buildSignup, decideSignupDedupe, inviteCreatedNewUser, parseCvr } from "../lib/signup.ts";
+import {
+  buildSignup,
+  decideSignupDedupe,
+  inviteCreatedNewUser,
+  isAlreadyRegisteredError,
+  isWeakPasswordError,
+  parseCvr,
+} from "../lib/signup.ts";
 import { EMAIL_RE } from "../lib/forms.ts";
 
 /* The plan ids buildSignup accepts now come from the caller, because they
@@ -469,4 +476,66 @@ test("buildSignup rejects a password that is too short or past bcrypt's limit", 
 
   const atCap = build(form({ ...VALID, password: "x".repeat(72) }));
   assert.equal(atCap.ok, true);
+});
+
+
+/* ==================================================================== *
+ *  Classifying what GoTrue refused
+ *
+ *  Reported from production: signup answered "der findes allerede en
+ *  konto med denne e-mail" for every address, new ones included.
+ *
+ *  The predicate accepted ANY HTTP 422, and 422 is GoTrue's status for a
+ *  family of refusals, not just a taken address. Reproduced against a
+ *  real GoTrue: a password the project's policy rejects comes back
+ *  422 / weak_password, which the predicate called "already
+ *  registered" — and the email is innocent, which is why it looked
+ *  like every address was taken. The password is the constant across
+ *  attempts, not the address.
+ * ==================================================================== */
+
+test("a taken address is recognised, however GoTrue spells it", () => {
+  assert.equal(
+    isAlreadyRegisteredError({
+      status: 422,
+      code: "email_exists",
+      message: "A user with this email address has already been registered",
+    }),
+    true,
+  );
+  /* Older GoTrue sent no code at all — only the status and the sentence.
+     That is what the blanket 422 was reaching for, and it is kept, but
+     pinned to the sentence rather than to the status. */
+  assert.equal(
+    isAlreadyRegisteredError({
+      status: 422,
+      message: "A user with this email address has already been registered",
+    }),
+    true,
+  );
+});
+
+test("a refusal that is not about the address is not reported as a taken address", () => {
+  /* Observed live: status 422, code weak_password. Before the fix this
+     returned true, the visitor was told the email was taken, and the
+     customer this request had just created was deleted underneath them. */
+  assert.equal(isAlreadyRegisteredError({ status: 422, code: "weak_password" }), false);
+  assert.equal(isAlreadyRegisteredError({ status: 422, code: "over_email_send_rate_limit" }), false);
+  assert.equal(isAlreadyRegisteredError({ status: 422, code: "signup_disabled" }), false);
+  assert.equal(isAlreadyRegisteredError({ status: 429, code: "over_request_rate_limit" }), false);
+  assert.equal(isAlreadyRegisteredError(null), false);
+  assert.equal(isAlreadyRegisteredError(undefined), false);
+});
+
+test("a password the project refuses is recognised as a password problem", () => {
+  /* So it reaches the password field instead of being swallowed by the
+     "customer created, no invite sent" path, which tells someone their
+     signup worked when it did not. */
+  assert.equal(isWeakPasswordError({ status: 422, code: "weak_password" }), true);
+  assert.equal(
+    isWeakPasswordError({ status: 422, message: "Password should be at least 6 characters." }),
+    true,
+  );
+  assert.equal(isWeakPasswordError({ status: 422, code: "email_exists" }), false);
+  assert.equal(isWeakPasswordError(null), false);
 });
