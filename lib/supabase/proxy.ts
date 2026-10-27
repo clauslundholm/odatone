@@ -61,8 +61,6 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const portal = portalFor(path);
 
-  if (!portal) return response;
-
   /* Deliberately NOT `if (isPublicPath(path)) return response` here, which
      is what this line used to be. The portal root is public now — it renders
      the sign-in form when signed out — so short-circuiting on it would wave
@@ -74,12 +72,17 @@ export async function updateSession(request: NextRequest) {
 
   const env = resolveSupabaseEnv();
   if (!env) {
-    /* Fail closed. lib/supabase/env.ts documents null as a normal state:
-       locally, on a deploy made before the integration was added, or a
-       half-configured one. Every other failure mode in this function
-       resolves to a 404; this must not be the one branch that resolves to
-       "let them in" — a misconfigured deploy must not unlock both portals
-       to anonymous visitors. */
+    /* Fail closed, but only where there is something to close. A public
+       product route has nothing to gate — 404-ing the front page because
+       Supabase is unconfigured would take the whole site down over a
+       missing variable — so it is served as it always was, signed out.
+       A portal path is different: lib/supabase/env.ts documents null as
+       a normal state (locally, on a deploy made before the integration
+       was added, or a half-configured one), and every other failure mode
+       in this function resolves to a 404. This must not be the one
+       branch that resolves to "let them in" — a misconfigured deploy
+       must not unlock both portals to anonymous visitors. */
+    if (!portal) return response;
     return notFound(request, response);
   }
 
@@ -103,6 +106,18 @@ export async function updateSession(request: NextRequest) {
      its signature. Called here, before any response is generated, so a refresh
      completing later is not lost. */
   const { data } = await supabase.auth.getClaims();
+
+  /* A product route outside both portals reaches this function for one
+     reason only: to let @supabase/ssr rotate an expiring session cookie
+     while the visitor is browsing. Server Components cannot write
+     cookies (see lib/supabase/server.ts's swallowed setAll), so without
+     this the account pages, the Ugeplan and the signed-in front page
+     would quietly fall back to their signed-out state the hour a token
+     expired — a customer reading their own invoices would be shown "Log
+     ind" instead. Nothing is gated here: `response` already carries
+     whatever the refresh wrote, and the audience checks below are for
+     /admin and /my-odatone alone. */
+  if (!portal) return response;
 
   if (!data?.claims?.sub) {
     /* No session. The portal root and the legacy /login URLs render the

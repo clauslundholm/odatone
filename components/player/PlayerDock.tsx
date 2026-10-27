@@ -49,7 +49,9 @@ export default function PlayerDock() {
   const expired = p.trial.expired;
   const started = p.trial.started;
 
-  const idleLabel = dock.idleSub[l].replace("{n}", num(TRIAL_DAYS, l));
+  const idleLabel = p.signedIn
+    ? dock.signedInSub[l]
+    : dock.idleSub[l].replace("{n}", num(TRIAL_DAYS, l));
   const trialLabel =
     p.trial.daysLeft <= 1
       ? dock.trialShortLast[l]
@@ -175,7 +177,7 @@ export default function PlayerDock() {
             ) : (
               <div className="min-w-0">
                 <p className="truncate text-[0.875rem] font-medium text-ink">
-                  {dock.idleTitle[l]}
+                  {p.signedIn ? dock.signedInTitle[l] : dock.idleTitle[l]}
                 </p>
                 <p className="truncate text-[0.8125rem] text-accent">{idleLabel}</p>
               </div>
@@ -277,8 +279,20 @@ export default function PlayerDock() {
                   </div>
                 )}
 
-                {started && (
-                  <p className="u-label hidden whitespace-nowrap xl:block">{trialLabel}</p>
+                {/* The countdown is a visitor's; a customer gets the
+                    one thing this bar cannot do on its own — put what is
+                    playing into the week. */}
+                {p.signedIn ? (
+                  <LinkButton
+                    href={`/${l}/${l === "da" ? "spilleplan" : "schedule"}`}
+                    variant="primary"
+                    size="sm"
+                    className="hidden shrink-0 lg:inline-flex"
+                  >
+                    {dock.scheduleCta[l]}
+                  </LinkButton>
+                ) : (
+                  started && <p className="u-label hidden whitespace-nowrap xl:block">{trialLabel}</p>
                 )}
 
                 <div className="hidden shrink-0 items-center gap-2 lg:flex">

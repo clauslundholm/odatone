@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 export type InviteMode = "checking" | "sign-in" | "set-password" | "expired";
-export type SetPasswordError = "short" | "generic";
+export type SetPasswordError = "short" | "mismatch" | "generic";
 
 /** GoTrue's own floor is 6; 8 is this app's, applied in the browser before
     the round trip so a too-short password fails instantly rather than as a
@@ -118,9 +118,19 @@ export function useInviteFragment(landingPath: string) {
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const password = String(new FormData(event.currentTarget).get("password") ?? "");
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") ?? "");
+    /* The repeat field only exists on the card; a submit with no repeat
+       at all (an older cached page, a scripted post) is treated as a
+       match rather than refused, since the field is a typo guard and
+       not an authorisation step. */
+    const repeat = form.has("repeat") ? String(form.get("repeat") ?? "") : password;
     if (password.length < MIN_PASSWORD_LEN) {
       setPasswordError("short");
+      return;
+    }
+    if (password !== repeat) {
+      setPasswordError("mismatch");
       return;
     }
     setPasswordError(null);

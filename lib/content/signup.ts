@@ -50,7 +50,7 @@ export const signup = {
       { da: "Spil i butikken", en: "Play in store" } as L10n,
     ],
     profile: {
-      heading: { da: "Opret din profil", en: "Create your profile" } as L10n,
+      heading: { da: "Gem listen, og brug den i butikken", en: "Save the list and use it in store" } as L10n,
       lede: {
         da: "Musikken spiller videre, mens du opretter dig.",
         en: "The music keeps playing while you sign up.",
@@ -70,8 +70,8 @@ export const signup = {
     payment: {
       heading: { da: "Start abonnementet", en: "Start the subscription" } as L10n,
       lede: {
-        da: "Hele biblioteket på alle jeres hylder. Opsig når som helst.",
-        en: "The whole library on every shelf. Cancel whenever you like.",
+        da: "Hele biblioteket på alle jeres højttalere. Opsig når som helst.",
+        en: "The whole library on every one of your speakers. Cancel whenever you like.",
       } as L10n,
       /* "{plan}" and "{n}" are filled from the plan the account was created
          on and its location count — never from a figure typed here. */

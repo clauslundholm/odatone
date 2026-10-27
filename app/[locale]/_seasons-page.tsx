@@ -6,6 +6,7 @@ import { isLocale, type Locale } from "@/lib/i18n";
 import { activePlans } from "@/lib/plans-server";
 import { kr } from "@/lib/format";
 import { quote } from "@/lib/pricing";
+import { loadAccount } from "@/lib/v4/account";
 
 /* Shared by the two localised routes below. The slug differs per language
    (/da/saesoner, /en/seasons) and Next cannot vary a path segment by a
@@ -23,8 +24,16 @@ export async function renderSeasons(raw: string, expected: Locale) {
   );
   const priceFrom = cheapest ? kr(Math.round(quote(cheapest, "monthly", 1).perLocation), locale) : "—";
 
+  const account = await loadAccount(locale);
+
   return (
-    <Shell locale={locale} priceFrom={priceFrom} active="seasons">
+    <Shell
+      locale={locale}
+      priceFrom={priceFrom}
+      active="seasons"
+      account={account?.chrome ?? null}
+      lists={account?.lists ?? []}
+    >
       <Seasons locale={locale} />
     </Shell>
   );

@@ -37,7 +37,10 @@ type Ctx = {
   muted: boolean;
   shuffle: boolean;
   filters: Filters;
+  /** For a signed-in customer this never expires — see `setSignedIn`. */
   trial: TrialState;
+  /** Whether the person at the keyboard has an Odatone account. */
+  signedIn: boolean;
   /** Live analyser magnitudes, 0–1, updated on rAF while playing. */
   levels: number[];
   ready: boolean;
@@ -55,6 +58,12 @@ type Ctx = {
   setFilters: (update: Partial<Filters> | ((f: Filters) => Filters)) => void;
   resetFilters: () => void;
   refreshTrial: () => void;
+  /** Set by components/v4/Shell when it renders for a signed-in
+      customer. It lives here rather than being read from the session,
+      because this provider is mounted in app/[locale]/layout.tsx and a
+      session read there would take the twenty-five prerendered
+      marketing pages dynamic along with it. */
+  setSignedIn: (value: boolean) => void;
 };
 
 const PlayerContext = createContext<Ctx | null>(null);
@@ -107,6 +116,7 @@ export default function PlayerProvider({
   }));
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   /* ---------------- queue ---------------- */
 
@@ -433,13 +443,24 @@ export default function PlayerProvider({
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle, next, prev]);
 
+  /* A customer is not on a trial, so theirs never runs out. The demo
+     window is stored per browser (lib/audio/trial.ts), which means a
+     paying customer who happened to try the demo before signing up
+     would otherwise have the music stopped under them on day eight —
+     on their own account, in their own shop. Forced here rather than
+     at each reader so there is one answer to "is this expired". */
+  const effectiveTrial: TrialState = useMemo(
+    () => (signedIn ? { ...trial, expired: false } : trial),
+    [signedIn, trial],
+  );
+
   /* Trial expiry stops playback. */
   useEffect(() => {
-    if (trial.expired) {
+    if (effectiveTrial.expired) {
       wantsPlay.current = false;
       if (playing) pause();
     }
-  }, [trial.expired, playing, pause]);
+  }, [effectiveTrial.expired, playing, pause]);
 
   useEffect(() => {
     const id = window.setInterval(() => setTrial(trialState()), 60_000);
@@ -487,7 +508,8 @@ export default function PlayerProvider({
     muted,
     shuffle,
     filters,
-    trial,
+    trial: effectiveTrial,
+    signedIn,
     levels,
     ready,
     blocked,
@@ -503,6 +525,7 @@ export default function PlayerProvider({
     setFilters,
     resetFilters,
     refreshTrial,
+    setSignedIn,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

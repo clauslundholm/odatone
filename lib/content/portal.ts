@@ -3,6 +3,15 @@ import type { L10n } from "@/lib/i18n";
 /** All bilingual copy for /my-odatone (the customer portal's front door —
     Task 14). Kept in one file, matching lib/content/signup.ts's own
     convention, rather than scattered across the pages that read it. */
+/* The copy for the screens that are still at /my-odatone: the sign-in
+   card, the password-reset card, and the labels the account's own
+   settings form shares with them.
+   The summary/billing/shell groups that used to sit here went with
+   components/portal/PortalShell.tsx when the customer portal moved into
+   the product shell — that copy is now lib/content/v4.ts's `account`
+   section, written for cards in the player rather than rows in a
+   console. The status tables at the foot of this file stay shared: a
+   status word does not change with its surroundings. */
 export const portal = {
   meta: {
     title: { da: "Mit Odatone", en: "My Odatone" } as L10n,
@@ -23,6 +32,13 @@ export const portal = {
     submitPending: { da: "Sender…", en: "Sending…" } as L10n,
     back: { da: "Tilbage til log ind", en: "Back to sign in" } as L10n,
     forgot: { da: "Glemt din adgangskode?", en: "Forgot your password?" } as L10n,
+    /* Said up front, not only in the confirmation: somebody who asks for
+       a link and then waits is the person who needs to know it is going
+       to go stale. The same two facts the `sent` message repeats. */
+    linkNote: {
+      da: "Linket gælder i én time og kan kun bruges én gang.",
+      en: "The link is valid for one hour and can only be used once.",
+    } as L10n,
     /* Said whether or not the address has an account, and worded so that
        it stays true either way. Confirming that an email IS registered is
        the enumeration hole login/actions.ts already closes by refusing to
@@ -45,7 +61,21 @@ export const portal = {
   login: {
     heading: { da: "Log ind", en: "Sign in" } as L10n,
     subtitle: { da: "Mit Odatone", en: "My Odatone" } as L10n,
-    emailLabel: { da: "E-mail", en: "Email" } as L10n,
+    lede: {
+      da: "Til din Odatone-konto. Musikken kører videre imens.",
+      en: "To your Odatone account. The music keeps playing meanwhile.",
+    } as L10n,
+    /* "Arbejds-e-mail", not "E-mail": every account here belongs to a
+       business, and the address people reach for first is their private
+       one. Naming it is cheaper than a failed sign-in. */
+    emailLabel: { da: "Arbejds-e-mail", en: "Work email" } as L10n,
+    emailPlaceholder: { da: "navn@virksomhed.dk", en: "name@company.com" } as L10n,
+    /* The way back out for somebody who has no account yet and landed
+       here from a link. "{n}" is PROOF.trialDays, never written out. */
+    noAccount: {
+      da: "Har du ikke en konto? Prøv {n} dage gratis.",
+      en: "No account yet? Try {n} days free.",
+    } as L10n,
     passwordLabel: { da: "Adgangskode", en: "Password" } as L10n,
     submit: { da: "Log ind", en: "Sign in" } as L10n,
     submitPending: { da: "Logger ind…", en: "Signing in…" } as L10n,
@@ -77,15 +107,28 @@ export const portal = {
     setPassword: {
       heading: { da: "Vælg en adgangskode", en: "Choose a password" } as L10n,
       body: {
-        da: "Du er blevet inviteret til Odatone. Vælg en adgangskode for at komme i gang.",
-        en: "You've been invited to Odatone. Choose a password to get started.",
+        da: "Sidste trin. Så er kontoen din.",
+        en: "Last step. Then the account is yours.",
       } as L10n,
       passwordLabel: { da: "Ny adgangskode", en: "New password" } as L10n,
-      submit: { da: "Gem og fortsæt", en: "Save and continue" } as L10n,
+      passwordHint: { da: "Mindst 8 tegn", en: "At least 8 characters" } as L10n,
+      repeatLabel: { da: "Gentag adgangskode", en: "Repeat password" } as L10n,
+      submit: { da: "Opret konto", en: "Create account" } as L10n,
       submitPending: { da: "Gemmer…", en: "Saving…" } as L10n,
+      /* Named rather than linked, because this card is served outside the
+         localised marketing routes and the two documents live under
+         /da and /en. The visitor has already met both in signup. */
+      consent: {
+        da: "Ved at fortsætte accepterer du handelsbetingelserne og privatlivspolitikken.",
+        en: "By continuing you accept the terms of business and the privacy policy.",
+      } as L10n,
       tooShort: {
         da: "Adgangskoden skal være mindst 8 tegn.",
         en: "The password must be at least 8 characters.",
+      } as L10n,
+      mismatch: {
+        da: "De to adgangskoder er ikke ens.",
+        en: "The two passwords do not match.",
       } as L10n,
       generic: {
         da: "Kunne ikke gemme adgangskoden. Prøv igen.",
@@ -114,87 +157,7 @@ export const portal = {
       inline). Kept as its own block, separate from `summary`, now that a
       second page (`billing`) mounts the same shell and needs these same
       strings without importing a page that isn't itself. */
-  shell: {
-    /* AppShell/SideNav/TopBar/UserCard are shared with /admin (English
-       only), which is why each of these has an English default at the
-       component level — /my-odatone is their first consumer outside
-       /admin, and without these a customer's screen reader would
-       announce their own portal's nav as "Admin" in English on a
-       lang="da-DK" page. */
-    ariaNav: { da: "Mit Odatone", en: "My Odatone" } as L10n,
-    ariaOpenMenu: { da: "Åbn menu", en: "Open menu" } as L10n,
-    ariaMenu: { da: "Menu", en: "Menu" } as L10n,
-    ariaBreadcrumb: { da: "Brødkrumme", en: "Breadcrumb" } as L10n,
-    signOut: { da: "Log ud", en: "Sign out" } as L10n,
-    /** PortalShell's own account-card fallback, for a profile with
-        neither a saved full name nor a claimed email — the same
-        defensive fallback components/admin/AdminSideNav.tsx hard-codes
-        as "Signed in", just localised. Should not be reachable in
-        practice: every portal login has an email. */
-    signedIn: { da: "Logget ind", en: "Signed in" } as L10n,
 
-    ariaUserMenu: { da: "Kontomenu", en: "Account menu" } as L10n,
-    /* The customer-facing halves of the `user_role` enum (0001_core.sql)
-       — a customer only ever sees 'owner' or 'manager', never the two
-       staff roles. Shared by every page's WorkspaceCard subtitle, so it
-       lives here rather than under any one page. */
-    roleOwner: { da: "Ejer", en: "Owner" } as L10n,
-    roleManager: { da: "Administrator", en: "Manager" } as L10n,
-    languageGroup: { da: "Sprog", en: "Language" } as L10n,
-    themeGroup: { da: "Tema", en: "Theme" } as L10n,
-    themeLight: { da: "Lyst", en: "Light" } as L10n,
-    themeSystem: { da: "System", en: "System" } as L10n,
-    themeDark: { da: "Mørkt", en: "Dark" } as L10n,
-  },
-
-  summary: {
-    /* Doubles as this page's sidebar nav label (PortalShell builds the
-       nav list from both pages' own crumb, rather than a third, separate
-       "nav label" string) and as its TopBar breadcrumb. */
-    crumb: { da: "Oversigt", en: "Summary" } as L10n,
-    greeting: { da: "Velkommen,", en: "Welcome," } as L10n,
-
-    companyPanel: { da: "Virksomhed", en: "Company" } as L10n,
-    companyLabel: { da: "Firma", en: "Company" } as L10n,
-    statusLabel: { da: "Status", en: "Status" } as L10n,
-    customerSinceLabel: { da: "Kunde siden", en: "Customer since" } as L10n,
-
-    planPanel: { da: "Abonnement", en: "Subscription" } as L10n,
-    planLabel: { da: "Plan", en: "Plan" } as L10n,
-    billingLabel: { da: "Fakturering", en: "Billing" } as L10n,
-    billingMonthly: { da: "Månedlig", en: "Monthly" } as L10n,
-    billingAnnual: { da: "Årlig", en: "Annual" } as L10n,
-    priceLabel: { da: "Pris pr. måned, ekskl. moms", en: "Price per month, ex. VAT" } as L10n,
-    includesLabel: { da: "Inkluderer", en: "Includes" } as L10n,
-    noSubscription: { da: "Intet abonnement endnu.", en: "No subscription yet." } as L10n,
-
-    locationsPanel: { da: "Lokationer", en: "Locations" } as L10n,
-    locationName: { da: "Navn", en: "Name" } as L10n,
-    locationType: { da: "Type", en: "Type" } as L10n,
-    locationCity: { da: "By", en: "City" } as L10n,
-    locationFit: { da: "Areal", en: "Fit" } as L10n,
-    locationOver: { da: "Over grænsen", en: "Over limit" } as L10n,
-    /* Meter's own defaults ("no limit" / "no limit on this plan") are
-       English, since /admin (its only other caller until this task) never
-       localises. A customer on the unbounded Main Stage plan, or with no
-       subscription at all (locationFit's maxM2 is then also null), must
-       not see that hard-coded English word on a lang="da-DK" page. */
-    meterNoLimitCaption: { da: "ingen grænse", en: "no limit" } as L10n,
-    meterNoLimitAria: { da: "ingen grænse på denne plan", en: "no limit on this plan" } as L10n,
-    noLocationsTitle: { da: "Ingen lokationer endnu", en: "No locations yet" } as L10n,
-    noLocationsBody: {
-      da: "Lokationer, du tilføjer, vises her sammen med deres forbrug.",
-      en: "Locations you add will show up here, alongside their usage.",
-    } as L10n,
-
-    /* Billing shipped in Task 10, settings in Task 11 — this must not go on
-       claiming either is still coming, right next to two sidebar links
-       that now work. Only statistics remains unbuilt. */
-    comingSoon: {
-      da: "Statistik er på vej.",
-      en: "Statistics is coming.",
-    } as L10n,
-  },
 
   /** Task 10: the customer's own invoices, and the subscription they
       belong to. This page's second RLS-scoped reader — after `summary` —
@@ -203,56 +166,6 @@ export const portal = {
       wording is close: a future edit to one panel's copy (say, summary's
       plan panel) should not have to remember it also owns half of this
       page's strings. */
-  billing: {
-    /* Doubles as the sidebar nav label and this page's own breadcrumb,
-       the same dual role `summary.crumb` plays above. */
-    crumb: { da: "Fakturering", en: "Billing" } as L10n,
-
-    subscriptionPanel: { da: "Abonnement", en: "Subscription" } as L10n,
-    planLabel: { da: "Plan", en: "Plan" } as L10n,
-    termLabel: { da: "Aftaleperiode", en: "Term" } as L10n,
-    termMonthly: { da: "Månedlig", en: "Monthly" } as L10n,
-    termAnnual: { da: "Årlig", en: "Annual" } as L10n,
-    /* Unlike summary.priceLabel (always the monthly-equivalent rate, for
-       comparing plans), this is what the subscription's *next invoice*
-       actually charges — lib/pricing.ts's quote().chargeExVat, which is
-       the yearly sum on an annual term, not a monthly figure divided
-       twelve ways. */
-    priceLabel: { da: "Pris pr. periode, ekskl. moms", en: "Price per period, ex. VAT" } as L10n,
-    renewalLabel: { da: "Fornyes", en: "Renews" } as L10n,
-    noSubscription: { da: "Intet abonnement endnu.", en: "No subscription yet." } as L10n,
-
-    invoicesPanel: { da: "Fakturaer", en: "Invoices" } as L10n,
-    numberHeader: { da: "Nummer", en: "Number" } as L10n,
-    periodHeader: { da: "Periode", en: "Period" } as L10n,
-    dueHeader: { da: "Forfald", en: "Due" } as L10n,
-    totalHeader: { da: "Total", en: "Total" } as L10n,
-    statusHeader: { da: "Status", en: "Status" } as L10n,
-    /* "Download" is an ordinary Danish loanword in this register (as
-       common as "e-mail" or "login"), and "PDF" has no Danish form at
-       all — this is not the English-only text the bilingual rule exists
-       to catch. */
-    downloadPdf: { da: "Download PDF", en: "Download PDF" } as L10n,
-    /* Shown in the download link's place for an invoice with no stored
-       document. Two real cases, not a hypothetical one: the "no-pdf" outcome
-       the admin dialog explicitly warns staff about (storeInvoicePdf,
-       lib/invoice-pdf-store.ts, fails soft so a storage hiccup can never
-       unwind a numbered invoice), and every invoice predating this slice —
-       `source` of 'seed' or 'stripe', where `pdf_path` is null by
-       definition. Offering the link anyway landed the customer on the PDF
-       route's raw `{"error":"pdf-not-ready"}` JSON body, in English, from a
-       bilingual page. */
-    pdfNotReady: {
-      da: "Dokumentet er ikke klar endnu",
-      en: "The document is not ready yet",
-    } as L10n,
-
-    noInvoicesTitle: { da: "Ingen fakturaer endnu", en: "No invoices yet" } as L10n,
-    noInvoicesBody: {
-      da: "Fakturaer, der udstedes til dig, vises her.",
-      en: "Invoices issued to you will show up here.",
-    } as L10n,
-  },
 
   /** Task 11: the customer's own billing details — `updateBillingDetails`
       (app/my-odatone/settings/actions.ts) writes six of the seven fields
@@ -364,18 +277,21 @@ export const INVOICE_STATUS_LABEL: Record<string, L10n> = {
   void: { da: "Annulleret", en: "Void" },
 };
 
-/** The WorkspaceCard subtitle for a customer profile's role — shared by
-    every /my-odatone page that resolves its own `profiles.role` (summary,
-    billing), so the mapping from the `user_role` enum's two customer-side
-    values to portal.shell's localised labels exists exactly once. An
+/** The two customer-side values of the `user_role` enum, in words. Staff
+    roles are deliberately absent: this names the person reading their own
+    account, and staff never are. */
+const ROLE_LABEL: Record<string, L10n> = {
+  owner: { da: "Ejer", en: "Owner" },
+  manager: { da: "Administrator", en: "Manager" },
+};
+
+/** How a customer's own role is named beside their name — on the account's
+    Oversigt tab, and anywhere else that resolves `profiles.role`. An
     unrecognised role is a bug, not a customer (proxy.ts's mayEnter already
-    filters to a customer role before either page runs) — shown as
-    `undefined` rather than guessed at, the same as each page did inline
-    before this was extracted. */
+    filters to a customer role before any of this runs), so it is shown as
+    `undefined` rather than guessed at. */
 export function portalRoleLabel(role: string | null | undefined, locale: "da" | "en"): string | undefined {
-  if (role === "owner") return portal.shell.roleOwner[locale];
-  if (role === "manager") return portal.shell.roleManager[locale];
-  return undefined;
+  return role ? ROLE_LABEL[role]?.[locale] : undefined;
 }
 
 export function localizeStatus(

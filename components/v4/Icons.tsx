@@ -151,3 +151,47 @@ export const CloseIcon = ({ size = 18, className = "" }: P) => (
     <path d="M18 6 6 18M6 6l12 12" />
   </svg>
 );
+
+/* ------------------------------------------------------- the account */
+
+/* The marks on the account chip's menu and the four Konto tabs. Drawn in
+   the same stroked family as the rail's own icons above rather than taken
+   from components/admin/icons.tsx: those are sized and weighted for a
+   16px sidebar row in the staff console, and mixing the two sets inside
+   one menu is visible immediately. */
+
+export const UserIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <circle cx="12" cy="8" r="3.6" />
+    <path d="M4.8 20c.6-3.6 3.6-5.6 7.2-5.6s6.6 2 7.2 5.6" />
+  </svg>
+);
+
+export const ReceiptIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M5.5 3.4h13v17.2l-2.2-1.6-2.1 1.6-2.2-1.6-2.2 1.6-2.1-1.6-2.2 1.6V3.4Z" />
+    <path d="M9 8.4h6M9 12.4h6" />
+  </svg>
+);
+
+export const GearIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.2 14.6a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1h-.2a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5v-.2a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" />
+  </svg>
+);
+
+export const SignOutIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M14.5 4.5H19a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4.5" />
+    <path d="M10 8.5 13.5 12 10 15.5M13 12H3.5" />
+  </svg>
+);
+
+/** The chevron on the account chip. Points down, unlike ui/Button's own
+    Chevron, which follows a text link sideways. */
+export const CaretIcon = ({ size = 16, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="m7 10 5 5 5-5" />
+  </svg>
+);

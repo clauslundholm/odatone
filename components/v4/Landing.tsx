@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useMemo } from "react";
 
+import { createList } from "@/app/[locale]/_list-actions";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { buttonClass } from "@/components/ui/Button";
 import { PlayIcon } from "@/components/player/Icons";
 import { TilePlays } from "./Icons";
 import { v4 as t } from "@/lib/content/v4";
 import { href, type L10n, type Locale } from "@/lib/i18n";
-import { num } from "@/lib/format";
+import { clockTime, num } from "@/lib/format";
 import { PROOF } from "@/lib/site";
 import {
   CURATED_PHOTO,
@@ -19,16 +20,20 @@ import {
   genrePhoto,
 } from "@/lib/v4/photos";
 import { BUILDER_ID } from "@/lib/v4/anchors";
+import type { WeekNow } from "@/lib/v4/account-routes";
 import {
   BPM_MAX,
   BPM_MIN,
   DEFAULT_FILTERS,
   GENRES,
+  LANGS,
   MOODS,
   TRACKS,
   filterTracks,
+  isLang,
   type Filters,
   type Genre,
+  type Lang,
 } from "@/lib/tracks";
 
 /**
@@ -49,10 +54,18 @@ import {
  * lib/catalogue/trax.ts already maps 1000trax onto, so the real catalogue
  * replaces the data without touching this.
  */
-export default function Landing({ locale: l }: { locale: Locale }) {
+export default function Landing({
+  locale: l,
+  /** Passed only for a signed-in customer, in which case the sales hero
+      gives way to the one that answers what is playing in their shop. */
+  week,
+}: {
+  locale: Locale;
+  week?: WeekNow | null;
+}) {
   return (
     <div className="flex flex-col gap-11">
-      <Hero locale={l} />
+      {week ? <SignedInHero locale={l} week={week} /> : <Hero locale={l} />}
       <MoodRow locale={l} />
       <CuratedRow locale={l} />
       <ArtistRow locale={l} />
@@ -117,6 +130,12 @@ const curatedFilters = (c: Curated): Filters => ({
   bpm: c.bpm,
 });
 
+/** How many matching tracks the builder lists before it stops naming
+    them. The scroll area shows about six at a time, so this is roughly
+    five screens of scrolling — past that a count is more use than more
+    rows, and a real catalogue would answer loose rules with thousands. */
+const LIST_CAP = 40;
+
 /** The list the hero offers, and the one the right rail names as the
     source. One constant rather than two, so the two cannot disagree. */
 const FEATURED = CURATED[2]!;
@@ -137,6 +156,110 @@ function curatedFor(f: Filters): Curated | null {
 }
 
 /* ---------------------------------------------------------------- hero */
+
+/**
+ * The hero a signed-in customer gets instead of the sales one.
+ *
+ * Same photograph, same shape, different job: it answers "what is
+ * playing in my shop right now" with the week's own answer, and offers
+ * the two things worth doing from here — hear it, or change it. The
+ * marketing hero's four proof figures (5.000+ numre, 8 genrer …) are
+ * replaced by four facts about this account, because a customer has
+ * already been convinced.
+ *
+ * It is rendered only when `week` is passed, which only happens on a
+ * request that resolved a session — see app/[locale]/page.tsx.
+ */
+function SignedInHero({ locale: l, week }: { locale: Locale; week: WeekNow }) {
+  const p = usePlayer();
+  const h = t.account.home;
+  const playing = week.playing;
+
+  /* The same rules the list itself holds, handed to the player's own
+     filters — so Afspil queues exactly what the week has on, not an
+     approximation of it. */
+  const rules: Filters | null = playing
+    ? {
+        ...DEFAULT_FILTERS,
+        genres: playing.genres.filter((g): g is Genre =>
+          GENRES.some((x) => x.id === g),
+        ),
+        bpm: playing.bpm,
+        vox: playing.vox,
+        langs: playing.langs.filter((x): x is Lang => isLang(x)),
+      }
+    : null;
+
+  const matches = useMemo(() => (rules ? filterTracks(rules) : []), [rules]);
+
+  const stats: [string, string][] = [
+    [String(week.locationCount), (week.locationCount === 1 ? h.statLocationsOne : h.statLocations)[l]],
+    [String(week.blocks), h.statBlocks[l]],
+    [h.hours[l].replace("{n}", String(week.plannedHours)), h.statPlanned[l]],
+    ["0 kr.", h.statRights[l]],
+  ];
+
+  return (
+    <section className="relative isolate overflow-hidden rounded-[var(--radius-xl)] p-9 sm:p-11">
+      <img src={HERO_PHOTO} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover" />
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(10,8,16,0.92)_0%,rgba(10,8,16,0.72)_46%,rgba(10,8,16,0.42)_100%)]"
+      />
+
+      <div className="relative flex max-w-[620px] flex-col items-start gap-5">
+        <p className="rounded-full bg-white/15 px-4 py-1.5 text-[0.8125rem] font-medium text-white backdrop-blur-sm">
+          {playing && week.locationName
+            ? h.eyebrow[l].replace("{location}", week.locationName)
+            : h.eyebrowIdle[l]}
+        </p>
+        <h1 className="u-display whitespace-pre-line text-[clamp(2rem,4.4vw,3.1rem)] text-white">
+          {playing ? h.title[l].replace("{list}", playing.name) : h.titleIdle[l]}
+        </h1>
+        <p className="text-[1.0625rem] text-white/75">
+          {!playing
+            ? h.ledeIdle[l]
+            : week.locationCount === 1
+              ? h.ledeOne[l].replace("{name}", week.locationName ?? "")
+              : h.lede[l].replace("{n}", String(week.locationCount))}
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+          {playing && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!rules) return;
+                p.setFilters(rules);
+                if (matches[0]) p.play(matches[0]);
+              }}
+              disabled={matches.length === 0}
+              className={buttonClass("on-photo", "md")}
+            >
+              <PlayIcon size={15} />
+              {h.play[l].replace("{list}", playing.name)}
+            </button>
+          )}
+          <Link
+            href={`/${l}/${l === "da" ? "spilleplan" : "schedule"}`}
+            className={buttonClass(playing ? "on-photo-quiet" : "on-photo", "md")}
+          >
+            {h.openWeek[l]}
+          </Link>
+        </div>
+
+        <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4">
+          {stats.map(([value, label]) => (
+            <div key={label}>
+              <dt className="u-num text-[1.25rem] text-white">{value}</dt>
+              <dd className="u-label mt-1 text-white/60">{label}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+  );
+}
 
 function Hero({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
@@ -404,9 +527,15 @@ function GenreRow({ locale: l }: { locale: Locale }) {
  *  The builder is the player's own filter state rather than a second,
  *  parallel notion of "a list" — so the count it shows is produced by the
  *  same `filterTracks` that decides what Afspil queues, and the two cannot
- *  disagree. Saving is the only part that needs an account, and the copy
- *  says so instead of failing after the click. */
-export function Rail({ locale: l }: { locale: Locale }) {
+ *  disagree.
+ *
+ *  Saving is the only part that needs an account. Signed out, the button
+ *  still says so and leads to signup rather than failing after the
+ *  click. Signed in it does what it says: the rules on screen are posted
+ *  to `createList`, which writes a `playlists` row and opens it in the
+ *  editor. The hidden fields below are the whole list — a list IS its
+ *  rules (0015's own comment on why), so there is nothing else to send. */
+export function Rail({ locale: l, signedIn = false }: { locale: Locale; signedIn?: boolean }) {
   const p = usePlayer();
   const matches = useMemo(() => filterTracks(p.filters), [p.filters]);
   const source = useMemo(() => curatedFor(p.filters), [p.filters]);
@@ -517,7 +646,18 @@ export function Rail({ locale: l }: { locale: Locale }) {
                 key={label}
                 type="button"
                 aria-pressed={p.filters.vox === value}
-                onClick={() => p.setFilters({ vox: value })}
+                /* Instrumental drops the languages with it. Left in
+                   place they describe an empty set — an instrumental
+                   has no language — and the builder would answer a
+                   perfectly reasonable pair of clicks with "Ingen numre
+                   passer endnu". The editor clears them the same way. */
+                onClick={() =>
+                  p.setFilters((f) => ({
+                    ...f,
+                    vox: value,
+                    langs: value === false ? [] : f.langs,
+                  }))
+                }
                 className={`flex-1 whitespace-nowrap rounded-full px-2 py-1.5 text-[0.8125rem] transition-colors ${
                   p.filters.vox === value
                     ? "bg-surface font-semibold text-ink shadow-sm"
@@ -528,6 +668,47 @@ export function Rail({ locale: l }: { locale: Locale }) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Sprog. Its own row rather than a third vocal option: whether
+            there is singing and what it is sung in are two questions,
+            and folding them together left no way to ask for anything
+            but Danish. Multi-select toggles exactly like Genre above —
+            a hotel bar wants English and Spanish, not one of them.
+            Hidden on Instrumental, where a language cannot apply:
+            offering one there offers a choice that can only ever return
+            nothing. */}
+        <div>
+          <p className="u-label mb-2 text-ink-3">{t.builder.language[l]}</p>
+          {p.filters.vox === false ? (
+            <p className="text-[0.8125rem] text-ink-3">{t.builder.languageNone[l]}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {LANGS.map((x) => {
+                const on = p.filters.langs.includes(x.id);
+                return (
+                  <button
+                    key={x.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      p.setFilters((f) => ({
+                        ...f,
+                        langs: on ? f.langs.filter((v) => v !== x.id) : [...f.langs, x.id],
+                      }))
+                    }
+                    className={`rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium transition-colors ${
+                      on
+                        ? "bg-accent text-accent-ink"
+                        : "border border-line text-ink hover:bg-surface-2"
+                    }`}
+                  >
+                    {x.label[l]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div>
@@ -580,6 +761,51 @@ export function Rail({ locale: l }: { locale: Locale }) {
           </button>
         </div>
 
+        {/* The list itself, not just how long it is. A count alone asks
+            you to take the rules on trust; the names are what tell you
+            whether the room is going to get what you meant. Scrolls
+            rather than growing the page, and caps at LIST_CAP — a real
+            catalogue answers these rules with thousands of tracks and
+            nobody reads past the first screen of them. */}
+        {matches.length > 0 && (
+          <ul className="oda-scroll -mr-1 flex max-h-[232px] flex-col gap-0.5 overflow-y-auto pr-1">
+            {matches.slice(0, LIST_CAP).map((track) => {
+              const on = p.current?.id === track.id;
+              return (
+                <li key={track.id}>
+                  <button
+                    type="button"
+                    onClick={() => p.play(track)}
+                    aria-current={on ? "true" : undefined}
+                    className={`flex w-full items-baseline gap-3 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors hover:bg-surface-2 ${
+                      on ? "bg-surface-2" : ""
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={`block truncate text-[0.8125rem] font-medium ${
+                          on ? "text-accent" : "text-ink"
+                        }`}
+                      >
+                        {track.title[l]}
+                      </span>
+                      <span className="block truncate text-[0.75rem] text-ink-3">{track.artist}</span>
+                    </span>
+                    <span className="u-tabular shrink-0 text-[0.75rem] text-ink-3">
+                      {clockTime(track.duration)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+            {matches.length > LIST_CAP && (
+              <li className="px-2 py-1.5 text-[0.75rem] text-ink-3">
+                {t.list.matchesMore[l].replace("{n}", String(matches.length - LIST_CAP))}
+              </li>
+            )}
+          </ul>
+        )}
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -590,11 +816,41 @@ export function Rail({ locale: l }: { locale: Locale }) {
             <PlayIcon size={14} />
             {t.builder.play[l]}
           </button>
-          <Link href={href(l, "signup")} className={buttonClass("primary", "md", "flex-1")}>
-            {t.builder.save[l]}
-          </Link>
+          {signedIn ? (
+            <form action={createList} className="flex-1">
+              <input type="hidden" name="locale" value={l} />
+              <input
+                type="hidden"
+                name="name"
+                value={
+                  source
+                    ? t.list.copyOf[l].replace("{name}", source.label[l])
+                    : t.list.untitled[l]
+                }
+              />
+              <input type="hidden" name="basedOn" value={source ? source.label[l] : ""} />
+              {p.filters.genres.map((g) => (
+                <input key={g} type="hidden" name="genre" value={g} />
+              ))}
+              <input type="hidden" name="bpmLow" value={p.filters.bpm[0]} />
+              <input type="hidden" name="bpmHigh" value={p.filters.bpm[1]} />
+              <input type="hidden" name="vox" value={p.filters.vox === null ? "" : String(p.filters.vox)} />
+              {p.filters.langs.map((x) => (
+                <input key={x} type="hidden" name="lang" value={x} />
+              ))}
+              <button type="submit" className={buttonClass("primary", "md", "w-full")}>
+                {t.builder.save[l]}
+              </button>
+            </form>
+          ) : (
+            <Link href={href(l, "signup")} className={buttonClass("primary", "md", "flex-1")}>
+              {t.builder.save[l]}
+            </Link>
+          )}
         </div>
-        <p className="text-[0.75rem] leading-relaxed text-ink-3">{t.builder.saveNote[l]}</p>
+        <p className="text-[0.75rem] leading-relaxed text-ink-3">
+          {signedIn ? t.account.rail.newListNote[l] : t.builder.saveNote[l]}
+        </p>
       </section>
     </div>
   );

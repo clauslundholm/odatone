@@ -1,11 +1,9 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 import { isLocale, type Locale } from "@/lib/i18n";
 import { PORTAL_LOCALE_COOKIE } from "@/lib/portal-locale";
-import { createClient } from "@/lib/supabase/server";
 
 /** Bound with a fixed locale per button (see components/portal/LocaleSwitch.tsx)
     rather than reading one out of the submitted form — there are exactly two
@@ -21,10 +19,4 @@ export async function setPortalLocale(locale: Locale) {
     maxAge: 60 * 60 * 24 * 365,
     sameSite: "lax",
   });
-}
-
-export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/my-odatone");
 }

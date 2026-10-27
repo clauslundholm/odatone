@@ -31,6 +31,38 @@ export type Genre =
 
 export type Mood = "calm" | "focus" | "warm" | "evening" | "energy";
 
+/* The language a vocal is sung in. The hero has promised "DA + EN" since
+   the first v4 draft and the room cares: a Danish café wants Danish over
+   the speakers, and a hotel lobby often wants the opposite. Until now the
+   catalogue only knew whether a track HAD a vocal, so "Dansk vokal" in
+   the builder was a label with nothing behind it. */
+export type Lang = (typeof LANGS)[number]["id"];
+
+/* The languages the catalogue sings in. Kept here rather than in a
+   database enum for the same reason `locations.venue_type` is plain text
+   (0001_core.sql's own note): adding one should be a code change, not a
+   migration. `playlists.lang` only checks the SHAPE of the code, so this
+   list is the single place that decides which ones exist.
+
+   Ordered by how often a Danish room asks for them, not alphabetically —
+   the first two cover most of the catalogue and the rest are there
+   because a hotel lobby, a tapas bar and a brasserie each ask for
+   something else. */
+export const LANGS = [
+  { id: "da", label: { da: "Dansk", en: "Danish" } },
+  { id: "en", label: { da: "Engelsk", en: "English" } },
+  { id: "de", label: { da: "Tysk", en: "German" } },
+  { id: "fr", label: { da: "Fransk", en: "French" } },
+  { id: "es", label: { da: "Spansk", en: "Spanish" } },
+  { id: "pt", label: { da: "Portugisisk", en: "Portuguese" } },
+  { id: "it", label: { da: "Italiensk", en: "Italian" } },
+  { id: "sv", label: { da: "Svensk", en: "Swedish" } },
+  { id: "no", label: { da: "Norsk", en: "Norwegian" } },
+] as const satisfies readonly { id: string; label: L10n }[];
+
+export const isLang = (v: unknown): v is Lang =>
+  typeof v === "string" && LANGS.some((x) => x.id === v);
+
 export type Track = {
   id: string;
   title: L10n;
@@ -39,6 +71,10 @@ export type Track = {
   mood: Mood;
   bpm: number;
   vox: boolean;
+  /** Which language the vocal is in — null for an instrumental, where
+      there is no language to be in. Only meaningful when `vox` is true,
+      and the two are kept in step by `langFor` below. */
+  lang: Lang | null;
   /** 1 = barely there, 5 = drives the room. */
   energy: number;
   duration: number;
@@ -47,12 +83,18 @@ export type Track = {
   peaks: number[];
 };
 
+/* The ids are the catalogue's own and are deliberately NOT renamed with
+   the labels: they are written into `playlists.genres`
+   (0015_playlists_and_schedule.sql) on every list a customer has saved,
+   and renaming them would silently empty those lists. Only what a reader
+   sees changes here — "ambient" is shown as Chillout, "jazz" as Bossa —
+   which is how a catalogue gets re-badged without a migration. */
 export const GENRES: { id: Genre; label: L10n }[] = [
-  { id: "ambient", label: { da: "Ambient", en: "Ambient" } },
-  { id: "electronic", label: { da: "Elektronisk", en: "Electronic" } },
-  { id: "jazz", label: { da: "Jazz", en: "Jazz" } },
-  { id: "acoustic", label: { da: "Akustisk", en: "Acoustic" } },
-  { id: "hiphop", label: { da: "Hip-hop", en: "Hip-hop" } },
+  { id: "ambient", label: { da: "Chillout", en: "Chillout" } },
+  { id: "electronic", label: { da: "House", en: "House" } },
+  { id: "jazz", label: { da: "Bossa", en: "Bossa" } },
+  { id: "acoustic", label: { da: "Unplugged", en: "Unplugged" } },
+  { id: "hiphop", label: { da: "Downbeat", en: "Downbeat" } },
   { id: "rnb", label: { da: "R&B", en: "R&B" } },
   { id: "pop", label: { da: "Pop", en: "Pop" } },
   { id: "classical", label: { da: "Klassisk", en: "Classical" } },
@@ -62,27 +104,27 @@ export const MOODS: { id: Mood; label: L10n; blurb: L10n }[] = [
   {
     id: "calm",
     label: { da: "Rolig", en: "Calm" },
-    blurb: { da: "Morgenåbning, venteværelse, spa", en: "Opening hours, waiting rooms, spa" },
+    blurb: { da: "Morgenåbning, spa", en: "Opening hours, spa" },
   },
   {
     id: "focus",
     label: { da: "Fokus", en: "Focus" },
-    blurb: { da: "Kontor, showroom, klinik", en: "Office, showroom, clinic" },
+    blurb: { da: "Kontor, showroom", en: "Office, showroom" },
   },
   {
     id: "warm",
     label: { da: "Varm", en: "Warm" },
-    blurb: { da: "Frokost, butik, salon", en: "Lunch, retail, salon" },
+    blurb: { da: "Frokost, butik", en: "Lunch, retail" },
   },
   {
     id: "evening",
     label: { da: "Aften", en: "Evening" },
-    blurb: { da: "Middag, bar, hotel-lobby", en: "Dinner, bar, hotel lobby" },
+    blurb: { da: "Middag, bar", en: "Dinner, bar" },
   },
   {
     id: "energy",
     label: { da: "Energi", en: "Energy" },
-    blurb: { da: "Weekendtravlhed, fitness, natklub", en: "Weekend rush, gym, nightclub" },
+    blurb: { da: "Fitness, fredag", en: "Gym, Friday" },
   },
 ];
 
@@ -98,6 +140,7 @@ export const TRACKS: Track[] = [
     mood: "calm",
     bpm: 72,
     vox: true,
+    lang: "da",
     energy: 1,
     duration: 27.17,
     src: "/audio/soft-open.mp3",
@@ -111,6 +154,7 @@ export const TRACKS: Track[] = [
     mood: "energy",
     bpm: 112,
     vox: false,
+    lang: null,
     energy: 4,
     duration: 17.64,
     src: "/audio/counter-run.mp3",
@@ -124,6 +168,7 @@ export const TRACKS: Track[] = [
     mood: "evening",
     bpm: 96,
     vox: true,
+    lang: "da",
     energy: 2,
     duration: 20.5,
     src: "/audio/corner-table.mp3",
@@ -137,6 +182,7 @@ export const TRACKS: Track[] = [
     mood: "warm",
     bpm: 94,
     vox: true,
+    lang: "da",
     energy: 2,
     duration: 20.93,
     src: "/audio/linen-and-oak.mp3",
@@ -150,6 +196,7 @@ export const TRACKS: Track[] = [
     mood: "focus",
     bpm: 84,
     vox: false,
+    lang: null,
     energy: 3,
     duration: 23.36,
     src: "/audio/slow-counter.mp3",
@@ -163,6 +210,7 @@ export const TRACKS: Track[] = [
     mood: "evening",
     bpm: 92,
     vox: true,
+    lang: "fr",
     energy: 2,
     duration: 21.37,
     src: "/audio/velvet-hours.mp3",
@@ -176,6 +224,7 @@ export const TRACKS: Track[] = [
     mood: "energy",
     bpm: 108,
     vox: true,
+    lang: "en",
     energy: 4,
     duration: 18.28,
     src: "/audio/high-street.mp3",
@@ -189,6 +238,7 @@ export const TRACKS: Track[] = [
     mood: "focus",
     bpm: 76,
     vox: false,
+    lang: null,
     energy: 1,
     duration: 25.76,
     src: "/audio/reading-room.mp3",
@@ -202,6 +252,7 @@ export const TRACKS: Track[] = [
     mood: "calm",
     bpm: 66,
     vox: false,
+    lang: null,
     energy: 1,
     duration: 29.59,
     src: "/audio/grey-light.mp3",
@@ -215,6 +266,7 @@ export const TRACKS: Track[] = [
     mood: "evening",
     bpm: 124,
     vox: true,
+    lang: "en",
     energy: 4,
     duration: 15.98,
     src: "/audio/night-shift.mp3",
@@ -228,6 +280,7 @@ export const TRACKS: Track[] = [
     mood: "evening",
     bpm: 88,
     vox: false,
+    lang: null,
     energy: 2,
     duration: 22.32,
     src: "/audio/late-service.mp3",
@@ -241,6 +294,7 @@ export const TRACKS: Track[] = [
     mood: "warm",
     bpm: 104,
     vox: false,
+    lang: null,
     energy: 3,
     duration: 18.96,
     src: "/audio/market-morning.mp3",
@@ -254,6 +308,7 @@ export const TRACKS: Track[] = [
     mood: "evening",
     bpm: 78,
     vox: true,
+    lang: "de",
     energy: 3,
     duration: 25.12,
     src: "/audio/back-room.mp3",
@@ -267,6 +322,7 @@ export const TRACKS: Track[] = [
     mood: "warm",
     bpm: 86,
     vox: false,
+    lang: null,
     energy: 3,
     duration: 22.83,
     src: "/audio/second-set.mp3",
@@ -280,6 +336,7 @@ export const TRACKS: Track[] = [
     mood: "energy",
     bpm: 118,
     vox: true,
+    lang: "es",
     energy: 4,
     duration: 16.77,
     src: "/audio/front-window.mp3",
@@ -293,6 +350,7 @@ export const TRACKS: Track[] = [
     mood: "calm",
     bpm: 68,
     vox: false,
+    lang: null,
     energy: 1,
     duration: 28.74,
     src: "/audio/marble-floor.mp3",
@@ -306,6 +364,7 @@ export const TRACKS: Track[] = [
     mood: "calm",
     bpm: 58,
     vox: true,
+    lang: "da",
     energy: 1,
     duration: 33.6,
     src: "/audio/open-water.mp3",
@@ -319,6 +378,7 @@ export const TRACKS: Track[] = [
     mood: "focus",
     bpm: 100,
     vox: false,
+    lang: null,
     energy: 3,
     duration: 19.7,
     src: "/audio/low-ceiling.mp3",
@@ -332,6 +392,7 @@ export const TRACKS: Track[] = [
     mood: "warm",
     bpm: 104,
     vox: true,
+    lang: "en",
     energy: 3,
     duration: 18.96,
     src: "/audio/brass-hour.mp3",
@@ -345,6 +406,7 @@ export const TRACKS: Track[] = [
     mood: "calm",
     bpm: 86,
     vox: false,
+    lang: null,
     energy: 2,
     duration: 22.83,
     src: "/audio/paper-lanterns.mp3",
@@ -358,6 +420,7 @@ export const TRACKS: Track[] = [
     mood: "focus",
     bpm: 90,
     vox: false,
+    lang: null,
     energy: 3,
     duration: 21.83,
     src: "/audio/steam-and-tin.mp3",
@@ -371,6 +434,7 @@ export const TRACKS: Track[] = [
     mood: "evening",
     bpm: 74,
     vox: true,
+    lang: "da",
     energy: 1,
     duration: 26.45,
     src: "/audio/closing-time.mp3",
@@ -384,6 +448,7 @@ export const TRACKS: Track[] = [
     mood: "energy",
     bpm: 126,
     vox: false,
+    lang: null,
     energy: 5,
     duration: 15.74,
     src: "/audio/saturday-rush.mp3",
@@ -397,6 +462,7 @@ export const TRACKS: Track[] = [
     mood: "calm",
     bpm: 60,
     vox: true,
+    lang: "pt",
     energy: 1,
     duration: 32.5,
     src: "/audio/quiet-hall.mp3",
@@ -414,6 +480,11 @@ export type Filters = {
   bpm: [number, number];
   /** null = don't care, true = only with vocals, false = only instrumental */
   vox: boolean | null;
+  /** Empty = any language, exactly as `genres` above means any genre.
+      Only narrows tracks that HAVE a vocal, so it is meaningless
+      together with `vox: false` — the UI hides it there rather than
+      offering a choice that can only return nothing. */
+  langs: Lang[];
 };
 
 export const DEFAULT_FILTERS: Filters = {
@@ -421,6 +492,7 @@ export const DEFAULT_FILTERS: Filters = {
   mood: null,
   bpm: [BPM_MIN, BPM_MAX],
   vox: null,
+  langs: [],
 };
 
 export function filterTracks(filters: Filters, tracks: Track[] = TRACKS): Track[] {
@@ -429,6 +501,13 @@ export function filterTracks(filters: Filters, tracks: Track[] = TRACKS): Track[
     if (filters.mood && t.mood !== filters.mood) return false;
     if (t.bpm < filters.bpm[0] || t.bpm > filters.bpm[1]) return false;
     if (filters.vox !== null && t.vox !== filters.vox) return false;
+    /* A language narrows to vocals in one of those languages. An
+       instrumental has no language, so it cannot satisfy one — asking
+       for Danish asks for Danish singing, not for silence that happens
+       to be Danish. */
+    if (filters.langs.length && (!t.vox || !t.lang || !filters.langs.includes(t.lang))) {
+      return false;
+    }
     return true;
   });
 }

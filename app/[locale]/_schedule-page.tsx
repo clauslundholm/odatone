@@ -12,10 +12,10 @@ import { activePlans } from "@/lib/plans-server";
 import { quote } from "@/lib/pricing";
 import { isFallback, type ScheduleBlock } from "@/lib/schedule";
 import { DEMO_LISTS } from "@/lib/v4/demo-week";
+import { loadAccount } from "@/lib/v4/account";
 import { createClient } from "@/lib/supabase/server";
 
 type BlockRow = { id: string; playlist_id: string; weekday: number; from_min: number; to_min: number };
-type ListRow = { id: string; name: string; based_on: string | null };
 type LocationRow = { id: string; name: string; fallback: string };
 
 /**
@@ -50,8 +50,11 @@ export async function renderSchedule(
   const priceFrom = cheapest ? kr(Math.round(quote(cheapest, "monthly", 1).perLocation), locale) : "—";
 
   const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  const signedIn = typeof claims?.claims?.sub === "string";
+  /* One load for the whole shell: the header chip, the rail's plan card
+     and the rail's own lists all come from here, and React's cache()
+     means this page and the shell share the single round trip. */
+  const account = await loadAccount(locale);
+  const signedIn = account !== null;
 
   let locations: PlannerLocation[] = [];
   let lists: WeekList[] = [];
@@ -59,13 +62,11 @@ export async function renderSchedule(
   let locationId = "";
 
   if (signedIn) {
-    const [{ data: locRows, error: locError }, { data: listRows, error: listError }] = await Promise.all([
-      supabase.from("locations").select("id, name, fallback").order("created_at"),
-      supabase.from("playlists").select("id, name, based_on").order("created_at"),
-    ]);
-    for (const [label, error] of [["locations", locError], ["playlists", listError]] as const) {
-      if (error) console.error(`[ugeplan] failed to read ${label}`, error);
-    }
+    const { data: locRows, error: locError } = await supabase
+      .from("locations")
+      .select("id, name, fallback")
+      .order("created_at");
+    if (locError) console.error("[ugeplan] failed to read locations", locError);
 
     locations = ((locRows ?? []) as LocationRow[]).map((r) => ({
       id: r.id,
@@ -75,11 +76,7 @@ export async function renderSchedule(
          to silence rather than crash the page on it. */
       fallback: isFallback(r.fallback) ? r.fallback : "silence",
     }));
-    lists = ((listRows ?? []) as ListRow[]).map((r) => ({
-      id: r.id,
-      name: r.name,
-      basedOn: r.based_on,
-    }));
+    lists = account.lists;
 
     /* ?sted= picks the location, so a chain can bookmark one and the
        back button works. An id that is not theirs falls back to the
@@ -111,7 +108,13 @@ export async function renderSchedule(
     : DEMO_LISTS.map((x) => ({ id: x.id, name: x.name[locale], basedOn: x.basedOn }));
 
   return (
-    <Shell locale={locale} priceFrom={priceFrom} active="schedule" lists={railLists}>
+    <Shell
+      locale={locale}
+      priceFrom={priceFrom}
+      active="schedule"
+      lists={railLists}
+      account={account?.chrome ?? null}
+    >
       {!signedIn ? (
         <DemoPlanner locale={locale} />
       ) : !locationId ? (

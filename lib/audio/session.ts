@@ -1,6 +1,6 @@
 "use client";
 
-import { DEFAULT_FILTERS, type Filters } from "@/lib/tracks";
+import { DEFAULT_FILTERS, isLang, type Filters } from "@/lib/tracks";
 
 /**
  * Playback state parked in sessionStorage.
@@ -55,6 +55,9 @@ export function loadSnapshot(): PlaybackSnapshot | null {
             ? [Number(f.bpm[0]), Number(f.bpm[1])]
             : DEFAULT_FILTERS.bpm,
         vox: typeof f?.vox === "boolean" ? f.vox : null,
+        /* Absent from any snapshot written before the language filter
+           existed, and "any language" is the right reading of that. */
+        langs: Array.isArray(f?.langs) ? f.langs.filter(isLang) : DEFAULT_FILTERS.langs,
       },
     };
   } catch {

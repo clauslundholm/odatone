@@ -18,7 +18,7 @@ export const SITE = {
 
 /** Numbers used as proof throughout the marketing pages. */
 export const PROOF = {
-  tracks: 4000, // "over 4.000 licensfrie numre" — current odatone.com
+  tracks: 5000, // "5.000+ numre" — the figure the 2026 redesign states
   customers: 1100, // "1.100+ danske kunder" — current odatone.com
   /* The v4 web design prints this in the nav, the hero and the signup CTA.
      Every piece of copy that states the trial now interpolates it — it used

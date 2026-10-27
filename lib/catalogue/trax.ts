@@ -258,6 +258,12 @@ export function toTrack(c: TraxComposition, opts: ToTrackOptions): Track {
     mood: opts.mood,
     bpm: Math.round(c.dBpm),
     vox: false,
+    /* Null, not the `lang` the pool was requested with: language is a
+       property of a VOCAL, and `vox` above is hard-coded false for the
+       reason TRAX_GAPS.vocals sets out — vocals are a property of their
+       pool, not of a row. Claiming a language for a track we are
+       calling instrumental would be two wrong answers instead of one. */
+    lang: null,
     energy: energyFromBpm(c.dBpm),
     duration: c.iDuration,
     src: audioUrl(c, opts.base),

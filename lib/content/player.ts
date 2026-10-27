@@ -98,6 +98,17 @@ export const dock = {
     da: "Gratis i {n} dage. Ingen konto.",
     en: "Free for {n} days. No account.",
   } as L10n,
+  /* What stands in the trial's place for somebody who is already a
+     customer: no countdown, no "ingen konto", because they have one. */
+  signedInTitle: {
+    da: "Vælg en stemning, så kører det",
+    en: "Pick a mood and it runs",
+  } as L10n,
+  signedInSub: {
+    da: "Hele biblioteket. Ingen prøveperiode.",
+    en: "The whole library. No trial.",
+  } as L10n,
+  scheduleCta: { da: "Sæt på spilleplan", en: "Put it on the week" } as L10n,
   trialShort: { da: "{n} dage tilbage", en: "{n} days left" } as L10n,
   trialShortLast: { da: "Sidste dag", en: "Last day" } as L10n,
   expand: { da: "Åbn afspilleren", en: "Open the player" } as L10n,

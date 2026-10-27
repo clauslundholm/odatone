@@ -77,6 +77,9 @@ export default function ResetForm({
         <Link href={backHref} className="u-link mt-1 text-center text-[0.875rem]">
           {t.back[locale]}
         </Link>
+        {/* The two facts worth knowing before the email arrives, said
+            before it is sent rather than only in the confirmation. */}
+        <p className="u-label text-center leading-relaxed text-ink-3">{t.linkNote[locale]}</p>
       </form>
     </>
   );
