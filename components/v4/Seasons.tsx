@@ -35,7 +35,7 @@ export default function Seasons({ locale: l }: { locale: Locale }) {
         <p className="text-[0.8125rem] text-ink-3">{t.seasons.lede[l]}</p>
       </header>
 
-      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="oda-swipe oda-swipe--grid sm:grid-cols-2 xl:grid-cols-3">
         {SEASONS.map((s) => (
           <SeasonCard key={s.id} season={s} locale={l} inSeason={now?.id === s.id} />
         ))}
@@ -64,7 +64,7 @@ function SeasonCard({
 
   return (
     <li
-      className={`flex flex-col overflow-hidden rounded-[var(--radius-xl)] bg-surface ${
+      className={`flex w-[78%] flex-col overflow-hidden rounded-[var(--radius-xl)] bg-surface min-[420px]:w-[70%] sm:w-auto ${
         inSeason ? "ring-2 ring-accent/45" : "ring-1 ring-line"
       }`}
     >

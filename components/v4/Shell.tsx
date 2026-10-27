@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 import Wordmark from "@/components/ui/Wordmark";
 import { LinkButton } from "@/components/ui/Button";
@@ -16,6 +17,8 @@ import { listLook, listTile } from "@/lib/v4/list-look";
 import {
   CalendarIcon,
   GripIcon,
+  CloseIcon,
+  MenuIcon,
   HomeIcon,
   PlusIcon,
   SearchIcon,
@@ -60,7 +63,25 @@ export default function Shell({
 }) {
   const p = usePlayer();
   const [query, setQuery] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+
+  /* Closed by arriving somewhere, by Escape, and by the backdrop. A
+     drawer that survives a navigation covers the page it just opened. */
+  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    window.addEventListener("keydown", onKey);
+    /* The page behind must not scroll under the drawer. */
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [menuOpen]);
 
   const moodCounts = useMemo(() => {
     const out = {} as Record<Mood, number>;
@@ -104,6 +125,134 @@ export default function Shell({
     { key: "build", label: t.rail.build[l], to: `/${l}#${BUILDER_ID}`, Icon: SlidersIcon },
   ];
 
+  /* Defined once and rendered in two places — the standing column at lg
+     and up, the drawer below it. Two copies would drift the first time a
+     rail item changed. */
+  const railBody = (
+    <>
+        <nav className="flex flex-col gap-0.5">
+          {nav.map(({ key, label, to, Icon, onClick }) => {
+            const on = key === active;
+            const cls = `flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2.5 text-left text-[0.9375rem] transition-colors ${
+              on ? "bg-accent-soft font-semibold text-accent" : "font-medium text-ink hover:bg-surface-2"
+            }`;
+            const inner = (
+              <>
+                <Icon size={18} className={on ? "text-accent" : "text-ink-2"} />
+                {label}
+              </>
+            );
+            return to ? (
+              <Link key={key} href={to} aria-current={on ? "page" : undefined} className={cls}>
+                {inner}
+              </Link>
+            ) : (
+              <button key={key} type="button" onClick={onClick} className={cls}>
+                {inner}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex flex-col gap-1">
+          <p className="u-label px-4 pb-1 text-ink-3">{t.rail.moods[l]}</p>
+          <ul className="flex flex-col gap-0.5">
+            {MOODS.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => p.setFilters({ mood: m.id, genres: [] })}
+                  aria-pressed={p.filters.mood === m.id}
+                  className={`flex w-full items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 text-left transition-colors hover:bg-surface-2 ${
+                    p.filters.mood === m.id ? "bg-surface-2" : ""
+                  }`}
+                >
+                  <img
+                    src={MOOD_PHOTO[m.id]}
+                    alt=""
+                    width={44}
+                    height={44}
+                    className="h-11 w-11 shrink-0 rounded-[var(--radius-sm)] object-cover"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[0.9375rem] font-semibold text-ink">
+                      {m.label[l]}
+                    </span>
+                    <span className="block text-[0.8125rem] text-ink-3">
+                      {t.rail.trackCount[l].replace("{n}", String(moodCounts[m.id]))}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <p className="u-label px-4 pb-1 text-ink-3">{t.rail.yourLists[l]}</p>
+
+          {/* Drag sources for the Ugeplan, and nothing more: the item
+              carries its id on the drag and the page that cares reads
+              it off `dataTransfer`. No callback crosses into the rail,
+              so the shell stays a server-rendered prop away from every
+              page that does not schedule anything. */}
+          {lists.map((list) => (
+            <div
+              key={list.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", list.id);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              title={t.rail.dragHint[l]}
+              className="flex cursor-grab items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2 active:cursor-grabbing"
+            >
+              <span
+                aria-hidden="true"
+                className="h-11 w-11 shrink-0 rounded-[var(--radius-sm)]"
+                style={{ background: listTile(listLook(list)) }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9375rem] font-semibold text-ink">
+                  {list.name}
+                </span>
+                <span className="block text-[0.8125rem] text-ink-3">{t.rail.dragHint[l]}</span>
+              </span>
+              <GripIcon size={14} className="shrink-0 text-ink-3" />
+            </div>
+          ))}
+
+          <Link
+            href={href(l, "signup")}
+            className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2"
+          >
+            <span
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius-sm)] text-white"
+              style={{ background: "var(--g-brand)" }}
+            >
+              <PlusIcon size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[0.9375rem] font-semibold text-ink">
+                {t.rail.newList[l]}
+              </span>
+              <span className="block text-[0.8125rem] leading-snug text-ink-3">
+                {t.rail.newListNote[l]}
+              </span>
+            </span>
+          </Link>
+        </div>
+
+        {/* The price shown is the cheapest ACTIVE plan, passed down from
+            the server — not a figure typed here. The design's "149 kr."
+            is Small Venue's, and Small Venue is no longer sold. */}
+        <div className="mt-auto rounded-[var(--radius-lg)] bg-surface-2 p-5">
+          <p className="u-num text-[1.0625rem] text-ink">{t.rail.priceFrom[l].replace("{price}", priceFrom)}</p>
+          <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-3">{t.rail.priceNote[l]}</p>
+        </div>
+    </>
+  );
+
   return (
     /* Deliberately not min-h-dvh with a flex-1 row: that would stretch
        the rail card to the bottom of the window whatever the page holds,
@@ -111,7 +260,21 @@ export default function Shell({
        content, the row is as tall as the main column and the rail card
        ends level with it, with the price block at its foot. */
     <div className="flex flex-col">
-      <header className="sticky top-0 z-30 flex items-center gap-4 bg-bg/90 px-6 py-3.5 backdrop-blur">
+      <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-4 gap-y-3 bg-bg/90 px-4 py-3.5 backdrop-blur sm:px-6">
+        {/* The rail is the only navigation this chrome has, and below lg
+            it is not on screen — so without this button a phone can
+            reach the front page and nothing else. */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-expanded={menuOpen}
+          aria-controls="oda-rail"
+          aria-label={t.rail.menu[l]}
+          className="-ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-surface-2 lg:hidden"
+        >
+          <MenuIcon size={20} />
+        </button>
+
         {/* Both marks, one shown per theme. The colour file leaves the
             "tone." letterforms unfilled, so they render black and vanish
             on a dark page; swapping by CSS rather than by reading the
@@ -125,7 +288,7 @@ export default function Shell({
           </span>
         </Link>
 
-        <label className="relative mx-auto flex w-full max-w-[560px] items-center">
+        <label className="relative order-last flex w-full items-center lg:order-none lg:mx-auto lg:max-w-[560px]">
           <span className="sr-only">{t.search.label[l]}</span>
           <SearchIcon size={16} className="pointer-events-none absolute left-5 text-ink-3" />
           <input
@@ -137,16 +300,20 @@ export default function Shell({
           />
         </label>
 
-        <nav className="ml-auto flex shrink-0 items-center gap-4">
+        <nav className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
           <ThemeToggle locale={l} />
           {/* The design has a "Priser" link here. There is no pricing
               page any more; the price lives in the rail's own block and
               in Kom i gang, so a link to a deleted page is not kept. */}
-          <Link href="/my-odatone" className="text-[0.875rem] font-medium text-ink transition-opacity hover:opacity-70">
+          <Link
+            href="/my-odatone"
+            className="hidden text-[0.875rem] font-medium text-ink transition-opacity hover:opacity-70 sm:block"
+          >
             {t.nav.login[l]}
           </Link>
           <LinkButton href={href(l, "signup")} size="sm">
-            {t.nav.cta[l]}
+            <span className="sm:hidden">{t.nav.ctaShort[l]}</span>
+            <span className="hidden sm:inline">{t.nav.cta[l]}</span>
           </LinkButton>
         </nav>
       </header>
@@ -156,128 +323,19 @@ export default function Shell({
             background — the same white surface the hero sits beside, and
             it runs the full height of the column rather than stopping
             under its last link. */}
-        <aside className="hidden w-[232px] shrink-0 flex-col gap-6 rounded-[var(--radius-xl)] bg-surface p-4 lg:flex">
-          <nav className="flex flex-col gap-0.5">
-            {nav.map(({ key, label, to, Icon, onClick }) => {
-              const on = key === active;
-              const cls = `flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2.5 text-left text-[0.9375rem] transition-colors ${
-                on ? "bg-accent-soft font-semibold text-accent" : "font-medium text-ink hover:bg-surface-2"
-              }`;
-              const inner = (
-                <>
-                  <Icon size={18} className={on ? "text-accent" : "text-ink-2"} />
-                  {label}
-                </>
-              );
-              return to ? (
-                <Link key={key} href={to} aria-current={on ? "page" : undefined} className={cls}>
-                  {inner}
-                </Link>
-              ) : (
-                <button key={key} type="button" onClick={onClick} className={cls}>
-                  {inner}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="flex flex-col gap-1">
-            <p className="u-label px-4 pb-1 text-ink-3">{t.rail.moods[l]}</p>
-            <ul className="flex flex-col gap-0.5">
-              {MOODS.map((m) => (
-                <li key={m.id}>
-                  <button
-                    type="button"
-                    onClick={() => p.setFilters({ mood: m.id, genres: [] })}
-                    aria-pressed={p.filters.mood === m.id}
-                    className={`flex w-full items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 text-left transition-colors hover:bg-surface-2 ${
-                      p.filters.mood === m.id ? "bg-surface-2" : ""
-                    }`}
-                  >
-                    <img
-                      src={MOOD_PHOTO[m.id]}
-                      alt=""
-                      width={44}
-                      height={44}
-                      className="h-11 w-11 shrink-0 rounded-[var(--radius-sm)] object-cover"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-[0.9375rem] font-semibold text-ink">
-                        {m.label[l]}
-                      </span>
-                      <span className="block text-[0.8125rem] text-ink-3">
-                        {t.rail.trackCount[l].replace("{n}", String(moodCounts[m.id]))}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <p className="u-label px-4 pb-1 text-ink-3">{t.rail.yourLists[l]}</p>
-
-            {/* Drag sources for the Ugeplan, and nothing more: the item
-                carries its id on the drag and the page that cares reads
-                it off `dataTransfer`. No callback crosses into the rail,
-                so the shell stays a server-rendered prop away from every
-                page that does not schedule anything. */}
-            {lists.map((list) => (
-              <div
-                key={list.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", list.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
-                title={t.rail.dragHint[l]}
-                className="flex cursor-grab items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2 active:cursor-grabbing"
-              >
-                <span
-                  aria-hidden="true"
-                  className="h-11 w-11 shrink-0 rounded-[var(--radius-sm)]"
-                  style={{ background: listTile(listLook(list)) }}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[0.9375rem] font-semibold text-ink">
-                    {list.name}
-                  </span>
-                  <span className="block text-[0.8125rem] text-ink-3">{t.rail.dragHint[l]}</span>
-                </span>
-                <GripIcon size={14} className="shrink-0 text-ink-3" />
-              </div>
-            ))}
-
-            <Link
-              href={href(l, "signup")}
-              className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2"
-            >
-              <span
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius-sm)] text-white"
-                style={{ background: "var(--g-brand)" }}
-              >
-                <PlusIcon size={20} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[0.9375rem] font-semibold text-ink">
-                  {t.rail.newList[l]}
-                </span>
-                <span className="block text-[0.8125rem] leading-snug text-ink-3">
-                  {t.rail.newListNote[l]}
-                </span>
-              </span>
-            </Link>
-          </div>
-
-          {/* The price shown is the cheapest ACTIVE plan, passed down from
-              the server — not a figure typed here. The design's "149 kr."
-              is Small Venue's, and Small Venue is no longer sold. */}
-          <div className="mt-auto rounded-[var(--radius-lg)] bg-surface-2 p-5">
-            <p className="u-num text-[1.0625rem] text-ink">{t.rail.priceFrom[l].replace("{price}", priceFrom)}</p>
-            <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-3">{t.rail.priceNote[l]}</p>
-          </div>
+        {/* Below lg the rail is not on screen, so the same content is
+            what the drawer shows — one definition, not two that drift. */}
+        <aside
+          id="oda-rail"
+          className="hidden w-[232px] shrink-0 flex-col gap-6 rounded-[var(--radius-xl)] bg-surface p-4 lg:flex"
+        >
+          {railBody}
         </aside>
+
+        {/* main and the right rail share a column so the builder falls
+            below the page on a phone instead of disappearing with the
+            aside — "Byg din liste" in the nav has to lead somewhere. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-5 xl:flex-row">
 
         <main id="main" className="flex min-w-0 flex-1 flex-col">
           {children}
@@ -296,8 +354,53 @@ export default function Shell({
           </footer>
         </main>
 
-        {rail && <aside className="hidden w-[320px] shrink-0 xl:block">{rail}</aside>}
+          {rail && <aside className="w-full shrink-0 xl:w-[320px]">{rail}</aside>}
+        </div>
       </div>
+
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-label={t.rail.closeMenu[l]}
+            onClick={() => setMenuOpen(false)}
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.rail.menu[l]}
+            className="oda-scroll absolute inset-y-0 left-0 flex w-[min(300px,86vw)] flex-col gap-6 overflow-y-auto bg-surface p-4 shadow-[var(--shadow-card)]"
+          >
+            <div className="flex items-center justify-between">
+              <Link href={`/${l}`} aria-label="Odatone" onClick={() => setMenuOpen(false)}>
+                <span className="oda-mark-light">
+                  <Wordmark height={20} />
+                </span>
+                <span className="oda-mark-dark">
+                  <Wordmark height={20} tone="on-dark" />
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label={t.rail.closeMenu[l]}
+                className="grid h-9 w-9 place-items-center rounded-full text-ink-2 transition-colors hover:bg-surface-2"
+              >
+                <CloseIcon size={18} />
+              </button>
+            </div>
+            {railBody}
+            <Link
+              href="/my-odatone"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-[var(--radius-md)] px-4 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-surface-2 sm:hidden"
+            >
+              {t.nav.login[l]}
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

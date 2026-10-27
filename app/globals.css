@@ -663,3 +663,63 @@ input[type="range"].oda-range:active::-webkit-slider-thumb {
 :root[data-theme="light"] .oda-mark-dark { display: none; }
 :root:not([data-theme="dark"]) .oda-mark-light,
 :root[data-theme="light"] .oda-mark-light { display: block; }
+
+/* A row that swipes on a phone and becomes a grid when there is room.
+   The scrollbar is hidden because the cut-off card at the right edge is
+   the affordance — a 15px grey bar under a photograph is not. The
+   negative margin plus matching padding lets a card scroll flush to the
+   screen edge while the row still lines up with the page gutter.
+
+   The wide-screen display is set here rather than with sm:grid/sm:flex
+   utilities: this file is appended after Tailwind's, so a base
+   `display: flex` here would beat them on source order and the grid
+   would never come back. */
+.oda-swipe {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin-inline: -1rem;
+  padding-inline: 1rem;
+  padding-bottom: 2px;
+}
+.oda-swipe::-webkit-scrollbar {
+  display: none;
+}
+.oda-swipe > * {
+  scroll-snap-align: start;
+  flex: none;
+}
+@media (min-width: 640px) {
+  .oda-swipe {
+    overflow-x: visible;
+    scroll-snap-type: none;
+    margin-inline: 0;
+    padding-inline: 0;
+    padding-bottom: 0;
+  }
+  .oda-swipe > * {
+    width: auto;
+    flex: initial;
+  }
+  .oda-swipe--grid {
+    display: grid;
+  }
+  .oda-swipe--row {
+    justify-content: space-between;
+  }
+}
+
+/* The week is seven columns wide whatever the screen is. Below sm that
+   does not fit, so the card scrolls sideways and the grid keeps a width
+   its blocks can actually be read at. */
+.oda-week__inner {
+  min-width: 660px;
+}
+@media (min-width: 640px) {
+  .oda-week__inner {
+    min-width: 0;
+  }
+}

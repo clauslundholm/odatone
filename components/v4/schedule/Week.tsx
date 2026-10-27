@@ -242,9 +242,14 @@ export default function Week({
       : drop;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface">
+    /* Below sm the week scrolls sideways rather than squeezing seven days
+       into 370px — 44px a column cannot hold "Morgenåbning 08–10", and a
+       calendar nobody can read is worse than one they have to push. The
+       header and the grid scroll together, in one scroller, so the day
+       names stay over their own columns. */
+    <div className="oda-week flex min-h-0 flex-1 flex-col overflow-x-auto rounded-[var(--radius-xl)] border border-line bg-surface sm:overflow-x-hidden">
       <div
-        className="grid flex-none border-b border-line"
+        className="oda-week__inner grid flex-none border-b border-line"
         style={{ gridTemplateColumns: `${GUTTER}px repeat(7, minmax(0,1fr))` }}
       >
         <div />
@@ -270,7 +275,7 @@ export default function Week({
       </div>
 
       <div ref={scrollRef} className="oda-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="grid" style={{ gridTemplateColumns: `${GUTTER}px 1fr` }}>
+        <div className="oda-week__inner grid" style={{ gridTemplateColumns: `${GUTTER}px 1fr` }}>
           <div className="relative" style={{ height: GRID_HEIGHT }}>
             {hourRows().map((h) => (
               <span

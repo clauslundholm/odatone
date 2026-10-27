@@ -16,6 +16,10 @@ export const v4 = {
   nav: {
     login: { da: "Log ind", en: "Log in" } as L10n,
     cta: { da: `Prøv ${PROOF.trialDays} dage gratis`, en: `Try ${PROOF.trialDays} days free` } as L10n,
+    /** The same offer, short enough that the phone header is two rows
+        rather than three. The day count is the first thing to go: it is
+        on the page they land on anyway. */
+    ctaShort: { da: "Prøv gratis", en: "Try it free" } as L10n,
   },
   rail: {
     home: { da: "Forside", en: "Home" } as L10n,
@@ -29,6 +33,8 @@ export const v4 = {
       da: "Gemmes med en gratis profil",
       en: "Saved with a free profile",
     } as L10n,
+    menu: { da: "Menu", en: "Menu" } as L10n,
+    closeMenu: { da: "Luk menuen", en: "Close the menu" } as L10n,
     dragHint: {
       da: "Træk ind i ugeplanen",
       en: "Drag into the week",

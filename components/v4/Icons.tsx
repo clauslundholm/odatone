@@ -139,3 +139,15 @@ export const MegaphoneIcon = ({ size = 12, className = "" }: P) => (
     <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
   </svg>
 );
+
+export const MenuIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </svg>
+);
+
+export const CloseIcon = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className} {...stroke}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </svg>
+);

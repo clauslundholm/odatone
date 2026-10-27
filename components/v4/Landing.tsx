@@ -239,12 +239,12 @@ function MoodRow({ locale: l }: { locale: Locale }) {
   return (
     <section>
       <SectionHead title={t.sections.now[l]} />
-      <ul className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+      <ul className="oda-swipe oda-swipe--grid sm:grid-cols-3 xl:grid-cols-5">
         {MOODS.map((m) => {
           const matches = filterTracks({ ...DEFAULT_FILTERS, mood: m.id });
           const active = p.filters.mood === m.id;
           return (
-            <li key={m.id}>
+            <li key={m.id} className="w-[46%] min-[420px]:w-[42%]">
               <button
                 type="button"
                 onClick={() => {
@@ -281,11 +281,11 @@ function CuratedRow({ locale: l }: { locale: Locale }) {
   return (
     <section>
       <SectionHead title={t.sections.lists[l]} />
-      <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="oda-swipe oda-swipe--grid sm:grid-cols-2 xl:grid-cols-4">
         {CURATED.map((c) => {
           const matches = filterTracks(curatedFilters(c));
           return (
-            <li key={c.id}>
+            <li key={c.id} className="w-[64%] min-[420px]:w-[58%]">
               <button
                 type="button"
                 disabled={matches.length === 0}
@@ -339,9 +339,9 @@ function ArtistRow({ locale: l }: { locale: Locale }) {
           76px portraits and their names fit the column the design draws
           them in, and a ninth on a second line would read as a different
           section rather than as more of this one. */}
-      <ul className="flex items-start justify-between gap-3">
+      <ul className="oda-swipe oda-swipe--row !gap-3 items-start">
         {artists.map((a, i) => (
-          <li key={a} className="flex min-w-0 flex-col items-center gap-2.5 text-center">
+          <li key={a} className="flex w-[84px] min-w-0 flex-col items-center gap-2.5 text-center sm:w-auto">
             <img
               src={artistPhoto(i)}
               alt=""
@@ -362,7 +362,7 @@ function GenreRow({ locale: l }: { locale: Locale }) {
   return (
     <section>
       <SectionHead title={t.sections.genres[l]} />
-      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {GENRES.map((g, i) => {
           const matches = filterTracks({ ...DEFAULT_FILTERS, genres: [g.id] });
           return (
@@ -423,7 +423,7 @@ export function Rail({ locale: l }: { locale: Locale }) {
   const minutes = Math.ceil(matches.reduce((s, x) => s + x.duration, 0) / 60);
 
   return (
-    <div className="sticky top-[84px] flex flex-col gap-5">
+    <div className="flex flex-col gap-5 xl:sticky xl:top-[84px]">
       <section className="rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-card)]">
         <p className="text-[0.8125rem] text-ink-3">
           {source ? t.nowPlaying.from[l].replace("{list}", source.label[l]) : t.nowPlaying.heading[l]}

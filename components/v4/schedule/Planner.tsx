@@ -227,7 +227,7 @@ export default function Planner({
   return (
     <div className="flex min-h-0 flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[15rem] flex-1">
           <h1 className="u-display text-[1.5rem] text-ink">{t.planner.heading[l]}</h1>
           <p className="mt-0.5 text-[0.8125rem] text-ink-3">{t.planner.lede[l]}</p>
         </div>

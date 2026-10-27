@@ -133,7 +133,7 @@ export default function DemoPlanner({ locale: l }: { locale: Locale }) {
       backend={backend}
       banner={
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-lg)] bg-accent-soft px-4 py-3">
-          <p className="min-w-0 flex-1 text-[0.8125rem] leading-relaxed text-ink-2">
+          <p className="min-w-[15rem] flex-1 text-[0.8125rem] leading-relaxed text-ink-2">
             {t.planner.demoNote[l]}
           </p>
           <button
