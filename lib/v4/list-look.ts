@@ -16,23 +16,30 @@ import { PHOTO } from "./photos";
  *     the row and spreads evenly across the palette.
  * ==================================================================== */
 
-export type ListLook = { from: string; to: string; photo: string };
+/** `light` carries the hue — it tints the block on a white page and
+    draws the left-hand bar in both themes. `dark` is the same hue taken
+    most of the way to black, and is the block's whole background on a
+    dark page.
+ *
+ *  Two colours rather than one because a single hue cannot do both
+ *  jobs. A tint light enough to read black text on vanishes against a
+ *  dark page; a ground dark enough to read white text on is mud on a
+ *  light one. The pairs below are the prototype's own. */
+export type ListLook = { light: string; dark: string; photo: string };
 
-/* Pairs rather than single hues: the block is a gradient under a
-   photograph, and a flat tint behind a picture reads as a mistake. */
 const PALETTE: ListLook[] = [
-  { from: "#fbbf24", to: "#f472b6", photo: PHOTO.barista },
-  { from: "#34d399", to: "#0ea5e9", photo: PHOTO.terrace },
-  { from: "#fb923c", to: "#ef4444", photo: PHOTO.cafeGuitar },
-  { from: "#c084fc", to: "#ec4899", photo: PHOTO.bar },
-  { from: "#818cf8", to: "#7c3aed", photo: PHOTO.sax },
-  { from: "#38bdf8", to: "#6366f1", photo: PHOTO.desk },
-  { from: "#94a3b8", to: "#0ea5e9", photo: PHOTO.piano },
-  { from: "#f43f5e", to: "#f59e0b", photo: PHOTO.dj },
-  { from: "#e879f9", to: "#6366f1", photo: PHOTO.stage },
-  { from: "#f59e0b", to: "#9a3412", photo: PHOTO.cello },
-  { from: "#d77a6b", to: "#3b1c18", photo: PHOTO.singer },
-  { from: "#a8b48f", to: "#2a3022", photo: PHOTO.club },
+  { light: "#cdb08a", dark: "#3a2f22", photo: PHOTO.barista },
+  { light: "#b48ae0", dark: "#2a1840", photo: PHOTO.terrace },
+  { light: "#d98a5f", dark: "#3f2318", photo: PHOTO.cafeGuitar },
+  { light: "#e0a35a", dark: "#3d2610", photo: PHOTO.bar },
+  { light: "#8f86e8", dark: "#1e1b45", photo: PHOTO.sax },
+  { light: "#a8b48f", dark: "#2a3022", photo: PHOTO.desk },
+  { light: "#80b2c6", dark: "#1e3138", photo: PHOTO.piano },
+  { light: "#d26ee6", dark: "#33133d", photo: PHOTO.dj },
+  { light: "#d77a6b", dark: "#3b1c18", photo: PHOTO.stage },
+  { light: "#e08a3c", dark: "#3e200c", photo: PHOTO.cello },
+  { light: "#7fb0a3", dark: "#16302b", photo: PHOTO.singer },
+  { light: "#c9a05f", dark: "#332413", photo: PHOTO.club },
 ];
 
 /* Keyed by the curated list's own id (CURATED in components/v4/Landing)
@@ -62,5 +69,12 @@ export function listLook(list: { id: string; basedOn?: string | null }): ListLoo
 /** The tile behind a list's name: the photograph, with its own gradient
     underneath so a slow image never shows as a hole. */
 export function listTile(look: ListLook): string {
-  return `url(${look.photo}) center/cover no-repeat, linear-gradient(135deg, ${look.from}, ${look.to})`;
+  return `url(${look.photo}) center/cover no-repeat, linear-gradient(135deg, ${look.light}, ${look.dark})`;
+}
+
+/** The custom properties a block, a swatch or a bar reads its colours
+    from. Handed to the element as a style; globals.css decides per
+    theme which of the two each surface uses. */
+export function lookVars(look: ListLook): Record<string, string> {
+  return { "--c1": look.light, "--c2": look.dark, "--im": `url(${look.photo})` };
 }

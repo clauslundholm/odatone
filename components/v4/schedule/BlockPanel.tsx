@@ -240,7 +240,7 @@ function EmptyPanel({
                         className="block h-full rounded"
                         style={{
                           width: `${(minutes / max) * 100}%`,
-                          background: `linear-gradient(90deg, ${look.from}, ${look.to})`,
+                          background: `linear-gradient(90deg, ${look.light}, ${look.dark})`,
                         }}
                       />
                     </span>

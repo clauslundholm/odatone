@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Locale } from "@/lib/i18n";
-import { listLook } from "@/lib/v4/list-look";
+import { listLook, lookVars } from "@/lib/v4/list-look";
 import {
   END,
   GRID_HEIGHT,
@@ -313,7 +313,7 @@ export default function Week({
                         key={b.id}
                         data-block={b.id}
                         title={`${byId.get(b.playlistId)?.name ?? "—"} · ${hhmm(b.from)}–${hhmm(b.to)}`}
-                        className={`absolute left-[3px] right-[11px] cursor-grab overflow-hidden rounded-[10px] py-[6px] pl-[11px] pr-[9px] text-left transition-shadow ${
+                        className={`oda-blk absolute left-[3px] right-[11px] cursor-grab overflow-hidden rounded-[10px] py-[6px] pl-[11px] pr-[9px] text-left transition-shadow ${
                           short ? "flex items-center gap-[6px] pb-0 pt-[2px]" : ""
                         } ${dragging ? "z-[6] cursor-grabbing opacity-95 shadow-[0_14px_30px_rgba(0,0,0,.35)]" : "z-[2]"} ${
                           selectedId === b.id ? "z-[3]" : ""
@@ -321,32 +321,26 @@ export default function Week({
                         style={{
                           top: top + 2,
                           height: height - 4,
-                          background: `color-mix(in srgb, ${look.from} 22%, var(--c-surface))`,
-                          color: "var(--c-ink)",
+                          ...lookVars(look),
                           boxShadow: bad
                             ? "0 0 0 2px var(--c-bad)"
                             : selectedId === b.id
-                              ? `0 0 0 2px ${look.from}, 0 8px 20px rgba(0,0,0,.18)`
-                              : `inset 0 0 0 1px color-mix(in srgb, ${look.from} 38%, transparent)`,
+                              ? "0 0 0 2px var(--c1), 0 8px 20px rgba(0,0,0,.28)"
+                              : undefined,
                         }}
                       >
-                        <span
-                          aria-hidden="true"
-                          className="absolute inset-y-0 left-0 w-[3px]"
-                          style={{ background: look.from }}
-                        />
+                        <span aria-hidden="true" className="oda-blk__bar absolute inset-y-0 left-0 w-[3px]" />
                         {!short && (
                           <span
                             aria-hidden="true"
-                            className="pointer-events-none absolute inset-0 opacity-25 mix-blend-luminosity [mask-image:linear-gradient(180deg,transparent_0,transparent_34px,#000_100%)]"
-                            style={{ background: `url(${look.photo}) center 30%/cover no-repeat` }}
+                            className="oda-blk__photo pointer-events-none absolute inset-0"
                           />
                         )}
                         <span className="relative block truncate text-[0.78rem] font-semibold">
                           {byId.get(b.playlistId)?.name ?? "—"}
                         </span>
                         <span
-                          className={`u-tabular relative block truncate text-[0.6875rem] text-ink-2 ${short ? "" : "mt-px"}`}
+                          className={`oda-blk__sub u-tabular relative block truncate text-[0.6875rem] ${short ? "" : "mt-px"}`}
                         >
                           {rangeLabel(b.from, b.to)}
                         </span>

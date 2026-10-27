@@ -228,16 +228,13 @@ export default function Planner({
           <p className="mt-0.5 text-[0.8125rem] text-ink-3">{t.planner.lede[l]}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label
-            className="flex h-10 items-center gap-2 rounded-full border border-line-strong bg-surface pl-3.5 pr-2 text-ink-2"
-            title={t.planner.location[l]}
-          >
-            <PinIcon size={16} />
+          <label className="flex items-center gap-2" title={t.planner.location[l]}>
             <span className="sr-only">{t.planner.location[l]}</span>
+            <PinIcon size={16} className="text-ink-3" />
             <select
               value={locationId}
               onChange={(e) => backend.goToLocation(e.target.value)}
-              className="cursor-pointer border-0 bg-transparent pr-1 font-semibold text-ink outline-none"
+              className="oda-select h-10 text-[0.875rem]"
             >
               {locations.map((loc) => (
                 <option key={loc.id} value={loc.id}>
@@ -264,15 +261,17 @@ export default function Planner({
         <span className="hidden sm:contents">
           <Stat text={t.planner.statLists[l]} value={String(listsUsed)} token="{n}" />
         </span>
-        <div className="ml-auto flex items-center gap-4 text-[0.75rem] text-ink-2">
-          <label className="flex cursor-pointer items-center gap-2">
+        <div className="ml-auto flex items-center gap-4 text-[0.8125rem] text-ink-2">
+          <label className="flex cursor-pointer items-center gap-2.5">
             {t.planner.showSpots[l]}
-            <input
-              type="checkbox"
-              checked={showSpots}
-              onChange={(e) => setShowSpots(e.target.checked)}
-              className="h-4 w-4 accent-[var(--c-accent)]"
-            />
+            <span className="oda-switch">
+              <input
+                type="checkbox"
+                checked={showSpots}
+                onChange={(e) => setShowSpots(e.target.checked)}
+              />
+              <span />
+            </span>
           </label>
           <label className="flex cursor-pointer items-center gap-2">
             {t.planner.offPlan[l]}
@@ -286,7 +285,7 @@ export default function Planner({
                   backend.settle();
                 });
               }}
-              className="h-[30px] cursor-pointer rounded-full border border-line-strong bg-surface px-2.5 font-semibold text-ink outline-none"
+              className="oda-select text-[0.8125rem]"
             >
               {FALLBACKS.map((f) => (
                 <option key={f} value={f}>
@@ -366,7 +365,7 @@ export default function Planner({
 function Stat({ text, value, token }: { text: string; value: string; token: string }) {
   const [before, after = ""] = text.split(token);
   return (
-    <span className="whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1.5 text-[0.75rem] text-ink-2">
+    <span className="whitespace-nowrap rounded-full border border-line bg-surface px-4 py-2 text-[0.8125rem] text-ink-2">
       {before}
       <b className="u-tabular font-bold text-ink">{value}</b>
       {after}

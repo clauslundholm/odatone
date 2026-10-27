@@ -519,3 +519,139 @@ input[type="range"].oda-range:active::-webkit-slider-thumb {
 .oda-btn-ghost:hover {
   background: var(--c-surface-2);
 }
+
+/* ------------------------------------------------- a block on the week
+   Each block carries --c1 (its hue), --c2 (that hue most of the way to
+   black) and --im (its photograph). Which of the two colours becomes
+   the ground is a question about the page, not about the list, so it
+   is answered here once rather than at every call site.
+
+   Dark: the ground IS the dark colour, and the type on it is white.
+   Light: the ground is a wash of the hue over white, and the type is
+   ink. The photograph sits between the two at a low opacity, masked
+   away from the first 34px so it never fights the title. */
+.oda-blk {
+  --blk-bg: var(--c2);
+  --blk-tx: #fff;
+  --blk-sub: rgba(255, 255, 255, 0.62);
+  --blk-img: 0.3;
+  --blk-edge: rgba(255, 255, 255, 0.07);
+  background: var(--blk-bg);
+  color: var(--blk-tx);
+  border: 1px solid var(--blk-edge);
+}
+:root:not([data-theme="dark"]) .oda-blk,
+:root[data-theme="light"] .oda-blk {
+  --blk-bg: color-mix(in srgb, var(--c1) 24%, #fff);
+  --blk-tx: #17171a;
+  --blk-sub: #5b5b66;
+  --blk-img: 0.16;
+  --blk-edge: color-mix(in srgb, var(--c1) 35%, transparent);
+}
+.oda-blk__sub {
+  color: var(--blk-sub);
+}
+/* The hue, always, in both themes: it is the one part of a block that
+   says which list this is without being read. */
+.oda-blk__bar {
+  background: var(--c1);
+}
+.oda-blk__photo {
+  background: var(--im) center 30% / cover no-repeat;
+  opacity: var(--blk-img);
+  mix-blend-mode: luminosity;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, transparent 34px, #000 100%);
+  mask-image: linear-gradient(180deg, transparent 0, transparent 34px, #000 100%);
+}
+
+/* ------------------------------------------------------ a switch
+   A checkbox says "this is a setting I am filling in"; a switch says
+   "this is on, and tapping turns it off". The spots overlay is the
+   second kind, so it gets the second control. Built on a real
+   checkbox, so it reaches the keyboard and the accessibility tree
+   without any of it being reimplemented. */
+.oda-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex: none;
+  cursor: pointer;
+}
+.oda-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.oda-switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--c-surface-3);
+  transition: background-color 0.2s;
+  pointer-events: none;
+}
+.oda-switch span::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
+}
+.oda-switch input:checked + span {
+  background: var(--c-accent);
+}
+.oda-switch input:checked + span::after {
+  transform: translateX(16px);
+}
+.oda-switch input:focus-visible + span {
+  box-shadow: 0 0 0 3px var(--c-accent-soft);
+}
+
+/* A compact select that looks the same in both themes. The native
+   control draws its own indicator in the platform's colours, which on
+   a dark page is a light-grey chevron on a light-grey well — so the
+   appearance is reset and the chevron drawn here. */
+.oda-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line-strong);
+  background-color: var(--c-surface);
+  /* Two chevrons, one up one down: the platform's own mark for "this
+     steps through a short list". Drawn here because the native well is
+     a light grey box that disappears on a dark page. A fixed mid-grey
+     rather than currentColor, which a data URI cannot read — #8e8e93
+     is --c-ink-3 and carries on both themes. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 5.5 5 2.5l3 3M2 8.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-position: right 11px center;
+  background-size: 10px 14px;
+  background-repeat: no-repeat;
+  padding: 0 30px 0 12px;
+  font-weight: 600;
+  color: var(--c-ink);
+  outline: 0;
+  cursor: pointer;
+}
+.oda-select:focus-visible {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px var(--c-accent-soft);
+}
+
+/* The wordmark comes in two files; which one is right is a question
+   about the page, so it is answered in CSS and both are in the markup. */
+.oda-mark-dark { display: block; }
+.oda-mark-light { display: none; }
+:root:not([data-theme="dark"]) .oda-mark-dark,
+:root[data-theme="light"] .oda-mark-dark { display: none; }
+:root:not([data-theme="dark"]) .oda-mark-light,
+:root[data-theme="light"] .oda-mark-light { display: block; }

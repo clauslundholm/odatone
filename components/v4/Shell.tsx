@@ -112,8 +112,17 @@ export default function Shell({
        ends level with it, with the price block at its foot. */
     <div className="flex flex-col">
       <header className="sticky top-0 z-30 flex items-center gap-4 bg-bg/90 px-6 py-3.5 backdrop-blur">
+        {/* Both marks, one shown per theme. The colour file leaves the
+            "tone." letterforms unfilled, so they render black and vanish
+            on a dark page; swapping by CSS rather than by reading the
+            theme keeps this a server-rendered <img> with no flash. */}
         <Link href={`/${l}`} aria-label="Odatone" className="shrink-0">
-          <Wordmark height={22} />
+          <span className="oda-mark-light">
+            <Wordmark height={22} />
+          </span>
+          <span className="oda-mark-dark">
+            <Wordmark height={22} tone="on-dark" />
+          </span>
         </Link>
 
         <label className="relative mx-auto flex w-full max-w-[560px] items-center">
