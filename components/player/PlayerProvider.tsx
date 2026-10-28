@@ -18,6 +18,7 @@ import {
   type Filters,
   type Track,
 } from "@/lib/tracks";
+import { sourceFor } from "@/lib/catalogue/trax";
 import { trialState, startTrial, type TrialState } from "@/lib/audio/trial";
 import { loadSnapshot, saveSnapshot, type PlaybackSnapshot } from "@/lib/audio/session";
 import type { Locale } from "@/lib/i18n";
@@ -117,6 +118,10 @@ export default function PlayerProvider({
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  /* Read when a track loads rather than depended on, so that signing in
+     upgrades the next track instead of interrupting this one. */
+  const signedInRef = useRef(signedIn);
+  signedInRef.current = signedIn;
 
   /* ---------------- queue ---------------- */
 
@@ -198,9 +203,14 @@ export default function PlayerProvider({
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !current) return;
-    const url = current.src;
-    if (el.getAttribute("data-src") !== url) {
-      el.setAttribute("data-src", url);
+    /* Keyed on the track, not on the resolved URL. The URL depends on
+       whether the listener is signed in, and keying on it would make
+       signing in mid-track swap the source and restart the song under
+       them. Keyed on the id, the track playing now plays out as it
+       loaded and the next one arrives full length. */
+    const url = sourceFor(current.src, signedInRef.current);
+    if (el.getAttribute("data-track") !== current.id) {
+      el.setAttribute("data-track", current.id);
       el.src = url;
       setElapsed(0);
       setDuration(current.duration);
@@ -237,6 +247,27 @@ export default function PlayerProvider({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, locale]);
+
+  /* Upgrade the first track to full length once the shell reports a
+     session.
+
+     The queue exists from the first render, so a track is loaded into
+     the element before Shell's effect has had a chance to call
+     setSignedIn — which means a customer's FIRST track would otherwise
+     always be the 60-second cut, and only the second would be whole.
+     Re-resolving here fixes that, and the guard is what keeps it safe:
+     only while the element is still paused at zero, so this can never
+     restart something already playing. The route makes the same call
+     independently and will redirect us back down to the short cut if
+     the session is not real. */
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !signedIn || !current) return;
+    if (!el.paused || el.currentTime > 0) return;
+    const wanted = sourceFor(current.src, true);
+    if (new URL(el.src || "http://x/", "http://x/").pathname === wanted) return;
+    el.src = wanted;
+  }, [signedIn, current]);
 
   /* Keep the index inside the queue when filters change. */
   useEffect(() => {
@@ -348,9 +379,9 @@ export default function PlayerProvider({
       if (track) {
         const i = queue.findIndex((t) => t.id === track.id);
         if (i >= 0) setIndex(i);
-        if (el.getAttribute("data-src") !== track.src) {
-          el.setAttribute("data-src", track.src);
-          el.src = track.src;
+        if (el.getAttribute("data-track") !== track.id) {
+          el.setAttribute("data-track", track.id);
+          el.src = sourceFor(track.src, signedInRef.current);
           setElapsed(0);
         }
       }

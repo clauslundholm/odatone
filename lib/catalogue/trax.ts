@@ -470,6 +470,39 @@ export function proxiedAudioUrl(c: TraxComposition): string {
   return `${AUDIO_PROXY_PREFIX}${folder}${c.vcFile}`;
 }
 
+/* -------------------------------------------------------------------- *
+ *  Short and full
+ * -------------------------------------------------------------------- */
+
+/** The 60-second cut every row points at. `hasShortVersion: true` on
+    every composition sampled, and the arithmetic agrees: 960,723 bytes
+    at 128 kbps is 60s exactly. */
+export const DEMO_FOLDER = "MusicShort";
+
+/** The whole composition, same host and same filename, one folder up.
+    5,852,472 bytes at 192 kbps is 244s, which is what `iDuration` said
+    all along — so with this folder the runtimes we print finally
+    describe the music that plays (TRAX_GAPS.duration).
+
+    Not a secret: it is as unsigned and world-readable as the short cut.
+    The line between them is a product decision — a visitor hears a
+    minute, a paying customer hears the record — and it is drawn in the
+    route handler, where a session can actually be checked. */
+export const FULL_FOLDER = "Music";
+
+/** Which version a given listener should be served.
+ *
+ *  Only ever rewrites our own proxy paths, so anything else — a local
+ *  file, an absolute URL — is handed back untouched. The route makes
+ *  the same decision independently and does not trust this one: a
+ *  client asking for the full folder without a session is sent to the
+ *  short one. */
+export function sourceFor(src: string, fullLength: boolean): string {
+  const short = `${AUDIO_PROXY_PREFIX}${DEMO_FOLDER}/`;
+  if (!fullLength || !src.startsWith(short)) return src;
+  return `${AUDIO_PROXY_PREFIX}${FULL_FOLDER}/${src.slice(short.length)}`;
+}
+
 export type ToTrackOptions = {
   /** The mood whose pool this composition came back from. Mood is ours,
       not theirs, so it can only come from what we asked for. */

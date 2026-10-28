@@ -1,4 +1,10 @@
-import { TRAX_DEMO_AUDIO_BASE } from "@/lib/catalogue/trax";
+import {
+  AUDIO_PROXY_PREFIX,
+  DEMO_FOLDER,
+  FULL_FOLDER,
+  TRAX_DEMO_AUDIO_BASE,
+} from "@/lib/catalogue/trax";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * The audio proxy, and the only reason the player can hear 1000trax at all.
@@ -24,19 +30,34 @@ import { TRAX_DEMO_AUDIO_BASE } from "@/lib/catalogue/trax";
  * us.
  */
 
-/** The one folder we serve. `Effects/` is excluded on purpose and not by
-    omission: that is where their advertising lives (see isAdvertisement),
-    and a jingle must not become reachable just because someone guessed a
-    URL. */
-const ALLOWED_FOLDERS = new Set(["MusicShort"]);
+/** The two folders we serve, and the only two.
+ *
+ *  `MusicShort/` is the 60-second cut and is open to anyone: it is what
+ *  a visitor hears while deciding, and what 1000trax's own demo player
+ *  serves. `Music/` is the whole composition and needs a session -- that
+ *  is the line between trying the library and subscribing to it.
+ *
+ *  `Effects/` is excluded on purpose and not by omission: that is where
+ *  their advertising lives (see isAdvertisement), and a jingle must not
+ *  become reachable because somebody guessed a URL. */
+const ALLOWED_FOLDERS = new Set([DEMO_FOLDER, FULL_FOLDER]);
 
 /** Their filenames look like `250219.002@v10.mp3`. The `@` is theirs. */
 const FILE = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,120}\.mp3$/;
 
 /** Their own CDN allows a week; matching it means a track a café plays on
     repeat is fetched from them once and served from our edge after that.
-    `immutable` is safe because the filename carries the version (`@v10`). */
-const CACHE = "public, max-age=604800, s-maxage=604800, immutable";
+    `immutable` is safe because the filename carries the version (`@v10`).
+
+    The full-length folder gets `private` instead. That response depends
+    on who asked, and a shared cache which did not know that would hand
+    the next anonymous visitor a copy of what a subscriber just played.
+    The cost is real — a full track is 5.8 MB and is re-fetched per
+    listener rather than once per edge — and it is the strongest
+    argument for getting a usable CORS header out of 1000trax, after
+    which the browser streams from their CDN and we carry nothing. */
+const CACHE_PUBLIC = "public, max-age=604800, s-maxage=604800, immutable";
+const CACHE_PRIVATE = "private, max-age=604800, immutable";
 
 const UPSTREAM_TIMEOUT_MS = 15_000;
 
@@ -57,9 +78,41 @@ function upstreamFor(path: string[]): string | null {
   return `${TRAX_DEMO_AUDIO_BASE}${folder}/${encodeURIComponent(file)}`;
 }
 
+/** Any valid session. Deliberately not "a customer with a live
+    subscription": a staff member checking a track, and a customer whose
+    card bounced last night, should both still hear the catalogue.
+    Billing decides what a plan costs, not whether audio decodes. */
+async function hasSession(): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getClaims();
+    return typeof data?.claims?.sub === "string";
+  } catch {
+    /* Auth being unreachable must not take the music down: the short cut
+       is public and plays for everybody, so fall back to it. */
+    return false;
+  }
+}
+
 async function pass(request: Request, path: string[], withBody: boolean) {
   const url = upstreamFor(path);
   if (!url) return new Response("Not found", { status: 404 });
+
+  const full = path[0] === FULL_FOLDER;
+  if (full && !(await hasSession())) {
+    /* Redirect rather than refuse. A session that expired mid-queue
+       would otherwise become a dead track and a silent room; this way
+       the listener drops to the 60-second cut and the music keeps
+       going. `no-store` because the answer depends on the session, and
+       the next request may deserve the other one. */
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `${AUDIO_PROXY_PREFIX}${DEMO_FOLDER}/${path[1]}`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
 
   const range = request.headers.get("range");
 
@@ -84,7 +137,7 @@ async function pass(request: Request, path: string[], withBody: boolean) {
 
   const headers = new Headers({
     "Content-Type": upstream.headers.get("content-type") ?? "audio/mpeg",
-    "Cache-Control": CACHE,
+    "Cache-Control": full ? CACHE_PRIVATE : CACHE_PUBLIC,
     "Accept-Ranges": "bytes",
   });
   for (const h of ["content-length", "content-range"]) {

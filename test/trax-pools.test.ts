@@ -9,6 +9,7 @@ import {
   parsePoolName,
   poolTrackCount,
   proxiedAudioUrl,
+  sourceFor,
   usablePools,
   type TraxMetricSet,
   type TraxMetrics,
@@ -219,4 +220,35 @@ test("a folder with no trailing slash is joined the way their player joins it", 
     proxiedAudioUrl({ ...MUSIC, vcFolder: "MusicShort" } as never),
     "/api/audio/MusicShort/241030.004@v01.mp3",
   );
+});
+
+/* -------------------------------------------------------------------- *
+ *  Short vs full
+ * -------------------------------------------------------------------- */
+
+test("a signed-out listener keeps the 60-second cut", () => {
+  assert.equal(
+    sourceFor("/api/audio/MusicShort/241030.004@v01.mp3", false),
+    "/api/audio/MusicShort/241030.004@v01.mp3",
+  );
+});
+
+test("a signed-in customer gets the whole composition", () => {
+  assert.equal(
+    sourceFor("/api/audio/MusicShort/241030.004@v01.mp3", true),
+    "/api/audio/Music/241030.004@v01.mp3",
+  );
+});
+
+test("only our own proxy paths are rewritten", () => {
+  // A local file or an absolute URL has nothing to do with the tiers and
+  // must survive untouched, however the flag is set.
+  for (const src of ["/audio/soft-open.mp3", "https://demo.1000trax.com/MusicShort/x.mp3"]) {
+    assert.equal(sourceFor(src, true), src);
+  }
+});
+
+test("rewriting twice is the same as rewriting once", () => {
+  const once = sourceFor("/api/audio/MusicShort/a.mp3", true);
+  assert.equal(sourceFor(once, true), once);
 });
