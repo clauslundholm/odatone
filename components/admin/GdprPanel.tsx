@@ -4,13 +4,21 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button, buttonClass } from "@/components/ui/Button";
-import { eraseCustomer } from "@/app/admin/customers/[id]/gdpr-actions";
+import { deleteCustomer, eraseCustomer } from "@/app/admin/customers/[id]/gdpr-actions";
 
 const ERASE_ERRORS: Record<string, string> = {
   forbidden: "Only staff_admin can erase a customer's data.",
   "not-found": "This customer no longer exists.",
   erase: "Something went wrong erasing this customer. Try again in a moment.",
   audit: "The customer was erased, but recording it in the audit log failed. Tell an admin.",
+};
+
+const DELETE_ERRORS: Record<string, string> = {
+  forbidden: "Only staff_admin can delete a customer.",
+  missing: "This customer no longer exists.",
+  invoices: "This customer has invoices, so the record has to stay. Erase it instead.",
+  delete: "Something went wrong deleting this customer. Nothing was removed.",
+  audit: "Could not record the deletion in the audit log, so nothing was deleted.",
 };
 
 /**
@@ -37,14 +45,46 @@ const ERASE_ERRORS: Record<string, string> = {
  * `currentStaffAdmin()` inside `eraseCustomer` itself, which a client-side
  * check can't be trusted to replace.
  */
-export function GdprPanel({ customerId, customerName }: { customerId: string; customerName: string }) {
+export function GdprPanel({
+  customerId,
+  customerName,
+  invoiceCount,
+}: {
+  customerId: string;
+  customerName: string;
+  /** Decides whether deleting outright is even on offer. Counted on the
+      server, where the row is; the action counts it again before acting,
+      because a number rendered into a page is a claim and not a check. */
+  invoiceCount: number;
+}) {
   const router = useRouter();
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  const [deleteText, setDeleteText] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, startDeleting] = useTransition();
+
   const confirmed = confirmText.trim().length > 0 && confirmText.trim() === customerName;
+  const deleteConfirmed = deleteText.trim().length > 0 && deleteText.trim() === customerName;
+  const deletable = invoiceCount === 0;
+
+  function handleDelete() {
+    setDeleteError(null);
+    startDeleting(async () => {
+      const result = await deleteCustomer(customerId);
+      if (result.error) {
+        setDeleteError(DELETE_ERRORS[result.error] ?? DELETE_ERRORS.delete);
+        return;
+      }
+      /* The record is gone, so this page would 404 on the next render.
+         Replace rather than push: Back should not return to a customer
+         that no longer exists. */
+      router.replace("/admin/customers");
+    });
+  }
 
   function handleErase() {
     setError(null);
@@ -126,6 +166,71 @@ export function GdprPanel({ customerId, customerName }: { customerId: string; cu
           >
             {pending ? "Erasing…" : "Erase customer"}
           </Button>
+        )}
+      </div>
+
+      {/* Deleting is not a stronger erase, it is a different answer to a
+          different question: this record should never have existed. An
+          abandoned signup or a duplicate leaves a tombstone cluttering
+          the customer list forever if it is erased, and erasure is the
+          wrong tool for it.
+
+          It is only offered when there is nothing to keep. Every foreign
+          key into `customers` cascades, invoices included, so the
+          database would take the accounts with it without complaint —
+          which is exactly what Danish bookkeeping law does not allow. */}
+      <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-line p-4">
+        <div>
+          <h3 className="text-[0.875rem] font-medium text-ink">Delete this customer</h3>
+          <p className="text-[0.8125rem] text-ink-2">
+            {deletable ? (
+              <>
+                Removes the record itself, along with its locations, users, subscription and saved lists. Nothing is
+                kept and nothing is recoverable — only an audit entry noting that it happened. Use this for a signup
+                that never completed or a duplicate, not for a customer who has traded.
+              </>
+            ) : (
+              <>
+                Not available: this customer has {invoiceCount} invoice{invoiceCount === 1 ? "" : "s"}, and accounting
+                records have to be kept for five years. Deleting the record would take them with it. Erase it instead —
+                that removes the personal data and leaves the books intact.
+              </>
+            )}
+          </p>
+        </div>
+
+        {deletable && (
+          <>
+            <label className="flex flex-col gap-2">
+              <span className="u-label text-ink-2">
+                Type <span className="font-mono normal-case text-ink">{customerName}</span> to confirm
+              </span>
+              <input
+                value={deleteText}
+                onChange={(event) => setDeleteText(event.target.value)}
+                placeholder={customerName}
+                disabled={deleting}
+                className="w-full max-w-sm rounded-[var(--radius-md)] border border-line bg-surface px-4 py-2.5 text-[0.9375rem] text-ink outline-none transition-[border-color,box-shadow] duration-200 focus:border-accent focus:shadow-[0_0_0_3px_var(--c-accent-soft)]"
+              />
+            </label>
+
+            {deleteError && (
+              <p role="alert" className="text-[0.8125rem] text-bad">
+                {deleteError}
+              </p>
+            )}
+
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              className="w-fit"
+              onClick={handleDelete}
+              disabled={!deleteConfirmed || deleting}
+            >
+              {deleting ? "Deleting…" : "Delete customer"}
+            </Button>
+          </>
         )}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { anonymisedCustomer } from "@/lib/gdpr";
 import { fetchAllRows } from "@/lib/admin/paginate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { canHardDelete } from "./validate";
 
 /** Row shape is deliberately loose here: every table's full columns go
     straight into the export, so a column added to any of these tables
@@ -384,6 +385,123 @@ export async function eraseCustomer(id: string): Promise<{ error?: string }> {
       error: auditError,
     });
     return { error: "audit" };
+  }
+
+  return {};
+}
+
+/**
+ * Remove a customer outright, record and all.
+ *
+ * This lives beside erasure rather than in ./actions.ts for one reason:
+ * it needs `currentStaffAdmin`, and duplicating an authorisation check is
+ * how two copies of it drift apart. The same reasoning as erasure applies
+ * unchanged -- the write below goes through the service-role client,
+ * which bypasses RLS, so the narrowing to staff_admin has to be made
+ * here, explicitly, before anything irreversible happens. `customers` has
+ * no DELETE policy at all (0003_tenancy.sql grants select, insert and
+ * update and stops), so this is not a case of choosing to bypass RLS: the
+ * session client cannot delete a customer however staff a caller is.
+ *
+ * It refuses as soon as there is an invoice. Every foreign key into
+ * `customers` is `on delete cascade` -- locations, profiles,
+ * subscriptions, playlists, schedule_blocks, and invoices
+ * (0002_commerce.sql:70) -- so Postgres will take the accounts with the
+ * customer and say nothing. Danish bookkeeping law wants five years of
+ * them, and `eraseCustomer` above already does the right thing for a
+ * customer who has traded: anonymise the person, keep the books. What is
+ * left for this action is the case erasure handles badly, which is the
+ * row that should never have existed -- an abandoned signup, a duplicate,
+ * a test account -- where a tombstone is just litter in the customer
+ * list.
+ *
+ * The audit entry is written BEFORE the delete, not after. `audit_log`
+ * does not reference `customers`, so the order is not forced by a
+ * constraint; it is forced by the fact that a delete which succeeds and
+ * then fails to log would leave no trace of itself anywhere, which is the
+ * one outcome an audit log exists to prevent.
+ */
+export async function deleteCustomer(id: string): Promise<{ error?: string; invoices?: number }> {
+  const actor = await currentStaffAdmin();
+  if (!actor) return { error: "forbidden" };
+
+  const admin = createAdminClient();
+
+  const { data: customer, error: lookupError } = await admin
+    .from("customers")
+    .select("id, name")
+    .eq("id", id)
+    .maybeSingle();
+  if (lookupError) {
+    console.error("[gdpr] deleteCustomer: failed to look up the customer", { customerId: id, error: lookupError });
+    return { error: "delete" };
+  }
+  if (!customer) return { error: "missing" };
+
+  /* head+count: the rows themselves are never needed, only whether any
+     exist, and a customer with years of invoices should not be paged
+     into memory to answer that. */
+  const { count, error: countError } = await admin
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("customer_id", id);
+  if (countError) {
+    console.error("[gdpr] deleteCustomer: failed to count invoices", { customerId: id, error: countError });
+    return { error: "delete" };
+  }
+  const invoices = count ?? 0;
+  const verdict = canHardDelete({ invoices });
+  if (!verdict.ok) return { error: "invoices", invoices };
+
+  /* The auth users go first and separately, exactly as in eraseCustomer:
+     `profiles.id references auth.users(id) on delete cascade` runs that
+     way round, so deleting the customer would cascade to `profiles` and
+     leave the auth users behind with no profile -- able to sign in, and
+     belonging to nothing. */
+  const { data: profiles, error: profilesError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("customer_id", id);
+  if (profilesError) {
+    console.error("[gdpr] deleteCustomer: failed to read the customer's users", { customerId: id, error: profilesError });
+    return { error: "delete" };
+  }
+  for (const profile of profiles ?? []) {
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(profile.id);
+    if (deleteUserError) {
+      console.error("[gdpr] deleteCustomer: failed to delete an auth user", {
+        customerId: id,
+        userId: profile.id,
+        error: deleteUserError,
+      });
+      return { error: "delete" };
+    }
+  }
+
+  const { error: auditError } = await admin.from("audit_log").insert({
+    actor_id: actor.id,
+    action: "delete",
+    entity: "customer",
+    entity_id: id,
+    /* The name is kept here on purpose, and it is the one place it
+       survives. Erasure must leave no trace of a person because the
+       customer row lives on; a delete has the opposite problem -- with
+       the row gone, an audit entry saying only "a customer was deleted"
+       cannot answer which one. There is nothing else to go on. */
+    before: { name: customer.name },
+  });
+  if (auditError) {
+    console.error("[gdpr] deleteCustomer: refusing to delete, the audit entry failed", {
+      customerId: id,
+      error: auditError,
+    });
+    return { error: "audit" };
+  }
+
+  const { error: deleteError } = await admin.from("customers").delete().eq("id", id);
+  if (deleteError) {
+    console.error("[gdpr] deleteCustomer: failed to delete the customer", { customerId: id, error: deleteError });
+    return { error: "delete" };
   }
 
   return {};

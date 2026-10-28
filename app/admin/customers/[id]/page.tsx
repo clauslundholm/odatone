@@ -5,6 +5,7 @@ import { AdminSideNav } from "@/components/admin/AdminSideNav";
 import { AppShell } from "@/components/admin/AppShell";
 import { UsersGlyph } from "@/components/admin/icons";
 import { Badge, statusTone } from "@/components/admin/Badge";
+import { CustomerForm } from "@/components/admin/CustomerForm";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { GdprPanel } from "@/components/admin/GdprPanel";
 import { IssueInvoiceDialog, MarkPaidDialog, VoidInvoiceDialog } from "@/components/admin/InvoiceActions";
@@ -230,21 +231,19 @@ export default async function CustomerDetailPage({
       />
       <div className="flex flex-1 flex-col gap-6 overflow-auto p-5">
         <div className="grid shrink-0 grid-cols-2 gap-4 max-[900px]:grid-cols-1">
+          {/* Editable in place rather than behind a "Rediger" dialog: every
+              field here is one an operator corrects while on the phone to
+              the customer, and a dialog would add a click to each of them.
+              `phone` is included because signup collects it
+              (0005_customer_phone.sql) and until now nothing in /admin
+              could write it back.
+
+              "Customer since" stays out of the form — `created_at` is a
+              fact about the record, not a detail of the company, and
+              nothing good comes of letting it be typed over. */}
           <Panel title="Customer">
-            <dl className="grid grid-cols-2 gap-4 max-[520px]:grid-cols-1">
-              <Field label="Company" value={detail.name} />
-              <Field label="CVR" value={<span className="font-mono">{detail.cvr ?? "—"}</span>} />
-              <Field label="Billing email" value={detail.billing_email} />
-              {/* Fix round 2's Minor: `customers.phone` (signup collects it,
-                  supabase/migrations/0005_customer_phone.sql stores it) had
-                  nothing anywhere in /admin that read it back — write-only
-                  data staff couldn't see without a direct database query. */}
-              <Field label="Phone" value={<span className="font-mono">{detail.phone ?? "—"}</span>} />
-              <Field
-                label="Address"
-                value={[detail.address, detail.postcode, detail.city, detail.country].filter(Boolean).join(", ") || "—"}
-              />
-              <Field label="Status" value={<Badge tone={statusTone(detail.status)}>{detail.status}</Badge>} />
+            <CustomerForm customer={detail} />
+            <dl className="mt-5 border-t border-line pt-4">
               <Field label="Customer since" value={formatDate(detail.created_at)} />
             </dl>
           </Panel>
@@ -464,7 +463,7 @@ export default async function CustomerDetailPage({
             this is the one section whose only job is to end that. */}
         <div className="shrink-0">
           <Panel title="Personal data">
-            <GdprPanel customerId={detail.id} customerName={detail.name} />
+            <GdprPanel customerId={detail.id} customerName={detail.name} invoiceCount={invoices.length} />
           </Panel>
         </div>
       </div>
