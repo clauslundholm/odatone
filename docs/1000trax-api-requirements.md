@@ -20,11 +20,66 @@ we have guessed, we say so — please correct us.
 | A row | `iCompositionID`, `vcTitle`, `vcFolder`, `vcFile`, `iDuration`, `dBpm`, `hasShortVersion`, `filters`, `ageDays`, `randomizedSortVal` |
 | Audio URL | built client-side: `https://demo.1000trax.com/` + `vcFolder` + `vcFile` |
 | Playback | `<audio src=…>`, plain progressive MP3 |
-| Genres | `pop`, `lounge`, `bossa`, `jazz`, `slowjazz`, `rnb`, `funk`, `chillout`, with `combinableWith` governing which may be joined into a pool |
+| Genres | The player config names eight. `/services/playlist/metrics` lists **156 pools**, including `house`, `downbeat`, `unplugged`, `jazzy`, `xmas` and `medit_inst`, and the language and `_vox`/`_novox` variants of each. Note `jazz_slowjazz` — which `combinableWith` says is legal — is not among them. |
 | Other services | `GET /services/playlist/metrics` (BPM distributions, `languagesAvailable`), `GET /services/session-user` |
 
 `def=lounge` returned 2,163 compositions in one 487 KB response, pre-shuffled
 via `randomizedSortVal`, with no paging and no session.
+
+---
+
+## 1b. Two things we only found by building against it
+
+Added 2026-10-28, after reading `/services/playlist/metrics` properly and
+running the audio through a real browser. Both are blocking and neither
+appears anywhere above.
+
+### A third of every response is your advertising — **blocking**
+
+`GET /services/playlist?def=vox&history=&low=80&high=120&lang=da` returns
+**9,952 rows: 6,635 compositions and 3,317 jingles** from `Effects/`, each
+`iCompositionID: -1` and named
+`1000trax.com.voiceover.only-20250804-da.mp3`.
+
+We cannot play these. Odatone's customers are cafés, shops and clinics who
+are paying precisely so that nothing speaks over their room, and the file
+advertises a competing product to their customers. We drop every `Effects/`
+row on ingest (`isAdvertisement`). **We need a tier, or a parameter, that
+does not inject them at all** — filtering them client-side means we are
+still paying to download a third of every response.
+
+Incidentally, `lang` appears to select the language of the *jingle*, not of
+the music: `def=vox&lang=da` returned Spanish-titled compositions alongside
+a Danish-voiced advert. If that is wrong, please say so, because we have
+built the language filter on the pool names instead.
+
+### `demo.1000trax.com` sends a CORS header no browser can use — **blocking**
+
+```
+Access-Control-Allow-Origin: 1000trax.com
+```
+
+That is a bare host. The header must be an origin — `https://odatone.com`,
+or `*` — so this value matches nothing and is treated as absent. Any
+`crossOrigin` request for the audio therefore fails outright.
+
+This is not cosmetic for us: our player feeds an `AnalyserNode` to draw a
+spectrum, which requires `crossOrigin="anonymous"`, and a tainted media
+element connected to Web Audio is silenced by Chrome. So on the direct URL
+we can have the audio or the visualiser, never both.
+
+We are shipping a proxy on our own origin to work around it
+(`app/api/audio/[...path]/route.ts`), which means **your audio now costs us
+egress on every play**. Returning a valid `Access-Control-Allow-Origin`
+would let us delete that route and go straight to your CDN.
+
+### While we are here: the demo files are 60 seconds
+
+`iDuration` is the composition's real length, but the file under
+`MusicShort/` is a 60-second cut — a row saying 239s resolves to 960,723
+bytes, which at 128 kbps is exactly 60s. Our interface prints runtimes from
+`iDuration`, so a list we describe as 52 minutes currently plays for about
+13. Covered by §2.2, but worth stating as the concrete symptom.
 
 ---
 

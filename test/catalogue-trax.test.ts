@@ -76,7 +76,15 @@ test("toTrack maps a real row onto our Track shape", () => {
   assert.equal(t.mood, "focus");
   assert.equal(t.bpm, 97);
   assert.equal(t.duration, 262);
-  assert.equal(t.src, "https://demo.1000trax.com/MusicShort/250219.002@v10.mp3");
+  /* Our own origin, not theirs: their audio host's CORS header cannot
+     satisfy the crossOrigin="anonymous" element the spectrum needs.
+     See proxiedAudioUrl. Passing an explicit `base` still yields a
+     direct URL, which is what the ingest script uses. */
+  assert.equal(t.src, "/api/audio/MusicShort/250219.002@v10.mp3");
+  assert.equal(
+    toTrack(ROW, { mood: "focus", genre: "lounge", base: TRAX_DEMO_AUDIO_BASE }).src,
+    "https://demo.1000trax.com/MusicShort/250219.002@v10.mp3",
+  );
 });
 
 test("toTrack leaves the unknowable visibly unknown, not invented", () => {
@@ -140,7 +148,7 @@ test("every mood has a pool, and every pool is a legal combination", () => {
 
 test("poolQuery produces the parameters their playlist service reads", () => {
   const q = poolQuery("evening");
-  assert.deepEqual(q, { def: "jazz_slowjazz", history: "", low: "70", high: "105", lang: "da" });
+  assert.deepEqual(q, { def: "jazz", history: "", low: "70", high: "105", lang: "da" });
 
   /* history is how the pool avoids repeats — ids comma-joined, handed
      back on the next request, exactly as their player does it. */
@@ -162,9 +170,13 @@ test("the genre map covers all eight of their genres and lands on real ones of o
 /* Not a defect to fix in code — a catalogue fact to settle with 1000trax,
    pinned here so it cannot drift quietly. The Small Venue plan's feature
    list promises "8 genrer"; this catalogue can fill five of them. */
-test("three of our genres have nothing behind them in this catalogue", () => {
+test("only Klassisk has nothing behind it in this catalogue", () => {
+  /* Was three. Reading /services/playlist/metrics rather than the genre
+     config inlined in their player turned up `house`, `downbeat` and
+     `unplugged` as real pools — which are three of the chips we show. */
   const covered = new Set(Object.values(TRAX_GENRE));
   const uncovered = GENRES.map((g) => g.id).filter((g) => !covered.has(g));
   assert.deepEqual(uncovered.sort(), [...GENRES_WITHOUT_SOURCE].sort());
-  assert.equal(covered.size, 5);
+  assert.deepEqual(uncovered, ["classical"]);
+  assert.equal(covered.size, GENRES.length - 1);
 });

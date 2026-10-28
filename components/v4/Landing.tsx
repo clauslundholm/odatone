@@ -16,7 +16,6 @@ import {
   CURATED_PHOTO,
   HERO_PHOTO,
   MOOD_PHOTO,
-  artistPhoto,
   genrePhoto,
 } from "@/lib/v4/photos";
 import { BUILDER_ID } from "@/lib/v4/anchors";
@@ -68,7 +67,6 @@ export default function Landing({
       {week ? <SignedInHero locale={l} week={week} /> : <Hero locale={l} />}
       <MoodRow locale={l} />
       <CuratedRow locale={l} />
-      <ArtistRow locale={l} />
       <GenreRow locale={l} />
     </div>
   );
@@ -442,43 +440,19 @@ function CuratedRow({ locale: l }: { locale: Locale }) {
   );
 }
 
-function ArtistRow({ locale: l }: { locale: Locale }) {
-  /* Real names off the catalogue rather than a fixed list, so this row
-     cannot outlive the artists in it. 1000trax returns no artist at all
-     today (docs/1000trax-api-requirements.md §2.4) — when the real
-     catalogue lands, either this fills with real names or the section goes.
-     The portraits are positional for the same reason: they belong to the
-     row, not to any one of these placeholder names.
+/* "Mød musikerne" used to sit here. It read real names off the
+   catalogue so it could never outlive the artists in it, and that is
+   exactly what happened: the 1000trax playlist service carries no
+   artist on a composition at all (TRAX_GAPS.artist), so with the real
+   catalogue in place every one of the 600 tracks is credited to
+   "Odatone" and the row collapsed to a single portrait.
 
-     This shows eight of fifteen and no longer offers "Alle musikere" —
-     /artister is gone. Those seven are reachable by playing; a dedicated
-     page for them is a decision to take with the real catalogue, not with
-     placeholder names. */
-  const artists = useMemo(() => [...new Set(TRACKS.map((x) => x.artist))].slice(0, 8), []);
-  return (
-    <section>
-      <SectionHead title={t.sections.artists[l]} />
-      {/* One row, spread across the column — not a wrapping grid. Eight
-          76px portraits and their names fit the column the design draws
-          them in, and a ninth on a second line would read as a different
-          section rather than as more of this one. */}
-      <ul className="oda-swipe oda-swipe--row !gap-3 items-start">
-        {artists.map((a, i) => (
-          <li key={a} className="flex w-[84px] min-w-0 flex-col items-center gap-2.5 text-center sm:w-auto">
-            <img
-              src={artistPhoto(i)}
-              alt=""
-              width={76}
-              height={76}
-              className="h-[76px] w-[76px] rounded-full object-cover"
-            />
-            <span className="text-[0.8125rem] leading-tight text-ink-2">{a}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
+   Its own note said the choice was "either this fills with real names
+   or the section goes". It goes. The section comes back the day
+   1000trax expose credits — the portraits are still in
+   lib/v4/photos.ts and the heading is still content.sections.artists.
+   Until then the landing page should not illustrate a claim the
+   catalogue cannot support. */
 
 function GenreRow({ locale: l }: { locale: Locale }) {
   const p = usePlayer();
