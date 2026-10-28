@@ -29,6 +29,10 @@ import { LinkButton } from "@/components/ui/Button";
  * The site-wide player. Mounted once in the root layout, above the footer
  * and below everything else, so audio keeps running across navigation.
  * Translucent rather than solid — the page runs underneath it.
+ *
+ * Full-bleed, with the same gutters as the Shell header: the bar was
+ * centred inside a 1320px column, which on a wide screen left it an
+ * island under chrome and content that both run to the edges.
  */
 export default function PlayerDock() {
   const p = usePlayer();
@@ -72,7 +76,7 @@ export default function PlayerDock() {
         style={{ height: "min(68vh, 600px)" }}
         aria-hidden={!open}
       >
-        <div className="mx-auto flex h-full w-full max-w-[1320px] flex-col px-6 sm:px-8">
+        <div className="flex h-full w-full flex-col px-4 sm:px-6">
           <div className="flex items-center gap-3 py-4">
             <div className="flex gap-0.5 rounded-full bg-surface-2 p-0.5">
               {(["queue", "library"] as const).map((k) => (
@@ -136,7 +140,7 @@ export default function PlayerDock() {
 
       {/* ------------------------------ the bar ------------------------------ */}
       <div className="fixed inset-x-0 bottom-0 z-[70] h-[var(--dock-h)] border-t border-line bg-bg/80 backdrop-blur-2xl backdrop-saturate-150">
-        <div className="mx-auto flex h-full w-full max-w-[1320px] items-center gap-4 px-4 sm:px-8">
+        <div className="flex h-full w-full items-center gap-4 px-4 sm:px-6">
           {/* left: what's on */}
           <div
             className={`flex min-w-0 flex-1 items-center gap-3 md:flex-none ${
