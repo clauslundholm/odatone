@@ -2,7 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { resolveSupabaseEnv } from "./env";
-import { LOGIN_PATH, isPublicPath, mayEnter, parseRole, portalFor } from "../tenancy";
+import {
+  LOGIN_PATH,
+  isPublicPath,
+  isStaffRole,
+  landingFor,
+  mayEnter,
+  parseRole,
+  portalFor,
+} from "../tenancy";
 
 /* These three are exactly what @supabase/ssr's applyServerStorage passes as
    setAll's second argument (see node_modules/@supabase/ssr/dist/main/cookies.js).
@@ -143,9 +151,35 @@ export async function updateSession(request: NextRequest) {
 
   const role = parseRole(profile?.role);
 
-  /* A customer who finds /admin, or staff who wander into /my-odatone, gets
-     404, not 403 — same reasoning as the missing-env branch above. */
-  if (!mayEnter(path, role)) return notFound(request, response);
+  /* A customer who finds /admin gets 404, not 403 — same reasoning as the
+     missing-env branch above: there is no reason to confirm the staff
+     backend's existence to someone who may not use it.
+
+     Staff who wander into /my-odatone used to get the same 404, and that
+     was the wrong half of a symmetrical rule. Nothing is being hidden in
+     this direction: /my-odatone is linked from the header of the public
+     front page, so its existence is not a secret a 404 could keep. What
+     the 404 did instead was strand the one group who could do nothing
+     about it — a staff member still signed in from /admin, following
+     the site's own "Log ind" link, lands on a page that says the page
+     does not exist. It took a reproduction in three browsers to work
+     out that the session, not the route, was the thing missing.
+
+     So they are sent where they already belong, which is exactly what
+     app/admin/login's signIn does for a customer who types their
+     credentials into the staff door: `landingFor(role)`. One rule, two
+     places, same answer. The search string is dropped deliberately — a
+     `?next=/my-odatone/billing` carried into /admin would only invite a
+     bounce straight back out again. */
+  if (!mayEnter(path, role)) {
+    if (portal === "portal" && role && isStaffRole(role)) {
+      const url = request.nextUrl.clone();
+      url.pathname = landingFor(role);
+      url.search = "";
+      return carryOver(response, NextResponse.redirect(url));
+    }
+    return notFound(request, response);
+  }
 
   return response;
 }
