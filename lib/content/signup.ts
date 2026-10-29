@@ -84,18 +84,31 @@ export const signup = {
       skip: { da: "Spring over, og betal senere", en: "Skip, and pay later" } as L10n,
     },
     play: {
-      heading: { da: "Så er der lyd.", en: "You're live." } as L10n,
+      heading: { da: "Tjek din mail.", en: "Check your email." } as L10n,
+      /* The signup no longer sets a password, so this step can no longer
+         say the account is ready — it is created, but it has no way in
+         until the link is opened. Saying otherwise would send them to a
+         sign-in form with nothing to type, which is a worse dead end than
+         an honest "check your email". */
       lede: {
-        da: "Kontoen er klar. Log ind med {email} og den adgangskode, du lige valgte.",
-        en: "Your account is ready. Sign in with {email} and the password you just chose.",
+        da: "Vi har sendt et link til {email}. Åbn det for at vælge en adgangskode og gøre kontoen færdig. Linket er gyldigt i 24 timer.",
+        en: "We have sent a link to {email}. Open it to choose a password and finish setting up your account. The link is good for 24 hours.",
       } as L10n,
-      openPlayer: { da: "Åbn afspilleren", en: "Open the player" } as L10n,
+      /* The player needs no account, so there is something to do while
+         the mail arrives rather than a dead screen. */
+      openPlayer: { da: "Hør biblioteket imens", en: "Listen while you wait" } as L10n,
       openPortal: { da: "Gå til Mit Odatone", en: "Go to My Odatone" } as L10n,
+      missing: {
+        da: "Ingen mail? Kig i spamfilteret — den kommer fra {sender}.",
+        en: "No email? Check your spam filter — it comes from {sender}.",
+      } as L10n,
       /* Said plainly, because the invoice cannot be issued without it and
-         the customer is the only one who can supply it. */
+         the customer is the only one who can supply it. Sequenced after
+         the link now: Indstillinger is behind the password they have not
+         chosen yet. */
       cvrNote: {
-        da: "Husk at udfylde jeres CVR-nummer under Indstillinger — vi kan ikke sende en faktura uden.",
-        en: "Remember to add your CVR number under Settings — we cannot issue an invoice without it.",
+        da: "Når du er logget ind: husk jeres CVR-nummer under Indstillinger — vi kan ikke sende en faktura uden.",
+        en: "Once you are signed in, add your CVR number under Settings — we cannot issue an invoice without it.",
       } as L10n,
     },
   },

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -12,6 +11,7 @@ import { signup as tDefaults } from "@/lib/content/signup";
 import { href, type Locale } from "@/lib/i18n";
 import { kr } from "@/lib/format";
 import { quote, type Plan } from "@/lib/pricing";
+import { SITE } from "@/lib/site";
 import type { ActionResult, FieldErrors } from "@/lib/forms";
 
 /**
@@ -178,16 +178,21 @@ function ProfileStep({
         required
         error={errors.email ? errorText(errors.email, l) : undefined}
       />
-      <Field
-        label={t.passwordLabel[l]}
-        name="password"
-        type="password"
-        autoComplete="new-password"
-        minLength={8}
-        required
-        hint={t.passwordHint[l]}
-        error={errors.password ? errorText(errors.password, l) : undefined}
-      />
+      {/* No password here. The account is created without one and GoTrue
+          mails an invitation instead; the customer picks a password on the
+          link, which is what supabase/templates/invite.html has always
+          said it would do ("vælg en adgangskode og kom i gang").
+
+          submitSignup already branches on whether a password was
+          submitted — createUser when there is one, inviteUserByEmail when
+          there is not — so taking the field away is the whole change on
+          this side. The app has always come through the second branch.
+
+          It also closes something the inline password left open, noted in
+          app/actions.ts at the time: creating the account outright needed
+          `email_confirm: true`, which marks an address verified that
+          nobody has proved. Anyone could sign up as anyone else's email.
+          A link that has to be opened proves the address by construction. */}
 
       {formError && (
         <p role="alert" className="text-[0.8125rem] text-bad">
@@ -265,20 +270,18 @@ function PlayStep({ locale: l, email }: { locale: Locale; email: string }) {
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
         {/* The front page is the player now — there is no separate
-            /afspiller to send them to. */}
+            /afspiller to send them to. The two links to /my-odatone that
+            used to sit beside this are gone: until the emailed link is
+            opened there is no password, so both led to a sign-in form
+            they could not fill in. */}
         <LinkButton href={href(l, null)} size="lg">
           {t.openPlayer[l]}
         </LinkButton>
-        <LinkButton href="/my-odatone" variant="outline" size="lg">
-          {t.openPortal[l]}
-        </LinkButton>
       </div>
+      <p className="u-label text-ink-3">{t.missing[l].replace("{sender}", SITE.email)}</p>
       {/* Not a nicety: invoice issuing refuses without a CVR, and the
           customer is the only one who can supply it. */}
       <p className="u-label text-ink-3">{t.cvrNote[l]}</p>
-      <Link href="/my-odatone/settings" className="u-link text-[0.875rem]">
-        {tDefaults.modal.play.openPortal[l]}
-      </Link>
     </div>
   );
 }

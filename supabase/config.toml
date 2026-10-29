@@ -159,7 +159,30 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Every URL the app actually asks GoTrue to redirect to. This list is an
+# *exact* allowlist: a `redirectTo` that is not on it is not rejected with
+# an error, it is silently replaced by `site_url` above. That failure is
+# invisible from the sending side and only shows up as an invited customer
+# landing on the front page with their token still in the URL fragment and
+# no set-password form in sight.
+#
+#   /my-odatone  — the customer invite (app/actions.ts) and the password
+#                  reset (app/my-odatone/nulstil/actions.ts)
+#   /admin       — the staff invite (app/admin/users/actions.ts)
+#
+# The http variants are here because that is what local dev serves; the
+# https one was the only entry before and could never match a local link.
+# The hosted project keeps its own copy of this list in the dashboard
+# (Authentication → URL Configuration) and needs the same paths against
+# the real domain.
+additional_redirect_urls = [
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3000/my-odatone",
+  "http://127.0.0.1:3000/admin",
+  "http://localhost:3000",
+  "http://localhost:3000/my-odatone",
+  "http://localhost:3000/admin",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
