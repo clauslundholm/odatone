@@ -382,7 +382,7 @@ export function overPlan(account: Account): number {
  * What the week has playing right now, and how much of it there is.
  *
  * Read for the signed-in front page's hero, which the design gives its
- * own headline — "Fredag kl. 17 spiller. Resten passer sig selv." — in
+ * own headline — "Eftermiddag spiller. Resten passer sig selv." — in
  * place of the marketing one. That sentence is only true if something
  * actually is scheduled at this moment, so it is resolved here against
  * `schedule_blocks` rather than asserted.

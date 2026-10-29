@@ -77,6 +77,43 @@ export default function Landing({
 /** Curated lists, defined as filters rather than as stored track ids — so
     importing a larger catalogue fills them out on its own, exactly the way
     the mobile app's src/data/catalog.ts already does it. */
+/**
+ * One café day, in five steps, each a little quicker than the last.
+ *
+ * These were four unrelated lists — a morning, a lunch, a Friday and a
+ * Danish-vocal one — which between them described no particular room.
+ * A café IS the room this product is sold into ("Til caféen, salonen og
+ * den lille butik", lib/pricing.ts), and what a café actually needs is
+ * not four moods but one day that rises: something that opens quietly
+ * at seven and is still working at six when the tables are full.
+ *
+ * The tempo windows are not taste. They come from a histogram of the
+ * real 1000trax catalogue, counted per genre per BPM bucket off
+ * /services/playlist/metrics, which says plainly where the music is:
+ *
+ *   - below 80 the library is thin and almost entirely Chillout and
+ *     Bossa, which is exactly what a 7am room wants anyway;
+ *   - 85-105 is the fat middle, where Pop and R&B live;
+ *   - House does not exist at all below 105, so it can only appear in
+ *     the evening step;
+ *   - above 120 there is nearly nothing, so the arc tops out at 120
+ *     rather than at BPM_MAX.
+ *
+ * Every step was then checked against the shipped catalogue to make
+ * sure it answers with more music than its own hours, so no slot
+ * repeats itself: the thinnest, Morgenåbning, returns 251 minutes for a
+ * three-hour window.
+ *
+ * The genres overlap on purpose. Bossa runs through all five, and the
+ * steps are 10-15 BPM wide with their edges touching, so moving from
+ * one to the next changes the pace without changing the room.
+ *
+ * The Danish-vocal tile is gone rather than carried over. Its blurb
+ * said "Kun dansk vokal" and its rule set no language at all — these
+ * presets only carry `genres` and `bpm` — so it promised a filter it
+ * did not apply. Language belongs in the builder, which has the
+ * control for it.
+ */
 const CURATED: {
   id: string;
   label: L10n;
@@ -89,34 +126,46 @@ const CURATED: {
   {
     id: "morning",
     label: { da: "Morgenåbning", en: "Opening hours" },
-    when: { da: "Hverdage 7–10", en: "Weekdays 7–10" },
-    blurb: { da: "Rolig start, før de første kunder", en: "A quiet start, before the first customers" },
-    genres: ["ambient", "acoustic"],
-    bpm: [BPM_MIN, 90],
+    when: { da: "7–10", en: "7–10" },
+    blurb: { da: "Stille nok til at høre kaffemaskinen", en: "Quiet enough to hear the coffee machine" },
+    genres: ["ambient", "jazz"],
+    bpm: [BPM_MIN, 80],
+  },
+  {
+    id: "midmorning",
+    label: { da: "Formiddag", en: "Mid-morning" },
+    when: { da: "10–12", en: "10–12" },
+    blurb: { da: "Vågen, men stadig i baggrunden", en: "Awake, still in the background" },
+    genres: ["ambient", "acoustic", "jazz"],
+    bpm: [80, 95],
   },
   {
     id: "lunch",
-    label: { da: "Frokostpuls", en: "Lunch pulse" },
-    when: { da: "Kl. 11–14", en: "11–14" },
-    blurb: { da: "Let bossa og soul til frokost", en: "Light bossa and soul over lunch" },
-    genres: ["jazz", "acoustic"],
-    bpm: [85, 110],
+    label: { da: "Frokost", en: "Lunch" },
+    when: { da: "12–14", en: "12–14" },
+    blurb: { da: "Let bossa og soul, mens der er fuldt", en: "Light bossa and soul while the room is full" },
+    genres: ["jazz", "rnb", "acoustic"],
+    bpm: [90, 105],
   },
   {
-    id: "friday",
-    label: { da: "Fredag kl. 17", en: "Friday at five" },
-    when: { da: "Fredag fra 17", en: "Friday from 17" },
-    blurb: { da: "Når rummet fyldes og alle taler højere", en: "When the room fills and everyone talks louder" },
-    genres: ["pop", "rnb"],
-    bpm: [105, BPM_MAX],
+    id: "afternoon",
+    label: { da: "Eftermiddag", en: "Afternoon" },
+    when: { da: "14–17", en: "14–17" },
+    blurb: { da: "Lidt mere puls, uden at skubbe", en: "A little more pulse, without pushing" },
+    genres: ["pop", "rnb", "jazz"],
+    bpm: [95, 110],
   },
   {
     id: "evening",
-    label: { da: "Dansk på anlægget", en: "Danish on the system" },
-    when: { da: "Hele dagen", en: "All day" },
-    blurb: { da: "Kun dansk vokal, hele dagen", en: "Danish vocals only, all day" },
-    genres: ["pop"],
-    bpm: [90, 120],
+    /* Not "Aften": that is already the name of a MOOD (lib/tracks.ts),
+       and the two rows sit one above the other on this page. Two
+       different things called the same thing, a thumb's width apart,
+       is a worse answer than a slightly longer name. */
+    label: { da: "Efter fyraften", en: "After work" },
+    when: { da: "Fra 17", en: "From 17" },
+    blurb: { da: "Rummet fyldes, og alle taler højere", en: "The room fills and everyone talks louder" },
+    genres: ["pop", "electronic", "jazz"],
+    bpm: [105, 120],
   },
 ];
 
@@ -139,7 +188,7 @@ const LIST_CAP = 40;
 const FEATURED = CURATED[2]!;
 
 /** Which curated list the current filters are, if any — so the rail can
-    say "Spiller fra Fredag kl. 17" without a second notion of a queue
+    say "Spiller fra Eftermiddag" without a second notion of a queue
     source to keep in step with the filters. */
 function curatedFor(f: Filters): Curated | null {
   return (
@@ -402,7 +451,10 @@ function CuratedRow({ locale: l }: { locale: Locale }) {
   return (
     <section>
       <SectionHead title={t.sections.lists[l]} />
-      <ul className="oda-swipe oda-swipe--grid sm:grid-cols-2 xl:grid-cols-4">
+      {/* Five across, matching the mood row above — at four columns the
+          fifth step dropped onto a line of its own and the day stopped
+          reading as one run. */}
+      <ul className="oda-swipe oda-swipe--grid sm:grid-cols-3 xl:grid-cols-5">
         {CURATED.map((c) => {
           const matches = filterTracks(curatedFilters(c));
           return (

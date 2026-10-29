@@ -26,34 +26,51 @@ export const DEMO_LOCATION_NAME: L10n = { da: "Din butik", en: "Your shop" };
     on, so a demo block looks like the tile it was dragged from. */
 export const DEMO_LISTS: { id: string; name: L10n; basedOn: string }[] = [
   { id: "demo-morning", name: { da: "Morgenåbning", en: "Opening hours" }, basedOn: "morning" },
-  { id: "demo-lunch", name: { da: "Frokostpuls", en: "Lunch pulse" }, basedOn: "lunch" },
-  { id: "demo-friday", name: { da: "Fredag kl. 17", en: "Friday at five" }, basedOn: "friday" },
-  { id: "demo-evening", name: { da: "Dansk på anlægget", en: "Danish on the system" }, basedOn: "evening" },
+  { id: "demo-midmorning", name: { da: "Formiddag", en: "Mid-morning" }, basedOn: "midmorning" },
+  { id: "demo-lunch", name: { da: "Frokost", en: "Lunch" }, basedOn: "lunch" },
+  { id: "demo-afternoon", name: { da: "Eftermiddag", en: "Afternoon" }, basedOn: "afternoon" },
+  { id: "demo-evening", name: { da: "Efter fyraften", en: "After work" }, basedOn: "evening" },
 ];
 
 const H = (hour: number, min = 0) => hour * 60 + min;
 
-/* A café's week, and a plausible one: the mornings are quiet, lunch
-   picks up, Friday runs late and Sunday closes early. It is here to be
-   edited, so it is deliberately not perfect — there are gaps to fill. */
+/* A café's week, and a plausible one: every weekday runs the same
+   rising day — quiet at eight, a little quicker every few hours, fullest
+   after five — while Saturday opens later and Sunday closes early.
+
+   This is the arc the curated lists describe, laid into actual hours,
+   so the Ugeplan shows what "it turns itself up" means rather than
+   asserting it. It is here to be edited, so it is deliberately not
+   perfect: nobody has filled Sunday evening, and that is the point. */
 export function starterWeek(): ScheduleBlock[] {
   const out: ScheduleBlock[] = [];
   let n = 0;
   const add = (weekday: number, from: number, to: number, playlistId: string) =>
     out.push({ id: `demo-${n++}`, playlistId, weekday, from, to });
 
+  /* Monday to Thursday: the whole arc, start to finish. */
   for (let d = 0; d < 4; d++) {
     add(d, H(8), H(10), "demo-morning");
-    add(d, H(10), H(14), "demo-lunch");
+    add(d, H(10), H(12), "demo-midmorning");
+    add(d, H(12), H(14), "demo-lunch");
+    add(d, H(14), H(17), "demo-afternoon");
     add(d, H(17), H(21), "demo-evening");
   }
+  /* Friday opens half an hour earlier and runs to midnight. */
   add(4, H(7, 30), H(10), "demo-morning");
-  add(4, H(10), H(14), "demo-lunch");
-  add(4, H(17), H(24), "demo-friday");
+  add(4, H(10), H(12), "demo-midmorning");
+  add(4, H(12), H(14), "demo-lunch");
+  add(4, H(14), H(17), "demo-afternoon");
+  add(4, H(17), H(24), "demo-evening");
+  /* Saturday starts at nine and skips the formiddag step — brunch runs
+     straight into the afternoon. */
   add(5, H(9), H(12), "demo-morning");
-  add(5, H(12), H(17), "demo-lunch");
-  add(5, H(17), H(24), "demo-friday");
-  add(6, H(10), H(16), "demo-lunch");
+  add(5, H(12), H(15), "demo-lunch");
+  add(5, H(15), H(18), "demo-afternoon");
+  add(5, H(18), H(24), "demo-evening");
+  /* Sunday is short, and deliberately unfinished. */
+  add(6, H(10), H(13), "demo-midmorning");
+  add(6, H(13), H(16), "demo-lunch");
   return out;
 }
 

@@ -44,12 +44,19 @@ export const MOOD_PHOTO: Record<Mood, string> = {
   energy: PHOTO.dj,
 };
 
-/** Keyed by the curated list's id in components/v4/Landing.tsx. */
+/* Keyed by the curated list's id in components/v4/Landing.tsx. One per
+   list, and all five are needed: a missing key renders
+   `src={undefined}`, which is a silent grey rectangle rather than an
+   error. Chosen to walk through a café's own day — behind the counter,
+   out on the terrace, over lunch, a singer in the afternoon, a full
+   room after five — and NOT to reuse PHOTO.bar, which is already the
+   hero at the top of this same page. */
 export const CURATED_PHOTO: Record<string, string> = {
   morning: PHOTO.barista,
-  lunch: PHOTO.terrace,
-  friday: PHOTO.bar,
-  evening: PHOTO.stage,
+  midmorning: PHOTO.terrace,
+  lunch: PHOTO.cafeGuitar,
+  afternoon: PHOTO.singer,
+  evening: PHOTO.club,
 };
 
 /* Genres and musicians are positional rather than keyed: our genre ids

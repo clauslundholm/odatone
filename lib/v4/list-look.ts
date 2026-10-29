@@ -46,10 +46,17 @@ const PALETTE: ListLook[] = [
    and by the Danish name, because `based_on` is free text written when
    the copy was made and may hold either. */
 const BY_SOURCE: Record<string, number> = {
-  morning: 0, "morgenåbning": 0,
-  lunch: 1, frokostpuls: 1,
+  morning: 0, "morgenåbning": 0,        // barista, a café opening up
+  midmorning: 1, formiddag: 1,          // terrace, late morning sun
+  lunch: 2, frokost: 2,                 // café guitar over lunch
+  afternoon: 10, eftermiddag: 10,       // singer, warm and steady
+  evening: 11, "efter fyraften": 11,    // club, the room filling
+  /* The names the arc replaced. A list copied from one of them before
+     today still carries that text in `based_on`, and should keep the
+     picture it was made with rather than falling through to the hash. */
+  frokostpuls: 2,
   friday: 3, "fredag kl. 17": 3,
-  evening: 8, "dansk på anlægget": 8,
+  "dansk på anlægget": 8,
 };
 
 function hash(s: string): number {
