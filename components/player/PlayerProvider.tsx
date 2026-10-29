@@ -84,7 +84,25 @@ export default function PlayerProvider({
   locale: Locale;
   children: ReactNode;
 }) {
+  /** The deck currently being heard. Always one of `decks`, and swapped
+      at the end of a crossfade — everything else in this file reads the
+      active deck through this ref, so the rest of the transport did not
+      have to learn that there are now two of them. */
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  /** Two elements, because a crossfade is two tracks audible at once and
+      one element can only hold one. The idle one is silent and paused
+      except during a fade. */
+  const decks = useRef<HTMLAudioElement[]>([]);
+  /** The fade in flight, or null. `from` is the outgoing deck (still the
+      active one until the fade lands), `to` the incoming. */
+  const fade = useRef<{
+    from: HTMLAudioElement;
+    to: HTMLAudioElement;
+    toIndex: number;
+    start: number;
+    seconds: number;
+    raf: number;
+  } | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataRef = useRef<Uint8Array | null>(null);
@@ -123,6 +141,12 @@ export default function PlayerProvider({
   const signedInRef = useRef(signedIn);
   signedInRef.current = signedIn;
 
+  /* The crossfade is driven from a `timeupdate` handler bound once on
+     mount, so everything it needs has to be reachable through a ref
+     rather than through a closure that would be stale by the second
+     track. */
+  const liveRef = useRef({ queue: [] as Track[], index: 0, shuffle: false, volume: 0.8, muted: false });
+
   /* ---------------- queue ---------------- */
 
   const matching = useMemo(() => filterTracks(filters), [filters]);
@@ -133,6 +157,136 @@ export default function PlayerProvider({
   }, [matching, order]);
 
   const current = queue.length ? (queue[Math.min(index, queue.length - 1)] ?? null) : null;
+
+  liveRef.current = { queue, index, shuffle, volume, muted };
+
+  /* ---------------- crossfade ---------------- */
+
+  /** How long the two tracks overlap. Short enough that a listener
+      hears one room rather than a mashup, long enough that nothing
+      reads as a cut. Capped against the outgoing track's own length
+      because the demo tier serves 60-second cuts, and a six-second
+      fade out of sixty is a tenth of the track. */
+  const fadeSecondsFor = (d: number) => Math.max(1.5, Math.min(6, d * 0.12));
+
+  /** The target element volume for whoever is being heard. The fade
+      scales this rather than replacing it, so turning the volume down
+      mid-crossfade does what it says. */
+  const userVolume = () => (liveRef.current.muted ? 0 : liveRef.current.volume);
+
+  /**
+   * Abandon a fade in flight.
+   *
+   * Always by reverting: the incoming deck is stopped and the outgoing
+   * one — which is still the active deck, since the swap only happens
+   * when a fade completes — is returned to full volume and keeps
+   * playing from where it is. That makes every interruption behave the
+   * same way, whether it came from Pause, from a skip, or from a seek
+   * back out of the fade window, and it means nothing can leave the two
+   * decks in a state where both are audible.
+   */
+  const stopFade = useCallback((_reason: "revert" | "done") => {
+    const f = fade.current;
+    if (!f) return;
+    cancelAnimationFrame(f.raf);
+    fade.current = null;
+    if (_reason === "revert") {
+      f.to.pause();
+      f.to.currentTime = 0;
+      f.to.volume = 0;
+      f.from.volume = userVolume();
+    }
+  }, []);
+
+  /** The index the queue would move to on its own. Mirrors `next` —
+      shuffle included — because a crossfade has to arrive at the same
+      track the Next button would. */
+  const upcomingIndex = () => {
+    const { queue: q, index: i, shuffle: sh } = liveRef.current;
+    if (q.length < 2) return -1;
+    return sh ? randomOther(i, q.length) : (i + 1) % q.length;
+  };
+
+  /**
+   * Begin overlapping the next track, if this is the moment for it.
+   *
+   * Called from the active deck's own `timeupdate`, which fires about
+   * four times a second — often enough to catch the window, cheap
+   * enough to run unconditionally.
+   */
+  const maybeStartFade = useCallback(
+    (from: HTMLAudioElement) => {
+      if (fade.current) return;
+      if (from.paused || !wantsPlay.current) return;
+      const d = from.duration;
+      if (!Number.isFinite(d) || d <= 0) return;
+
+      const full = fadeSecondsFor(d);
+      const remaining = d - from.currentTime;
+      if (remaining > full) return;
+      /* Clamped to what is actually left rather than the nominal
+         length. `timeupdate` only fires about four times a second, so
+         the window is entered a fraction late; without this the fade
+         would still be rising after the outgoing track had finished,
+         and the overlap would end in silence instead of in the next
+         track. */
+      const seconds = Math.max(0.4, Math.min(full, remaining));
+
+      const toIndex = upcomingIndex();
+      if (toIndex < 0) return;
+      const nextTrack = liveRef.current.queue[toIndex];
+      const to = decks.current.find((a) => a !== from);
+      if (!nextTrack || !to) return;
+
+      to.setAttribute("data-track", nextTrack.id);
+      to.src = sourceFor(nextTrack.src, signedInRef.current);
+      to.currentTime = 0;
+      to.volume = 0;
+      void to.play().catch(() => {
+        /* Autoplay refused on the second deck — rare, since the first
+           one is already playing off a gesture. Leave it: the outgoing
+           track plays to its end and `ended` advances as it always
+           did. */
+        stopFade("revert");
+      });
+
+      const start = performance.now();
+      const step = () => {
+        const f = fade.current;
+        if (!f) return;
+        const t = Math.min(1, (performance.now() - f.start) / (f.seconds * 1000));
+        const v = userVolume();
+        /* Equal-power rather than linear. Two linear ramps crossing at
+           half volume sum to a dip in the middle, which is the gap this
+           is meant to remove. */
+        f.from.volume = Math.max(0, Math.min(1, Math.cos((t * Math.PI) / 2) * v));
+        f.to.volume = Math.max(0, Math.min(1, Math.sin((t * Math.PI) / 2) * v));
+        if (t < 1) {
+          f.raf = requestAnimationFrame(step);
+          return;
+        }
+        /* Landed. The incoming deck becomes the active one before the
+           index moves, so the load effect finds its `data-track`
+           already matching and leaves the source alone. */
+        f.from.pause();
+        f.from.currentTime = 0;
+        f.from.volume = v;
+        audioRef.current = f.to;
+        fade.current = null;
+        setElapsed(f.to.currentTime);
+        setDuration(f.to.duration || nextTrack.duration);
+        /* The incoming deck started playing while it was still the idle
+           one, so its own `play` event was ignored — the handlers only
+           listen to whichever deck is active. Without this the dock
+           offers a Play button over music that is already playing. */
+        setPlaying(!f.to.paused);
+        setIndex(f.toIndex);
+      };
+
+      fade.current = { from, to, toIndex, start, seconds, raf: requestAnimationFrame(step) };
+    },
+    [stopFade],
+  );
 
   /* ---------------- element ---------------- */
 
@@ -158,37 +312,84 @@ export default function PlayerProvider({
       }
     }
 
-    const el = new Audio();
-    el.preload = "metadata";
-    el.crossOrigin = "anonymous";
+    const made = [0, 1].map(() => {
+      const a = new Audio();
+      /* "auto", not "metadata": the whole point is that the next track
+         is already buffered when the fade starts, so the overlap is
+         music rather than a stall. */
+      a.preload = "auto";
+      a.crossOrigin = "anonymous";
+      return a;
+    });
+    decks.current = made;
+    const [el] = made;
     audioRef.current = el;
     setReady(true);
 
-    const onTime = () => setElapsed(el.currentTime);
-    const onMeta = () => setDuration(el.duration || 0);
-    const onEnd = () => setIndex((i) => (queueLen.current ? (i + 1) % queueLen.current : 0));
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
+    /* Only the deck being heard drives the interface. The other one is
+       either silent or half-way through a fade, and letting it set the
+       clock would make the scrubber jump mid-crossfade. */
+    const isActive = (a: HTMLAudioElement) => a === audioRef.current;
 
-    el.addEventListener("timeupdate", onTime);
-    el.addEventListener("loadedmetadata", onMeta);
-    el.addEventListener("ended", onEnd);
-    el.addEventListener("play", onPlay);
-    el.addEventListener("pause", onPause);
+    const onTime = (e: Event) => {
+      const a = e.currentTarget as HTMLAudioElement;
+      if (!isActive(a)) return;
+      setElapsed(a.currentTime);
+      maybeStartFade(a);
+    };
+    const onMeta = (e: Event) => {
+      const a = e.currentTarget as HTMLAudioElement;
+      if (isActive(a)) setDuration(a.duration || 0);
+    };
+    const onEnd = (e: Event) => {
+      const a = e.currentTarget as HTMLAudioElement;
+      /* The outgoing deck ends during every successful fade, and the
+         index has already moved — advancing again would skip a track.
+         This is the fallback for when no fade ran at all: a duration
+         the browser never reported, a queue of one, a track shorter
+         than the fade. */
+      if (!isActive(a) || fade.current) return;
+      setIndex((i) => (queueLen.current ? (i + 1) % queueLen.current : 0));
+    };
+    const onPlay = (e: Event) => { if (isActive(e.currentTarget as HTMLAudioElement)) setPlaying(true); };
+    const onPause = (e: Event) => {
+      const a = e.currentTarget as HTMLAudioElement;
+      if (!isActive(a)) return;
+      /* Reaching the end of a track sets `paused` and fires this, by
+         spec — which during a crossfade is the outgoing deck running
+         out while the incoming one is still coming up. Treating that
+         as "the listener stopped" would put a Play button over music
+         that is audibly still playing, on every single track change. */
+      if (fade.current && a === fade.current.from) return;
+      setPlaying(false);
+    };
+
+    for (const a of made) {
+      a.addEventListener("timeupdate", onTime);
+      a.addEventListener("loadedmetadata", onMeta);
+      a.addEventListener("ended", onEnd);
+      a.addEventListener("play", onPlay);
+      a.addEventListener("pause", onPause);
+    }
 
     return () => {
-      el.removeEventListener("timeupdate", onTime);
-      el.removeEventListener("loadedmetadata", onMeta);
-      el.removeEventListener("ended", onEnd);
-      el.removeEventListener("play", onPlay);
-      el.removeEventListener("pause", onPause);
+      stopFade("revert");
+      for (const a of made) {
+        a.removeEventListener("timeupdate", onTime);
+        a.removeEventListener("loadedmetadata", onMeta);
+        a.removeEventListener("ended", onEnd);
+        a.removeEventListener("play", onPlay);
+        a.removeEventListener("pause", onPause);
+      }
       // Save before tearing down: a language switch remounts this whole
       // tree, and this is the only hook that runs in that case.
       if (snapshot.current) {
         saveSnapshot({ ...snapshot.current, time: el.currentTime, playing: !el.paused });
       }
-      el.pause();
-      el.src = "";
+      for (const a of made) {
+        a.pause();
+        a.src = "";
+      }
       cancelAnimationFrame(rafRef.current);
       void ctxRef.current?.close();
     };
@@ -210,6 +411,12 @@ export default function PlayerProvider({
        loaded and the next one arrives full length. */
     const url = sourceFor(current.src, signedInRef.current);
     if (el.getAttribute("data-track") !== current.id) {
+      /* The track changed for a reason that is not a landed fade — a
+         new mood, a filter, a track picked out of the queue. Writing a
+         src onto a deck that is half-way through fading out would
+         leave the incoming one playing underneath it with nothing to
+         fade into. */
+      stopFade("revert");
       el.setAttribute("data-track", current.id);
       el.src = url;
       setElapsed(0);
@@ -285,11 +492,13 @@ export default function PlayerProvider({
   }, [queue.length]);
 
   useEffect(() => {
+    /* `muted` goes on both decks so an incoming track cannot arrive
+       loud. The volume itself is only written to the active deck when
+       no fade is running — during one, the ramp owns both volumes and
+       is already scaling them by this value. */
+    for (const a of decks.current) a.muted = muted;
     const el = audioRef.current;
-    if (el) {
-      el.volume = muted ? 0 : volume;
-      el.muted = muted;
-    }
+    if (el && !fade.current) el.volume = muted ? 0 : volume;
   }, [volume, muted]);
 
   /* ---------------- analyser ---------------- */
@@ -303,11 +512,14 @@ export default function PlayerProvider({
     if (!AC) return;
     try {
       const ac = new AC();
-      const src = ac.createMediaElementSource(el);
       const analyser = ac.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.78;
-      src.connect(analyser);
+      /* Both decks, or the spectrum would fall to nothing for the
+         length of every crossfade and then snap back. createMediaElement
+         Source may only be called once per element, which is why the
+         decks are made once on mount and never replaced. */
+      for (const a of decks.current) ac.createMediaElementSource(a).connect(analyser);
       analyser.connect(ac.destination);
       ctxRef.current = ac;
       analyserRef.current = analyser;
@@ -380,6 +592,7 @@ export default function PlayerProvider({
         const i = queue.findIndex((t) => t.id === track.id);
         if (i >= 0) setIndex(i);
         if (el.getAttribute("data-track") !== track.id) {
+          stopFade("revert");
           el.setAttribute("data-track", track.id);
           el.src = sourceFor(track.src, signedInRef.current);
           setElapsed(0);
@@ -389,13 +602,18 @@ export default function PlayerProvider({
         .then(() => setBlocked(false))
         .catch(() => setBlocked(true));
     },
-    [queue, ensureGraph],
+    [queue, ensureGraph, stopFade],
   );
 
   const pause = useCallback(() => {
     wantsPlay.current = false;
+    /* Before pausing, not after: reverting hands the active deck back
+       its full volume, and pausing a deck that is half-way through
+       fading out would otherwise resume at whatever level it had
+       reached. */
+    stopFade("revert");
     audioRef.current?.pause();
-  }, []);
+  }, [stopFade]);
 
   const toggle = useCallback(() => {
     const el = audioRef.current;
@@ -406,10 +624,15 @@ export default function PlayerProvider({
 
   const next = useCallback(() => {
     if (!queue.length) return;
+    /* A deliberate skip is a cut, not a fade: somebody who presses Next
+       wants the next track now, and letting the overlap finish would
+       hold them on the one they are leaving. */
+    stopFade("revert");
     setIndex((i) => (shuffle ? randomOther(i, queue.length) : (i + 1) % queue.length));
-  }, [queue.length, shuffle]);
+  }, [queue.length, shuffle, stopFade]);
 
   const prev = useCallback(() => {
+    stopFade("revert");
     const el = audioRef.current;
     if (el && el.currentTime > 3) {
       el.currentTime = 0;
@@ -417,14 +640,21 @@ export default function PlayerProvider({
     }
     if (!queue.length) return;
     setIndex((i) => (shuffle ? randomOther(i, queue.length) : (i - 1 + queue.length) % queue.length));
-  }, [queue.length, shuffle]);
+  }, [queue.length, shuffle, stopFade]);
 
-  const seek = useCallback((fraction: number) => {
-    const el = audioRef.current;
-    if (!el || !Number.isFinite(el.duration)) return;
-    el.currentTime = Math.max(0, Math.min(1, fraction)) * el.duration;
-    setElapsed(el.currentTime);
-  }, []);
+  const seek = useCallback(
+    (fraction: number) => {
+      /* Scrubbing out of the tail cancels the overlap. Without this,
+         dragging back to the middle of a track would leave the next one
+         already playing underneath it. */
+      stopFade("revert");
+      const el = audioRef.current;
+      if (!el || !Number.isFinite(el.duration)) return;
+      el.currentTime = Math.max(0, Math.min(1, fraction)) * el.duration;
+      setElapsed(el.currentTime);
+    },
+    [stopFade],
+  );
 
   const setVolume = useCallback((v: number) => {
     setVolumeState(Math.max(0, Math.min(1, v)));
