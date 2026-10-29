@@ -255,15 +255,43 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# Email delivery: Resend.
+#
+# Supabase's built-in sender is for development — it rate-limits to a
+# couple of messages an hour and sends from a Supabase address, which is
+# not a thing to put in front of a paying customer. Resend takes over
+# delivery; the six templates below are unchanged and are still what
+# goes out, so this is a transport change and not a design one.
+#
+# odatone.com is ALREADY a verified Resend sending domain. Confirmed in
+# DNS on 2026-10-29:
+#
+#   resend._domainkey.odatone.com   TXT    DKIM public key
+#   send.odatone.com                CNAME  send.forge.rmta.net
+#   send.odatone.com                TXT    v=spf1 ip4:52.3.252.119 …
+#   send.odatone.com                MX     feedback.forge.rmta.net
+#
+# The apex SPF (`include:_spf.google.com`) is for Google Workspace
+# receiving and is not involved; Resend signs with DKIM and bounces via
+# the `send.` subdomain, so the two do not collide.
+#
+# This block stays COMMENTED because it configures the LOCAL stack, and
+# local must keep sending to Mailpit at http://127.0.0.1:54324. Switch
+# it on and every test signup mails a real address — the ones a test
+# invents, like `tredje@example.dk`, hard-bounce, and Resend charges
+# those against the domain's reputation.
+#
+# The hosted project is configured in the dashboard instead, with
+# exactly these values. See docs/email-delivery.md.
+#
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
+# host = "smtp.resend.com"
 # port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# user = "resend"
+# pass = "env(RESEND_API_KEY)"
+# admin_email = "info@odatone.com"
+# sender_name = "Odatone"
 
 [auth.email.template.invite]
 subject = "Din invitation til Odatone · Your Odatone invitation"
