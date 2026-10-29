@@ -115,6 +115,12 @@ export default function PlayerProvider({
   /** Playback restored from sessionStorage, waiting for the element to
       have the right src before the position and play state are applied. */
   const pending = useRef<{ trackId: string; time: number; playing: boolean } | null>(null);
+  /** Bumped whenever the listener takes control. A restore that is
+      still waiting on `loadedmetadata` compares the token it was
+      issued with against this before it plays, so pressing Pause in
+      that window is not undone a second later by a resume nobody
+      asked for. */
+  const restoreToken = useRef(0);
   const snapshot = useRef<PlaybackSnapshot | null>(null);
 
   const [filters, setFiltersState] = useState<Filters>(DEFAULT_FILTERS);
@@ -239,6 +245,7 @@ export default function PlayerProvider({
       if (!nextTrack || !to) return;
 
       to.setAttribute("data-track", nextTrack.id);
+      to.preload = "auto";
       to.src = sourceFor(nextTrack.src, signedInRef.current);
       to.currentTime = 0;
       to.volume = 0;
@@ -308,16 +315,37 @@ export default function PlayerProvider({
           time: restored.time,
           playing: restored.playing,
         };
-        wantsPlay.current = restored.playing;
+        /* `wantsPlay` is deliberately NOT set from the snapshot.
+           It used to be, and that is what made the player start on
+           its own: the load effect falls back to `playing ||
+           wantsPlay.current` whenever the restored track is not the
+           one being loaded, and plays it FROM THE START. That became
+           reachable on every visit the moment the catalogue changed —
+           every saved snapshot names a placeholder id that no longer
+           exists, so the restore never matches and the fallback
+           always fires.
+
+           Chrome is why this was invisible here and loud for anyone
+           using the site: autoplay is refused for a new profile, and
+           allowed for an origin you have engaged with before. A clean
+           headless browser is exactly the wrong place to notice it.
+
+           The restore below still resumes, because it has a track to
+           resume INTO. What is gone is resuming into whatever happens
+           to be first. */
       }
     }
 
     const made = [0, 1].map(() => {
       const a = new Audio();
-      /* "auto", not "metadata": the whole point is that the next track
-         is already buffered when the fade starts, so the overlap is
-         music rather than a stall. */
-      a.preload = "auto";
+      /* "metadata" until something is actually wanted. "auto" here —
+         which is what the crossfade first shipped with — had every
+         visitor download a megabyte of audio on page load whether or
+         not they ever pressed play, and five megabytes once signed in
+         and on full-length files. The incoming deck is switched to
+         "auto" at the moment a fade is set up instead, which is the
+         only point at which the bytes are genuinely needed. */
+      a.preload = "metadata";
       a.crossOrigin = "anonymous";
       return a;
     });
@@ -424,7 +452,11 @@ export default function PlayerProvider({
       const restore = pending.current;
       if (restore && restore.trackId === current.id) {
         pending.current = null;
+        const token = ++restoreToken.current;
         const seek = () => {
+          /* Metadata can arrive a second or two after the src is set,
+             and the listener may have pressed Pause in between. */
+          if (restoreToken.current !== token) return;
           if (Number.isFinite(el.duration)) {
             el.currentTime = Math.min(restore.time, Math.max(0, el.duration - 0.5));
           }
@@ -486,6 +518,11 @@ export default function PlayerProvider({
         setIndex(at);
         return;
       }
+      /* The saved track is not in this queue — a different filter, or
+         a catalogue that has been replaced under it. Forget it rather
+         than leaving it armed against whatever lands at this index. */
+      pending.current = null;
+      wantsPlay.current = false;
     }
     setIndex((i) => (queue.length === 0 ? 0 : Math.min(i, queue.length - 1)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -607,6 +644,10 @@ export default function PlayerProvider({
 
   const pause = useCallback(() => {
     wantsPlay.current = false;
+    /* Cancels a restore that has not landed yet, as well as the one
+       that is mid-flight — a pause means this listener is driving. */
+    restoreToken.current += 1;
+    pending.current = null;
     /* Before pausing, not after: reverting hands the active deck back
        its full volume, and pausing a deck that is half-way through
        fading out would otherwise resume at whatever level it had
