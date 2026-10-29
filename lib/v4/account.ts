@@ -132,6 +132,25 @@ type SubscriptionRow = {
  * rather than `quote()`'s compiled fallback, which is what
  * 0009_customer_plan_visibility.sql exists to allow.
  */
+/**
+ * Whether anyone is signed in at all — which is not the same question as
+ * `loadAccount`, and the difference is visible in the rail.
+ *
+ * `loadAccount` answers null for two unrelated situations: nobody is
+ * signed in, and somebody is signed in who has no customer (staff, by
+ * `profiles_tenancy_ck`). The rail reads that null as "a visitor" and
+ * shows the price pitch, so a staff member browsing the product is sold
+ * a subscription they are employed to sell.
+ *
+ * Cached alongside loadAccount and reading the same verified claims, so
+ * asking both in one render costs one round trip, not two.
+ */
+export const hasSession = cache(async (): Promise<boolean> => {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return typeof data?.claims?.sub === "string";
+});
+
 export const loadAccount = cache(async (locale: Locale): Promise<Account | null> => {
   const supabase = await createClient();
 

@@ -51,6 +51,19 @@
   /* Height of the site-wide player dock. Everything that must clear it
      reads this, so the bar can change height in one place. */
   --dock-h: 64px;
+
+  /* Height of the product shell's sticky header. Measured, not chosen:
+     the header is sized by its own contents (a 22px wordmark beside a
+     search input, inside py-3.5) and comes out at 73px at every width
+     where the rail is on screen — the rail is lg-and-up only, and the
+     header does not wrap until below that.
+
+     It exists because the rail has to begin exactly where the header
+     ends. Nothing enforces the two agree, so if the header's padding or
+     its search field ever change, this is the number that follows them;
+     being a few pixels out shows as a sliver of page scrolling behind
+     the header, or a gap above the rail. */
+  --header-h: 73px;
   /* The logo's own gradient. The only saturated colour on the site. */
   --g-brand: linear-gradient(100deg, #db00ff 0%, #7a3aff 46%, #3d7aff 100%);
 

@@ -16,7 +16,7 @@ import { activePlans } from "@/lib/plans-server";
 import { quote } from "@/lib/pricing";
 import { isFallback, type Fallback } from "@/lib/schedule";
 import { createClient } from "@/lib/supabase/server";
-import { loadAccount, type Account, type AccountTab } from "@/lib/v4/account";
+import { hasSession, loadAccount, type Account, type AccountTab } from "@/lib/v4/account";
 
 type InvoiceRow = {
   id: string;
@@ -71,10 +71,13 @@ export async function renderAccount(raw: string, expected: Locale, tab: AccountT
   const priceFrom = cheapest ? kr(Math.round(quote(cheapest, "monthly", 1).perLocation), locale) : "—";
 
   const account = await loadAccount(locale);
+  /* Not `account !== null`: that is also null for staff, who should
+     not be shown the price pitch meant for visitors. */
+  const signedIn = await hasSession();
 
   if (!account) {
     return (
-      <Shell locale={locale} priceFrom={priceFrom} active="account">
+      <Shell locale={locale} signedIn={signedIn} priceFrom={priceFrom} active="account">
         <section className="u-card flex flex-col items-start gap-3 p-8">
           <h1 className="u-display text-[1.5rem]">{t.account.signedOutHeading[locale]}</h1>
           <p className="max-w-[52ch] text-[0.9375rem] leading-relaxed text-ink-2">
@@ -91,6 +94,7 @@ export async function renderAccount(raw: string, expected: Locale, tab: AccountT
   return (
     <Shell
       locale={locale}
+      signedIn={signedIn}
       priceFrom={priceFrom}
       active="account"
       account={account.chrome}

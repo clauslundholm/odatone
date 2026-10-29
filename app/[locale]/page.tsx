@@ -6,7 +6,7 @@ import { LOCALES, isLocale, type Locale } from "@/lib/i18n";
 import { activePlans } from "@/lib/plans-server";
 import { kr } from "@/lib/format";
 import { quote } from "@/lib/pricing";
-import { loadAccount, loadWeekNow } from "@/lib/v4/account";
+import { hasSession, loadAccount, loadWeekNow } from "@/lib/v4/account";
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
@@ -54,6 +54,9 @@ export default async function HomePage({
     : "—";
 
   const account = await loadAccount(locale);
+  /* Not `account !== null`: that is also null for staff, who should
+     not be shown the price pitch meant for visitors. */
+  const signedIn = await hasSession();
   /* Only for a customer: the hero then reports their own week instead
      of selling the library, which is what the design asks for and what
      this extra read is for. */
@@ -62,6 +65,7 @@ export default async function HomePage({
   return (
     <Shell
       locale={locale}
+      signedIn={signedIn}
       priceFrom={priceFrom}
       rail={<Rail locale={locale} signedIn={Boolean(account)} />}
       account={account?.chrome ?? null}

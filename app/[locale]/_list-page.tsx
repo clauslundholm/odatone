@@ -11,7 +11,7 @@ import { activePlans } from "@/lib/plans-server";
 import { quote } from "@/lib/pricing";
 import { GENRES, isLang, type Genre } from "@/lib/tracks";
 import { createClient } from "@/lib/supabase/server";
-import { loadAccount } from "@/lib/v4/account";
+import { hasSession, loadAccount } from "@/lib/v4/account";
 
 type PlaylistRow = {
   id: string;
@@ -60,10 +60,13 @@ export async function renderList(raw: string, expected: Locale, id: string) {
   const priceFrom = cheapest ? kr(Math.round(quote(cheapest, "monthly", 1).perLocation), locale) : "—";
 
   const account = await loadAccount(locale);
+  /* Not `account !== null`: that is also null for staff, who should
+     not be shown the price pitch meant for visitors. */
+  const signedIn = await hasSession();
 
   if (!account) {
     return (
-      <Shell locale={locale} priceFrom={priceFrom} active="build">
+      <Shell locale={locale} signedIn={signedIn} priceFrom={priceFrom} active="build">
         <Notice locale={locale} message={t.list.signedOut[locale]} />
       </Shell>
     );
@@ -75,6 +78,7 @@ export async function renderList(raw: string, expected: Locale, id: string) {
     return (
       <Shell
         locale={locale}
+        signedIn={signedIn}
         priceFrom={priceFrom}
         active="build"
         account={account.chrome}
@@ -94,6 +98,7 @@ export async function renderList(raw: string, expected: Locale, id: string) {
     <ListProvider list={list}>
       <Shell
         locale={locale}
+        signedIn={signedIn}
         priceFrom={priceFrom}
         active="build"
         account={account.chrome}

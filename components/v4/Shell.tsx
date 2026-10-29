@@ -50,6 +50,7 @@ export default function Shell({
   active = "home",
   lists = [],
   account = null,
+  signedIn,
 }: {
   locale: Locale;
   children: ReactNode;
@@ -64,6 +65,13 @@ export default function Shell({
   /** The customer's saved lists, shown under "Dine lister" and draggable
       into the Ugeplan. Empty on every page that does not pass them. */
   lists?: { id: string; name: string; basedOn: string | null }[];
+  /** Whether anyone is signed in, which `account` cannot answer on its
+      own: it is null both for a visitor and for a staff member, who has
+      no customer by constraint. Only the price pitch reads this — a
+      staff member browsing the product should not be sold a
+      subscription. Defaults to whether there is an account, so a caller
+      that does not know stays exactly as it was. */
+  signedIn?: boolean;
   /** The signed-in customer, or null/absent for a visitor. Two things in
       this chrome change on it and nothing else does: the header's Log ind
       + trial pair becomes one account chip, and the rail's "from {price}"
@@ -77,6 +85,10 @@ export default function Shell({
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+
+  /* Falls back to "has an account" so a caller that does not pass it
+     behaves exactly as this component did before the prop existed. */
+  const isSignedIn = signedIn ?? Boolean(account);
 
   /* Closed by arriving somewhere, by Escape, and by the backdrop. A
      drawer that survives a navigation covers the page it just opened. */
@@ -283,10 +295,16 @@ export default function Shell({
             )}
           </div>
         ) : (
-          <div className="mt-auto rounded-[var(--radius-lg)] bg-surface-2 p-5">
-            <p className="u-num text-[1.0625rem] text-ink">{t.rail.priceFrom[l].replace("{price}", priceFrom)}</p>
-            <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-3">{t.rail.priceNote[l]}</p>
-          </div>
+          /* Only for a visitor. `account` is null for a staff member too —
+             they have no customer by constraint — so keying the pitch on
+             that alone sold a subscription to the people who sell it.
+             `signedIn` is the question actually being asked here. */
+          !isSignedIn && (
+            <div className="mt-auto rounded-[var(--radius-lg)] bg-surface-2 p-5">
+              <p className="u-num text-[1.0625rem] text-ink">{t.rail.priceFrom[l].replace("{price}", priceFrom)}</p>
+              <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-3">{t.rail.priceNote[l]}</p>
+            </div>
+          )
         )}
     </>
   );
@@ -368,9 +386,27 @@ export default function Shell({
             under its last link. */}
         {/* Below lg the rail is not on screen, so the same content is
             what the drawer shows — one definition, not two that drift. */}
+        {/* Sticky and viewport-tall, not as tall as the page. The rail is
+            the only navigation this chrome has, and it used to be 1,413px
+            of card on the front page — scroll down to the genres and the
+            way out scrolled away with them.
+
+            `sticky` rather than `fixed`: it keeps its place in the flex
+            row, so the main column's width still comes from the layout
+            instead of having to be padded around a rail that left the
+            flow. `self-start` is what stops the row stretching it back to
+            full content height, which would defeat the fixed height below.
+
+            The height is the viewport minus the two things already
+            occupying it — the sticky header above and the player dock
+            below — plus the same 24px the container pads with, so the
+            card stops level with the main column rather than running
+            under the bar. Anything taller than that scrolls inside the
+            card, which is what `oda-scroll` is for. */}
         <aside
           id="oda-rail"
-          className="hidden w-[232px] shrink-0 flex-col gap-6 rounded-[var(--radius-xl)] bg-surface p-4 lg:flex"
+          style={{ height: "calc(100dvh - var(--header-h) - var(--dock-h) - 1.5rem)" }}
+          className="oda-scroll sticky top-[var(--header-h)] hidden w-[232px] shrink-0 flex-col gap-6 self-start overflow-y-auto rounded-[var(--radius-xl)] bg-surface p-4 lg:flex"
         >
           {railBody}
         </aside>

@@ -12,7 +12,7 @@ import { activePlans } from "@/lib/plans-server";
 import { quote } from "@/lib/pricing";
 import { isFallback, type ScheduleBlock } from "@/lib/schedule";
 import { DEMO_LISTS } from "@/lib/v4/demo-week";
-import { loadAccount } from "@/lib/v4/account";
+import { hasSession, loadAccount } from "@/lib/v4/account";
 import { createClient } from "@/lib/supabase/server";
 
 type BlockRow = { id: string; playlist_id: string; weekday: number; from_min: number; to_min: number };
@@ -55,6 +55,10 @@ export async function renderSchedule(
      means this page and the shell share the single round trip. */
   const account = await loadAccount(locale);
   const signedIn = account !== null;
+  /* A separate question from the line above, which asks whether there
+     is a CUSTOMER. Staff have a session and no customer, and the rail's
+     price pitch is the one thing that needs to tell them apart. */
+  const anySession = await hasSession();
 
   let locations: PlannerLocation[] = [];
   let lists: WeekList[] = [];
@@ -110,6 +114,7 @@ export async function renderSchedule(
   return (
     <Shell
       locale={locale}
+      signedIn={anySession}
       priceFrom={priceFrom}
       active="schedule"
       lists={railLists}
