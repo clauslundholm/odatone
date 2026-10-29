@@ -27,11 +27,6 @@ export const v4 = {
     seasons: { da: "Sæsoner", en: "Seasons" } as L10n,
     moods: { da: "Stemninger", en: "Moods" } as L10n,
     yourLists: { da: "Dine lister", en: "Your lists" } as L10n,
-    newList: { da: "Ny liste", en: "New list" } as L10n,
-    newListNote: {
-      da: "Gemmes med en gratis profil",
-      en: "Saved with a free profile",
-    } as L10n,
     menu: { da: "Menu", en: "Menu" } as L10n,
     closeMenu: { da: "Luk menuen", en: "Close the menu" } as L10n,
     dragHint: {

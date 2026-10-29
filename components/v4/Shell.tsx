@@ -22,7 +22,6 @@ import {
   CloseIcon,
   MenuIcon,
   HomeIcon,
-  PlusIcon,
   SearchIcon,
   SeasonIcon,
   SlidersIcon,
@@ -248,28 +247,6 @@ export default function Shell({
             </Link>
           ))}
 
-          {/* Signed out this sells the profile a list needs; signed in
-              there already is one, so it simply says where the list goes
-              and leads to the builder rather than back to signup. */}
-          <Link
-            href={account ? `/${l}#${BUILDER_ID}` : href(l, "signup")}
-            className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-2 transition-colors hover:bg-surface-2"
-          >
-            <span
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius-sm)] text-white"
-              style={{ background: "var(--g-brand)" }}
-            >
-              <PlusIcon size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[0.9375rem] font-semibold text-ink">
-                {t.rail.newList[l]}
-              </span>
-              <span className="block text-[0.8125rem] leading-snug text-ink-3">
-                {account ? t.account.rail.newListNote[l] : t.rail.newListNote[l]}
-              </span>
-            </span>
-          </Link>
         </div>
 
         {/* The same block, one pitch and one statement of fact. For a
